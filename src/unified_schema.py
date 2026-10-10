@@ -87,6 +87,12 @@ def _to_float(value) -> float | None:
         return None
 
 
+def _km_from_text(value: str | None) -> float | None:
+    """Đổi '140.000 km' -> 140000.0."""
+    digits = re.sub(r"\D", "", value or "")
+    return float(digits) if digits else None
+
+
 def map_value(value: str | None, mapping: dict[str, str], unknown: str = "Unknown") -> str:
     """Ánh xạ nhãn tiếng Việt sang nhãn chuẩn; không khớp -> giữ nhãn gốc/Unknown."""
     key = _norm(value)
@@ -232,18 +238,27 @@ def build_unified(conn: sqlite3.Connection, lastmods: dict[str, str]) -> list[di
         price_vnd = _to_int(car.get("price_vnd")) or _to_int(detail.get("d_price_vnd"))
         raw_price = (car.get("price_text") or "").strip() or (detail.get("d_price_text") or "").strip()
 
+        # Dự phòng từ ul.list-info của trang chi tiết: tin ĐÃ BÁN không có data-call
+        # ở listing nên thiếu xuất xứ/loại xe/hộp số, nhưng trang chi tiết vẫn đủ.
+        origin_raw = car.get("origin") or specs.get("Xuất xứ", "")
+        body_raw = car.get("body_type") or specs.get("Kiểu dáng", "")
+        fuel_raw = car.get("fuel") or specs.get("Nhiên liệu", "")
+        gear_raw = car.get("gearbox") or specs.get("Hộp số", "")
+        year = _to_int(car.get("year")) or _to_int(specs.get("Năm SX"))
+        mileage = _to_float(car.get("km")) or _km_from_text(specs.get("Km đã đi"))
+
         rows.append({
             "listing_id": f"OTO_{car.get('id') or ''}",
             "source_platform": SOURCE_PLATFORM,
             "brand": car.get("brand") or "Unknown",
             "model": car.get("model") or "Unknown",
             "sub_model_trim": trim,
-            "manufacture_year": _to_int(car.get("year")),
-            "mileage_km": _to_float(car.get("km")),
-            "transmission": map_value(car.get("gearbox"), TRANSMISSION_MAP),
-            "fuel_type": map_value(car.get("fuel"), FUEL_MAP),
-            "origin": map_value(car.get("origin"), ORIGIN_MAP),
-            "body_type": map_value(car.get("body_type"), BODY_MAP),
+            "manufacture_year": year,
+            "mileage_km": mileage,
+            "transmission": map_value(gear_raw, TRANSMISSION_MAP),
+            "fuel_type": map_value(fuel_raw, FUEL_MAP),
+            "origin": map_value(origin_raw, ORIGIN_MAP),
+            "body_type": map_value(body_raw, BODY_MAP),
             "engine_capacity": derive_engine_capacity(
                 trim, detail.get("d_title", ""), car.get("car_name", "")
             ),

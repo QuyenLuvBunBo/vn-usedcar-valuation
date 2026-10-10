@@ -70,6 +70,23 @@ bảng `oto_cars` + `oto_car_details` trong `data/scraped.db`.
 Chi phí: **~2,4 giây/tin** ⇒ 2.706 tin mất khoảng **1,8 giờ**. Chạy lại sẽ **tiếp tục từ chỗ dừng**
 (tin nào đã có trong bảng `oto_car_details` thì bỏ qua; dùng `--detail-refresh` để cào lại hết).
 
+## Xuất Unified Schema 15 thuộc tính + 5 metadata (bàn giao Tuần 1)
+
+```powershell
+python -m src.unified_schema                 # dùng cache listing_date
+python -m src.unified_schema --fetch-sitemap # tải lại listing_date từ sitemap-detail
+```
+
+Kết quả: `data/processed/oto_unified.csv` (21 cột) + `.jsonl`, kèm bảng audit độ phủ từng cột.
+
+- Mapping từng cột → nguồn dữ liệu, độ phủ, và **những trường site không có**:
+  xem [`docs/oto_unified_schema.md`](docs/oto_unified_schema.md).
+- Độ phủ hiện tại: `price_vnd` / `raw_price_text` / `origin` / `seller_type` / `brand` / `model`
+  / `price_status` = **100%**; `mileage_km` 99,9%; `listing_date` 99,5%; `seats` 97,3%;
+  `body_type` 96,9%; `sub_model_trim` 89,1%; `engine_capacity` 76,9% (giá trị suy luận).
+- `listing_date` lấy từ `<lastmod>` của `sitemap-detail-*.xml` — là **ngày đăng/đẩy tin**, không
+  phải ngày đăng chính thức do site công bố (đã kiểm chứng tương quan với vị trí trang listing).
+
 ### Cách site hoạt động (kết quả recon)
 
 | Đặc điểm | Phát hiện |
