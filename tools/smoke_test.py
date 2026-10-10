@@ -98,6 +98,7 @@ def main() -> int:
         detail = parse_detail_page(detail_path.read_text(encoding="utf-8"), "https://oto.com.vn/x")
         check("d_title", detail["d_title"], "Honda CR-V 1.5 G 2021")
         check("d_price_vnd", detail["d_price_vnd"], 745_000_000)
+        check("d_price_text", detail["d_price_text"], "745 triệu")
         check("d_color", detail["d_color"], "Đỏ")
         check("d_seats", detail["d_seats"], 5)
         check("d_city_code", detail["d_city_code"], "SG")

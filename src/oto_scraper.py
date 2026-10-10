@@ -55,7 +55,7 @@ NUMERIC_COLUMNS = ("year", "price_vnd", "km", "sold")
 # --- Trang chi tiết (bảng riêng, ghép vào CSV khi xuất) ---
 DETAIL_TABLE = "oto_car_details"
 DETAIL_COLUMNS = [
-    "url", "d_title", "d_price_vnd", "d_color", "d_seats", "d_city_code",
+    "url", "d_title", "d_price_vnd", "d_price_text", "d_color", "d_seats", "d_city_code",
     "d_make_id", "d_model_id", "d_city_id", "d_segment_id", "d_seller_id",
     "d_vip_type", "d_image_count", "d_image_1", "d_seller_name",
     "d_seller_url", "d_seller_address", "d_description", "d_specs",
@@ -329,10 +329,19 @@ def parse_detail_page(html_text: str, url: str) -> dict:
         '//div[contains(@class,"content-description")]//div[contains(@class,"description")]'
     )
 
+    # Giá hiển thị: span.price nằm trong span.price-big; phải loại price-big ra
+    # (nếu không, text node đầu tiên sẽ là khoảng trắng -> rỗng).
+    price_nodes = tree.xpath(
+        '//div[contains(@class,"box-price")]//span[contains(@class,"price")'
+        ' and not(contains(@class,"price-big"))]'
+    )
+    price_text = _text_of(price_nodes[0]) if price_nodes else ""
+
     return {
         "url": url,
         "d_title": _first(tree, '//h1[contains(@class,"title-detail")]//text()'),
         "d_price_vnd": _int_or_none(hidden.get("price")),
+        "d_price_text": price_text,
         "d_color": color,
         "d_seats": _int_or_none(hidden.get("numberOfSeat")) or None,
         "d_city_code": hidden.get("cityCode", ""),
@@ -388,14 +397,21 @@ def enrich_details(
     limit: int | None = None,
     refresh: bool = False,
     save_raw: bool = False,
+    only_urls: set[str] | None = None,
 ) -> int:
-    """Cào trang chi tiết cho các tin chưa có (đã có thì bỏ qua -> chạy tiếp được)."""
+    """Cào trang chi tiết cho các tin chưa có (đã có thì bỏ qua -> chạy tiếp được).
+
+    only_urls: chỉ cào đúng danh sách URL này (dùng để cào bù một nhóm nhỏ tin).
+    """
     storage.create_table(conn, DETAIL_TABLE, DETAIL_COLUMNS)
     storage.ensure_columns(conn, DETAIL_TABLE, DETAIL_COLUMNS)
 
     done = set() if refresh else {r[0] for r in conn.execute(f'SELECT url FROM "{DETAIL_TABLE}"')}
     urls = [r[0] for r in conn.execute(f'SELECT url FROM "{TABLE}" ORDER BY url')]
-    todo = [u for u in urls if u not in done]
+    if only_urls is not None:
+        todo = [u for u in urls if u in only_urls]
+    else:
+        todo = [u for u in urls if u not in done]
     if limit is not None:
         todo = todo[:limit]
     log.info("Trang chi tiết: cần cào %s tin (đã có %s / tổng %s)", len(todo), len(done), len(urls))
@@ -632,14 +648,18 @@ def build_parser() -> argparse.ArgumentParser:
                         help="cào lại chi tiết cả những tin đã có (mặc định bỏ qua tin đã có)")
     parser.add_argument("--detail-save-raw", action="store_true",
                         help="lưu HTML thô trang chi tiết vào data/raw (tốn dung lượng)")
+    parser.add_argument("--detail-missing-price", action="store_true",
+                        help="cào lại chi tiết cho các tin THIẾU GIÁ ở listing, để lấy raw_price_text")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     setup_logging()
+    if args.detail_missing_price:
+        args.detail_only = True  # cào bù chi tiết -> chỉ đọc DB, không cào lại listing
     if args.detail_only:
-        args.from_db = True  # chỉ cào trang chi tiết, không cào lại listing
+        args.from_db = True
 
     conn = storage.open_db()
     storage.create_table(conn, TABLE, COLUMNS)
@@ -688,6 +708,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Cào thêm trang chi tiết nếu được yêu cầu (~1 request/tin)
     if args.detail or args.detail_only:
+        only_urls = None
+        if args.detail_missing_price:
+            only_urls = {r["url"] for r in all_rows if not (r.get("price_text") or "").strip()}
+            log.info("Cào bù chi tiết cho %s tin thiếu giá ở listing", len(only_urls))
         with ScraperSession() as session:
             enrich_details(
                 session,
@@ -695,6 +719,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 limit=args.detail_limit,
                 refresh=args.detail_refresh,
                 save_raw=args.detail_save_raw,
+                only_urls=only_urls,
             )
 
     # Ghép dữ liệu chi tiết (nếu đã có) vào record rồi mới xuất file
