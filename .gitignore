@@ -1,0 +1,35 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Secrets / cấu hình cục bộ (vẫn giữ file mẫu .env.example)
+.env
+.env.*
+!.env.example
+
+# Dữ liệu cào được (không commit dữ liệu thô, chỉ giữ khung thư mục)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/*.db
+*.sqlite3
+
+# Log & checkpoint
+logs/*
+!logs/.gitkeep
+*.log
+.ckpt.json
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

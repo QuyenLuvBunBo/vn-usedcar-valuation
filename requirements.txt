@@ -1,0 +1,14 @@
+# --- Bắt buộc ---
+requests>=2.34            # HTTP client
+lxml>=6.1                 # parse HTML/XML (nhanh, hỗ trợ XPath)
+python-dotenv>=1.2        # đọc cấu hình từ .env
+tqdm>=4.68                # thanh tiến độ khi cào nhiều trang
+
+# --- Tùy chọn, cài khi cần ---
+# pandas>=3.0             # làm sạch / phân tích dữ liệu
+# openpyxl>=3.1           # xuất Excel
+# playwright>=1.62        # trang render bằng JavaScript (SPA)
+# cssselect>=1.2          # dùng html.cssselect() của lxml
+# beautifulsoup4>=4.13    # parse HTML kiểu soup (dễ đọc, chậm hơn lxml)
+# httpx>=0.28             # HTTP client hỗ trợ async
+# pyarrow>=21.0           # xuất Parquet
