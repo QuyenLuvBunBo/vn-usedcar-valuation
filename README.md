@@ -44,10 +44,31 @@ python -m src.oto_scraper --exclude-sold        # bỏ tin đã bán
 python -m src.oto_scraper --save-raw            # lưu thêm HTML thô từng trang
 python -m src.oto_scraper --from-raw            # sửa parser xong: parse lại HTML thô, không cào lại
 python -m src.oto_scraper --from-db             # chỉ xuất lại CSV/JSONL từ DB
+python -m src.oto_scraper --detail-only         # cào THÊM trang chi tiết (không cào lại listing)
+python -m src.oto_scraper --detail-only --detail-limit 20   # test nhanh 20 tin
 ```
 
 Kết quả: `data/processed/oto_cars.csv`, `data/processed/oto_cars.jsonl`,
-bảng `oto_cars` trong `data/scraped.db`.
+bảng `oto_cars` + `oto_car_details` trong `data/scraped.db`.
+
+### Cào thêm trang chi tiết từng xe (`--detail`)
+
+| Thông tin | Có trên trang chi tiết? | Ghi chú |
+|---|---|---|
+| **Mô tả của người bán** | ✅ `div.content-description .description` | dùng cho phân tích văn bản/NLP |
+| **Màu xe** | ✅ `data-tragia` (phần tử thứ 8) | tin đã bán bị gỡ nút nên mất màu |
+| **Số chỗ ngồi** | ✅ input ẩn `#numberOfSeat` | listing không có |
+| **Giá dạng số** | ✅ input ẩn `#price` (vd `745000000`) | dùng để kiểm chéo với giá ở listing |
+| **Tên + địa chỉ + subdomain salon** | ✅ `div.box-salon` (`h3.name`, `.des p`, `.link-sub-domain`) | cá nhân bán cũng có tên/địa chỉ |
+| **Toàn bộ ảnh** | ✅ ảnh `/crop/640x480/` + `#countImage` | lưu ảnh đầu + số lượng ảnh |
+| **ID hãng/dòng/tỉnh/phân khúc/người bán** | ✅ `#hddMakeId`, `#hddModelId`, `#hddCityId`, `#hddSegmentId`, `#hddUserId` | khớp khóa nội bộ của site |
+| **8 thông số** (Năm SX, Nhiên liệu, Kiểu dáng, Tình trạng, Km đã đi, Hộp số, Xuất xứ, Tỉnh thành) | ✅ `ul.list-info` | trùng với dữ liệu listing |
+| **Ngày đăng tin** | ❌ không có | site không hiển thị ở đâu cả |
+| **Lượt xem** | ❌ không có | |
+| **Thông số kỹ thuật chi tiết** (động cơ, công suất, kích thước) | ❌ không có | tab "Thông số kỹ thuật" không chứa dữ liệu này |
+
+Chi phí: **~2,4 giây/tin** ⇒ 2.706 tin mất khoảng **1,8 giờ**. Chạy lại sẽ **tiếp tục từ chỗ dừng**
+(tin nào đã có trong bảng `oto_car_details` thì bỏ qua; dùng `--detail-refresh` để cào lại hết).
 
 ### Cách site hoạt động (kết quả recon)
 

@@ -5,6 +5,7 @@ Chạy: python -m tools.smoke_test
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from src.oto_scraper import (  # noqa: E402
     coerce_numeric,
     dedupe_rows,
     parse_data_call,
+    parse_detail_page,
     parse_km,
     parse_list_page,
     parse_price,
@@ -89,6 +91,32 @@ def main() -> int:
         check(f"{p.name} số tin đã bán", sum(r["sold"] for r in records), n_sold)
         check(f"{p.name} lọc --exclude-sold", len([r for r in records if not r["sold"]]), n_items - n_sold)
         check(f"{p.name} url tuyệt đối", all(r["url"].startswith("https://oto.com.vn/") for r in records), True)
+
+    print("\n### parse_detail_page (trang chi tiết)")
+    detail_path = Path("data/raw/recon_detail2.html")
+    if detail_path.exists():
+        detail = parse_detail_page(detail_path.read_text(encoding="utf-8"), "https://oto.com.vn/x")
+        check("d_title", detail["d_title"], "Honda CR-V 1.5 G 2021")
+        check("d_price_vnd", detail["d_price_vnd"], 745_000_000)
+        check("d_color", detail["d_color"], "Đỏ")
+        check("d_seats", detail["d_seats"], 5)
+        check("d_city_code", detail["d_city_code"], "SG")
+        check("d_make_id", detail["d_make_id"], 28)
+        check("d_model_id", detail["d_model_id"], 541)
+        check("d_seller_id", detail["d_seller_id"], 21004)
+        check("d_image_count", detail["d_image_count"], 22)
+        check("d_seller_name", detail["d_seller_name"], "Auto 9X")
+        check("d_seller_url", detail["d_seller_url"], "https://auto9x.oto.com.vn")
+        check("có địa chỉ salon", detail["d_seller_address"].startswith("792 "), True)
+        check("có mô tả", len(detail["d_description"]) > 20, True)
+        check("d_image_1 là ảnh crop", "/crop/640x480/" in detail["d_image_1"], True)
+        specs = json.loads(detail["d_specs"] or "{}")
+        check("specs có 8 mục", len(specs), 8)
+        check("specs Năm SX", specs.get("Năm SX"), "2021")
+        check("specs Tình trạng", specs.get("Tình trạng"), "Xe cũ")
+        check("specs Km đã đi", specs.get("Km đã đi"), "30.000 km")
+    else:
+        print("  [SKIP] data/raw/recon_detail2.html không tồn tại")
 
     print(f"\n{'=' * 40}\nPASS {PASSED} | FAIL {FAILED}")
     return 1 if FAILED else 0

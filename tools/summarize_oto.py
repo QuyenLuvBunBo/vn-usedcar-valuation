@@ -65,6 +65,28 @@ def main() -> None:
     missing = missing[missing > 0]
     print(missing.to_string() if len(missing) else "  (không có)")
 
+    print("\n### Dữ liệu trang chi tiết (nếu đã cào)")
+    if "d_title" in df.columns and df["d_title"].notna().any():
+        have = int(df["d_title"].notna().sum())
+        print(f"  Đã có chi tiết: {have}/{len(df)} tin")
+        for col in ("d_price_vnd", "d_color", "d_seats", "d_image_count",
+                    "d_seller_name", "d_seller_address", "d_description", "d_specs"):
+            if col in df.columns:
+                n = int(df[col].notna().sum())
+                print(f"  {col:18s} {n:5d} ({n / len(df) * 100:5.1f}%)")
+
+        both = df.dropna(subset=["price_vnd", "d_price_vnd"])
+        if len(both):
+            mismatch = int((both["price_vnd"].astype("int64") != both["d_price_vnd"].astype("int64")).sum())
+            print(f"  Kiểm chéo giá listing vs chi tiết: khớp {len(both) - mismatch}/{len(both)} "
+                  f"(lệch {mismatch})")
+
+        sold_detail = df[df["d_title"].notna()]
+        print(f"  Trong số đã cào chi tiết: đã bán {int(sold_detail['sold'].sum())}, "
+              f"thiếu màu {int(sold_detail['d_color'].isna().sum())}")
+    else:
+        print("  (chưa cào trang chi tiết — chạy: python -m src.oto_scraper --detail)")
+
     print("\n### Kiểm tra trùng lặp")
     print(f"  url trùng        : {int(df['url'].duplicated().sum())}")
     print(f"  id trùng         : {int(df['id'].duplicated().sum())}")

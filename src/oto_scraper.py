@@ -13,6 +13,7 @@ Chạy:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import math
 import re
@@ -50,6 +51,18 @@ COLUMNS = [
 ]
 
 NUMERIC_COLUMNS = ("year", "price_vnd", "km", "sold")
+
+# --- Trang chi tiết (bảng riêng, ghép vào CSV khi xuất) ---
+DETAIL_TABLE = "oto_car_details"
+DETAIL_COLUMNS = [
+    "url", "d_title", "d_price_vnd", "d_color", "d_seats", "d_city_code",
+    "d_make_id", "d_model_id", "d_city_id", "d_segment_id", "d_seller_id",
+    "d_vip_type", "d_image_count", "d_image_1", "d_seller_name",
+    "d_seller_url", "d_seller_address", "d_description", "d_specs",
+]
+DETAIL_EXPORT_COLUMNS = COLUMNS + [c for c in DETAIL_COLUMNS if c != "url"]
+DESCRIPTION_MAX = 4000
+DETAIL_BATCH = 25
 
 ITEM_XPATH = '//div[contains(@class,"item-car") and contains(@class,"dev-item-car")]'
 # Site viết lẫn lộn "tỷ"/"tỉ", "nghìn"/"ngàn" -> nhận cả hai.
@@ -246,7 +259,173 @@ def parse_list_page(html_text: str, page_url: str) -> list[dict]:
 
 
 
+# --------------------------------------------------------------- trang chi tiết
+def _hidden_inputs(tree) -> dict[str, str]:
+    """Lấy toàn bộ <input type="hidden"> thành dict id -> value."""
+    return {
+        inp.get("id"): _clean(inp.get("value"))
+        for inp in tree.xpath("//input[@type='hidden']")
+        if inp.get("id")
+    }
+
+
+def _int_or_none(value: str | None) -> int | None:
+    """Đổi chuỗi số (có thể lẫn dấu) thành int; None nếu rỗng."""
+    digits = re.sub(r"\D", "", value or "")
+    return int(digits) if digits else None
+
+
+def parse_detail_page(html_text: str, url: str) -> dict:
+    """Bóc thông tin trang chi tiết của 1 tin đăng.
+
+    Trang chi tiết KHÔNG có ngày đăng và KHÔNG có bảng thông số kỹ thuật chi tiết
+    (động cơ/công suất/kích thước). Những gì lấy được:
+      - input ẩn  : #price (giá dạng số), #numberOfSeat (số chỗ), #cityCode,
+                    #hddMakeId, #hddModelId, #hddCityId, #hddSegmentId,
+                    #hddUserId (id người bán), #hddVipType, #countImage
+      - data-tragia : tên hãng/dòng/tình trạng/xuất xứ/năm/giá/loại xe/MÀU/listtype
+      - ul.list-info: Năm SX, Nhiên liệu, Kiểu dáng, Tình trạng, Km đã đi, Hộp số,
+                      Xuất xứ, Tỉnh thành
+      - .box-salon  : tên salon/người bán, subdomain, địa chỉ, avatar
+      - .content-description .description : mô tả của người bán
+      - ảnh gallery (ảnh /crop/640x480/...)
+    """
+    tree = html.fromstring(html_text)
+    hidden = _hidden_inputs(tree)
+
+    # 8 thông số trong ul.list-info (nhãn nằm trong <label>, giá trị là text/div con)
+    specs: dict[str, str] = {}
+    for li in tree.xpath('//ul[contains(@class,"list-info")]/li'):
+        label = _first(li, ".//label/text()").rstrip(":")
+        text = _text_of(li)
+        value = text[len(label):].lstrip(": ").strip() if label and text.startswith(label) else text
+        if label:
+            specs[label] = value
+
+    # màu xe nằm trong data-tragia: hãng.dòng.tình trạng.xuất xứ.năm.giá.loại xe.MÀU.listtype...
+    color = ""
+    tragia = tree.xpath("//*[@data-tragia]/@data-tragia")
+    if tragia:
+        parts = tragia[0].rstrip(".").split(".")
+        if len(parts) >= 8:
+            color = _clean(parts[7])
+
+    salon_nodes = tree.xpath('//div[contains(@class,"box-salon")]')
+    salon = salon_nodes[0] if salon_nodes else None
+
+    # Tên salon: lấy TOÀN BỘ text của h3 (tên nằm trong <a> con, text node đầu là khoảng trắng)
+    seller_name = ""
+    if salon is not None:
+        name_nodes = salon.xpath('.//h3[contains(@class,"name")]')
+        if name_nodes:
+            seller_name = _text_of(name_nodes[0])
+
+    images: list[str] = []
+    for src in tree.xpath("//img/@data-src") + tree.xpath("//img/@src"):
+        if "/crop/640x480/" in src and src not in images:
+            images.append(src)
+
+    desc_nodes = tree.xpath(
+        '//div[contains(@class,"content-description")]//div[contains(@class,"description")]'
+    )
+
+    return {
+        "url": url,
+        "d_title": _first(tree, '//h1[contains(@class,"title-detail")]//text()'),
+        "d_price_vnd": _int_or_none(hidden.get("price")),
+        "d_color": color,
+        "d_seats": _int_or_none(hidden.get("numberOfSeat")) or None,
+        "d_city_code": hidden.get("cityCode", ""),
+        "d_make_id": _int_or_none(hidden.get("hddMakeId")) or None,
+        "d_model_id": _int_or_none(hidden.get("hddModelId")) or None,
+        "d_city_id": _int_or_none(hidden.get("hddCityId")) or None,
+        "d_segment_id": _int_or_none(hidden.get("hddSegmentId")) or None,
+        "d_seller_id": _int_or_none(hidden.get("hddUserId")) or None,
+        "d_vip_type": hidden.get("hddVipType", ""),
+        "d_image_count": _int_or_none(hidden.get("countImage")) or (len(images) or None),
+        "d_image_1": images[0] if images else "",
+        "d_seller_name": seller_name,
+        "d_seller_url": (
+            _first(salon, './/h3[contains(@class,"name")]//a/@href')
+            or _first(salon, './/*[contains(@class,"link-sub-domain")]//a/@href')
+        ) if salon is not None else "",
+        "d_seller_address": _first(salon, './/*[contains(@class,"des")]//p//text()') if salon is not None else "",
+        "d_description": _text_of(desc_nodes[0])[:DESCRIPTION_MAX] if desc_nodes else "",
+        "d_specs": json.dumps(specs, ensure_ascii=False) if specs else "",
+    }
+
+
+
+def table_exists(conn, name: str) -> bool:
+    """Kiểm tra bảng đã tồn tại trong SQLite chưa."""
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+    ).fetchone()
+    return row is not None
+
+
+def merge_details(conn, rows: list[dict]) -> list[dict]:
+    """Ghép dữ liệu trang chi tiết (bảng riêng) vào record để xuất CSV/JSONL.
+
+    Để riêng một bảng vì dữ liệu chi tiết chỉ có sau khi cào thêm: nếu ghi chung
+    vào oto_cars thì mỗi lần cào lại listing (ON CONFLICT DO UPDATE) sẽ xoá mất
+    các cột chi tiết này.
+    """
+    if not rows or not table_exists(conn, DETAIL_TABLE):
+        return rows
+    details = {r["url"]: r for r in storage.read_rows(conn, DETAIL_TABLE)}
+    for row in rows:
+        detail = details.get(row.get("url"))
+        for col in DETAIL_COLUMNS:
+            if col != "url":
+                row[col] = detail.get(col) if detail else None
+    return rows
+
+
+def enrich_details(
+    session: ScraperSession,
+    conn,
+    limit: int | None = None,
+    refresh: bool = False,
+    save_raw: bool = False,
+) -> int:
+    """Cào trang chi tiết cho các tin chưa có (đã có thì bỏ qua -> chạy tiếp được)."""
+    storage.create_table(conn, DETAIL_TABLE, DETAIL_COLUMNS)
+    storage.ensure_columns(conn, DETAIL_TABLE, DETAIL_COLUMNS)
+
+    done = set() if refresh else {r[0] for r in conn.execute(f'SELECT url FROM "{DETAIL_TABLE}"')}
+    urls = [r[0] for r in conn.execute(f'SELECT url FROM "{TABLE}" ORDER BY url')]
+    todo = [u for u in urls if u not in done]
+    if limit is not None:
+        todo = todo[:limit]
+    log.info("Trang chi tiết: cần cào %s tin (đã có %s / tổng %s)", len(todo), len(done), len(urls))
+    if not todo:
+        return 0
+
+    buffer: list[dict] = []
+    ok = fail = 0
+    for url in tqdm(todo, desc="Chi tiết", unit="tin"):
+        html_text = session.get_text(url, headers={"Referer": f"{BASE_URL}/mua-ban-xe"})
+        if html_text is None:
+            fail += 1
+            continue
+        if save_raw:
+            storage.save_raw(html_text, f"detail_{url.rsplit('aidxc', 1)[-1]}")
+        buffer.append(parse_detail_page(html_text, url))
+        ok += 1
+        if len(buffer) >= DETAIL_BATCH:
+            storage.upsert_rows(conn, DETAIL_TABLE, buffer)
+            buffer.clear()
+    if buffer:
+        storage.upsert_rows(conn, DETAIL_TABLE, buffer)
+    log.info("Trang chi tiết: xong %s tin, lỗi %s tin", ok, fail)
+    return ok
+
+
 # --------------------------------------------------------------- parse lại raw
+
+
+
 RAW_PAGE_RE = re.compile(r"^oto_(?P<brand>[a-z]+)_p(?P<page>\d+)\.html$")
 
 
@@ -442,12 +621,25 @@ def build_parser() -> argparse.ArgumentParser:
                         help="không cào, chỉ xuất lại CSV/JSONL từ dữ liệu có trong DB")
     parser.add_argument("--from-raw", action="store_true",
                         help="không cào, parse lại HTML thô trong data/raw (dùng khi vừa sửa parser)")
+    parser.add_argument("--detail", action="store_true",
+                        help="cào thêm trang chi tiết từng tin (mô tả, màu, số chỗ, salon...); "
+                             "~1 request/tin nên chạy sẽ lâu")
+    parser.add_argument("--detail-only", action="store_true",
+                        help="chỉ cào trang chi tiết từ danh sách tin có trong DB (không cào lại listing)")
+    parser.add_argument("--detail-limit", type=int, default=None,
+                        help="giới hạn số tin cào chi tiết (dùng để test nhanh)")
+    parser.add_argument("--detail-refresh", action="store_true",
+                        help="cào lại chi tiết cả những tin đã có (mặc định bỏ qua tin đã có)")
+    parser.add_argument("--detail-save-raw", action="store_true",
+                        help="lưu HTML thô trang chi tiết vào data/raw (tốn dung lượng)")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     setup_logging()
+    if args.detail_only:
+        args.from_db = True  # chỉ cào trang chi tiết, không cào lại listing
 
     conn = storage.open_db()
     storage.create_table(conn, TABLE, COLUMNS)
@@ -494,7 +686,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     for row in all_rows:
         per_brand[row.get("brand") or "?"] += 1
 
-    csv_path = storage.save_csv(all_rows, args.out, COLUMNS)
+    # Cào thêm trang chi tiết nếu được yêu cầu (~1 request/tin)
+    if args.detail or args.detail_only:
+        with ScraperSession() as session:
+            enrich_details(
+                session,
+                conn,
+                limit=args.detail_limit,
+                refresh=args.detail_refresh,
+                save_raw=args.detail_save_raw,
+            )
+
+    # Ghép dữ liệu chi tiết (nếu đã có) vào record rồi mới xuất file
+    detail_count = storage.count_rows(conn, DETAIL_TABLE) if table_exists(conn, DETAIL_TABLE) else 0
+    if detail_count:
+        all_rows = merge_details(conn, all_rows)
+        export_columns = DETAIL_EXPORT_COLUMNS
+    else:
+        export_columns = COLUMNS
+
+    csv_path = storage.save_csv(all_rows, args.out, export_columns)
     jsonl_path = storage.save_jsonl(all_rows, args.out)
 
     total_db = storage.count_rows(conn, TABLE)
@@ -509,6 +720,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     sold_count = sum(1 for r in all_rows if r.get("sold"))
     log.info("Trong đó đã bán     : %s tin (%.1f%%) — dùng --exclude-sold để bỏ",
              sold_count, sold_count / len(all_rows) * 100 if all_rows else 0)
+    if detail_count:
+        log.info("Đã có trang chi tiết: %s tin (đã ghép vào CSV/JSONL)", detail_count)
     log.info("CSV   : %s", csv_path)
     log.info("JSONL : %s", jsonl_path)
 
