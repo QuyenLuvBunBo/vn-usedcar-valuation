@@ -40,11 +40,16 @@ def save_json(records: Iterable[dict], name: str) -> Path:
     return path
 
 
-def save_jsonl(records: Iterable[dict], name: str) -> Path:
-    """Lưu mỗi record 1 dòng JSON (phù hợp dữ liệu lớn, ghi nối tiếp)."""
+def save_jsonl(records: Iterable[dict], name: str, append: bool = False) -> Path:
+    """Lưu mỗi record 1 dòng JSON.
+
+    append=True khi cần ghi nối tiếp (dữ liệu lớn); mặc định ghi đè để mỗi lần
+    xuất là một file sạch, không bị nhân bản record.
+    """
     config.ensure_dirs()
     path = config.DATA_PROCESSED / f"{name}.jsonl"
-    with path.open("a", encoding="utf-8") as f:
+    mode = "a" if append else "w"
+    with path.open(mode, encoding="utf-8") as f:
         for rec in records:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     return path
@@ -89,23 +94,46 @@ def create_table(conn: sqlite3.Connection, table: str, columns: Sequence[str]) -
     conn.commit()
 
 
+def ensure_columns(conn: sqlite3.Connection, table: str, columns: Sequence[str]) -> None:
+    """Thêm cột còn thiếu vào bảng đã tồn tại (migration nhẹ cho SQLite)."""
+    existing = {row[1] for row in conn.execute(f'PRAGMA table_info("{table}")')}
+    for column in columns:
+        if column not in existing:
+            conn.execute(f'ALTER TABLE "{table}" ADD COLUMN "{column}" TEXT')
+    conn.commit()
+
+
 def upsert_rows(conn: sqlite3.Connection, table: str, rows: Sequence[dict]) -> int:
-    """Chèn bỏ qua record đã có (theo url) — chạy lại không bị nhân đôi dữ liệu."""
+    """Ghi/cập nhật record theo khóa url.
+
+    Dùng ON CONFLICT DO UPDATE (không phải INSERT OR IGNORE) để chạy lại sau khi
+    sửa parser sẽ làm mới dữ liệu cũ thay vì giữ mãi bản ghi lỗi.
+    """
     if not rows:
         return 0
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     cols = list(rows[0].keys())
     placeholders = ", ".join(f":{c}" for c in cols)
     names = ", ".join(f'"{c}"' for c in cols)
+    updates = ", ".join(f'"{c}"=excluded."{c}"' for c in cols if c != "url")
     payload = [{**r, "scraped_at": now} for r in rows]
     cur = conn.executemany(
-        f'INSERT OR IGNORE INTO "{table}" ({names}, "scraped_at") VALUES ({placeholders}, :scraped_at)',
+        f'INSERT INTO "{table}" ({names}, "scraped_at") VALUES ({placeholders}, :scraped_at) '
+        f'ON CONFLICT("url") DO UPDATE SET {updates}, "scraped_at"=excluded."scraped_at"',
         payload,
     )
     conn.commit()
     return cur.rowcount
 
 
+
 def count_rows(conn: sqlite3.Connection, table: str) -> int:
     """Đếm số record hiện có trong bảng."""
     return int(conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0])
+
+
+def read_rows(conn: sqlite3.Connection, table: str) -> list[dict]:
+    """Đọc toàn bộ bảng thành list[dict] (để xuất lại CSV/JSONL không cần cào lại)."""
+    cursor = conn.execute(f'SELECT * FROM "{table}"')
+    return [dict(row) for row in cursor.fetchall()]
+
