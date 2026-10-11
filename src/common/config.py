@@ -11,9 +11,19 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parent.parent
+
+def _find_root(start: Path) -> Path:
+    """Tìm thư mục gốc repo (nơi có requirements.txt / .git) để mọi nguồn dùng chung data/."""
+    for parent in (start, *start.parents):
+        if (parent / "requirements.txt").exists() or (parent / ".git").exists():
+            return parent
+    return start
+
+
+ROOT = _find_root(Path(__file__).resolve().parent)
 DATA_RAW = ROOT / "data" / "raw"
 DATA_PROCESSED = ROOT / "data" / "processed"
+DATA_MASTER = ROOT / "data" / "master"
 LOGS_DIR = ROOT / "logs"
 
 load_dotenv(ROOT / ".env")
@@ -54,5 +64,12 @@ TIMEOUT = int(_get("TIMEOUT", "20"))  # giây
 
 def ensure_dirs() -> None:
     """Tạo sẵn các thư mục dữ liệu nếu chưa tồn tại."""
-    for path in (DATA_RAW, DATA_PROCESSED, LOGS_DIR):
+    for path in (DATA_RAW, DATA_PROCESSED, DATA_MASTER, LOGS_DIR):
         path.mkdir(parents=True, exist_ok=True)
+
+
+def now_iso() -> str:
+    """Thời điểm hiện tại dạng ISO 8601 UTC (dùng cho cột scraped_at)."""
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")

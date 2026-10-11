@@ -19,8 +19,13 @@ data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+data/master/*
+!data/master/.gitkeep
 data/*.db
 *.sqlite3
+
+# Notebook: bỏ checkpoint, giữ file .ipynb (nên strip output trước khi commit)
+.ipynb_checkpoints/
 
 # Log & checkpoint
 logs/*

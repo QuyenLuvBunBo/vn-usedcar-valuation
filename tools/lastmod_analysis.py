@@ -14,7 +14,7 @@ from datetime import datetime
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from src.http_client import ScraperSession  # noqa: E402
+from src.common.http_client import ScraperSession  # noqa: E402
 
 SITEMAPS = ("sitemap-detail-1.xml", "sitemap-detail-2.xml")
 ENTRY_RE = re.compile(r"<loc>([^<]+)</loc><lastmod>([^<]+)</lastmod>")

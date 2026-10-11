@@ -12,7 +12,7 @@ from pathlib import Path
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from src.oto_scraper import (  # noqa: E402
+from src.sources.oto.crawl import (  # noqa: E402
     coerce_numeric,
     dedupe_rows,
     parse_data_call,

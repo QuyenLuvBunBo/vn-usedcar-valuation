@@ -15,7 +15,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from lxml import html  # noqa: E402
 
-from src.oto_scraper import COLUMNS, ITEM_XPATH, parse_list_page  # noqa: E402
+from src.sources.oto.crawl import COLUMNS, ITEM_XPATH, parse_list_page  # noqa: E402
 
 
 def check(path: Path) -> tuple[int, int, Counter, Counter]:

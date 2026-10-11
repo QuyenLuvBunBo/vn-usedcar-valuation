@@ -12,7 +12,7 @@ import sys
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from src.http_client import ScraperSession  # noqa: E402
+from src.common.http_client import ScraperSession  # noqa: E402
 
 MARKERS = ("tel:", "data-phone", "btn-tel", "icon-phone", "btn-call",
            "Hết hạn", "hết hạn", "Đã bán", "đã bán", "sold", "Sold")

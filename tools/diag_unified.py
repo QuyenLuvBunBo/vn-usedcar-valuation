@@ -12,8 +12,8 @@ from collections import Counter
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from src import storage  # noqa: E402
-from src.unified_schema import derive_engine_capacity, derive_trim  # noqa: E402
+from src.common import storage  # noqa: E402
+from src.sources.oto.unified import derive_engine_capacity, derive_trim  # noqa: E402
 
 
 def main() -> None:

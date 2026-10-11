@@ -14,7 +14,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from lxml import html  # noqa: E402
 
-from src.oto_scraper import ITEM_XPATH, parse_data_call  # noqa: E402
+from src.sources.oto.crawl import ITEM_XPATH, parse_data_call  # noqa: E402
 
 
 def main() -> None:

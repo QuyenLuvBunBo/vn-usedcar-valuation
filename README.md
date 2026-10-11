@@ -1,186 +1,102 @@
-# IntroDS — Web Scraping
+# vn-usedcar-valuation
 
-Bộ khung cào dữ liệu web (Python 3.14 trên Windows) + scraper thực tế cho
-**oto.com.vn** (xe cũ nhóm phổ thông châu Á).
+Cào dữ liệu đa nguồn + chuẩn hoá Unified Schema, định giá xe cũ Việt Nam và phát hiện tin
+đăng bất thường. *(Introduction to Data Science — Nhóm 14)*
 
-## Cấu trúc
+## Cấu trúc repo
 
 ```
 .
-├─ .venv/                # môi trường ảo (không commit)
-├─ requirements.txt
-├─ .env.example          # copy thành .env rồi điền token/cookie/proxy
-├─ data/
-│  ├─ raw/               # HTML/JSON thô -> luôn lưu trước khi parse
-│  └─ processed/         # CSV/JSONL đã làm sạch
-├─ logs/                 # log chạy
-├─ src/                  # code cào + parse
-│  ├─ config.py          # cấu hình đọc từ .env
-│  ├─ http_client.py     # session + retry/backoff + rate limit
-│  ├─ storage.py         # lưu raw/CSV/JSONL/SQLite (chống trùng)
-│  ├─ scraper.py         # scraper mẫu (books.toscrape.com)
-│  └─ oto_scraper.py     # scraper oto.com.vn
-└─ tools/                # script recon & kiểm tra parser
+├─ README.md · CONTRIBUTING.md · requirements.txt · .env.example · .gitattributes
+├─ docs/
+│  ├─ unified_schema.md        # HỢP ĐỒNG: 21 cột dùng chung cả nhóm
+│  └─ sources/oto.md           # ghi chú recon + mapping của nguồn oto.com.vn
+├─ src/
+│  ├─ common/                  # code dùng chung — sửa phải qua PR + review
+│  │  ├─ config.py             # đường dẫn, .env, delay/retry
+│  │  ├─ http_client.py        # session, header trình duyệt, retry/backoff, 429
+│  │  ├─ storage.py            # raw / CSV / JSONL / SQLite (chống trùng)
+│  │  ├─ parsing.py            # parse giá VND, km, năm (dùng cho mọi nguồn)
+│  │  └─ schema.py             # 21 cột + bảng chuẩn hoá (hợp đồng dữ liệu)
+│  ├─ sources/                 # mỗi nguồn một package, không sửa chéo
+│  │  ├─ _template/            # ⭐ copy thư mục này để làm nguồn mới
+│  │  └─ oto/                  # crawl.py · unified.py · brands_asia.py · brands_other.py
+│  ├─ merge/                   # Tuần 2: build_master.py · dedupe.py
+│  └─ data_prep/               # Tuần 2: missing.py (đo thiếu, điền khuyết)
+├─ tools/                      # recon & kiểm tra (không phải code sản phẩm)
+├─ notebooks/<tên-mỗi-người>/  # EDA Tuần 2 (mỗi người 1 thư mục)
+└─ data/  raw/ · processed/ · master/     # KHÔNG commit dữ liệu
 ```
 
 ## Cài đặt
 
 ```powershell
-cd f:\Code\IntroDS
+git clone https://github.com/QuyenLuvBunBo/vn-usedcar-valuation.git
+cd vn-usedcar-valuation
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m playwright install chromium   # chỉ cần khi phải render JavaScript
+Copy-Item .env.example .env     # điền cookie/proxy nếu nguồn cần
+$env:PYTHONIOENCODING='utf-8'   # bắt buộc trên Windows để in tiếng Việt
 ```
 
-## Scraper oto.com.vn (xe cũ: Toyota, Hyundai, Kia, Mazda, Honda, Mitsubishi)
+## Chạy crawler oto.com.vn (nguồn mẫu đã hoàn chỉnh)
 
 ```powershell
-python -m src.oto_scraper                       # cào cả 6 hãng
-python -m src.oto_scraper --brands toyota kia   # chỉ 1 vài hãng
-python -m src.oto_scraper --pages 3             # giới hạn 3 trang/hãng (test nhanh)
-python -m src.oto_scraper --include-new         # lấy cả tin "Xe mới"
-python -m src.oto_scraper --exclude-sold        # bỏ tin đã bán
-python -m src.oto_scraper --save-raw            # lưu thêm HTML thô từng trang
-python -m src.oto_scraper --from-raw            # sửa parser xong: parse lại HTML thô, không cào lại
-python -m src.oto_scraper --from-db             # chỉ xuất lại CSV/JSONL từ DB
-python -m src.oto_scraper --detail-only         # cào THÊM trang chi tiết (không cào lại listing)
-python -m src.oto_scraper --detail-only --detail-limit 20   # test nhanh 20 tin
+python -m src.sources.oto                          # cào listing tất cả hãng
+python -m src.sources.oto --group asia             # 6 hãng phổ thông châu Á (Quyền)
+python -m src.sources.oto --group other            # các hãng còn lại (Phương)
+python -m src.sources.oto --pages 3                # giới hạn 3 trang/hãng để thử
+python -m src.sources.oto --detail-only            # cào thêm trang chi tiết từng tin
+python -m src.sources.oto --detail-missing-price   # cào bù chi tiết cho tin thiếu giá
+python -m src.sources.oto --from-raw               # sửa parser: parse lại HTML thô, không cào lại
+python -m src.sources.oto.unified                  # xuất 21 cột Unified Schema + audit
 ```
 
-Kết quả: `data/processed/oto_cars.csv`, `data/processed/oto_cars.jsonl`,
-bảng `oto_cars` + `oto_car_details` trong `data/scraped.db`.
+Kết quả: `data/processed/oto_cars.csv` (dữ liệu thô đã bóc), `data/processed/oto_unified.csv`
+(21 cột chuẩn), bảng `oto_cars` + `oto_car_details` trong `data/scraped.db`.
 
-### Cào thêm trang chi tiết từng xe (`--detail`)
+## Làm nguồn mới (bonbanh, chotot, carmudi, carpla, anycar)
 
-| Thông tin | Có trên trang chi tiết? | Ghi chú |
-|---|---|---|
-| **Mô tả của người bán** | ✅ `div.content-description .description` | dùng cho phân tích văn bản/NLP |
-| **Màu xe** | ✅ `data-tragia` (phần tử thứ 8) | tin đã bán bị gỡ nút nên mất màu |
-| **Số chỗ ngồi** | ✅ input ẩn `#numberOfSeat` | listing không có |
-| **Giá dạng số** | ✅ input ẩn `#price` (vd `745000000`) | dùng để kiểm chéo với giá ở listing |
-| **Tên + địa chỉ + subdomain salon** | ✅ `div.box-salon` (`h3.name`, `.des p`, `.link-sub-domain`) | cá nhân bán cũng có tên/địa chỉ |
-| **Toàn bộ ảnh** | ✅ ảnh `/crop/640x480/` + `#countImage` | lưu ảnh đầu + số lượng ảnh |
-| **ID hãng/dòng/tỉnh/phân khúc/người bán** | ✅ `#hddMakeId`, `#hddModelId`, `#hddCityId`, `#hddSegmentId`, `#hddUserId` | khớp khóa nội bộ của site |
-| **8 thông số** (Năm SX, Nhiên liệu, Kiểu dáng, Tình trạng, Km đã đi, Hộp số, Xuất xứ, Tỉnh thành) | ✅ `ul.list-info` | trùng với dữ liệu listing |
-| **Ngày đăng tin** | ❌ không có | site không hiển thị ở đâu cả |
-| **Lượt xem** | ❌ không có | |
-| **Thông số kỹ thuật chi tiết** (động cơ, công suất, kích thước) | ❌ không có | tab "Thông số kỹ thuật" không chứa dữ liệu này |
-
-Chi phí: **~2,4 giây/tin** ⇒ 2.706 tin mất khoảng **1,8 giờ**. Chạy lại sẽ **tiếp tục từ chỗ dừng**
-(tin nào đã có trong bảng `oto_car_details` thì bỏ qua; dùng `--detail-refresh` để cào lại hết).
-
-## Xuất Unified Schema 15 thuộc tính + 5 metadata (bàn giao Tuần 1)
+1. Đọc `src/sources/_template/README.md` (4 bước: recon → parse → chuẩn hoá → kiểm tra).
+2. Copy `src/sources/_template/` → `src/sources/<nguồn>/`, sửa `crawl.py` + `unified.py`.
+3. Ghi chú recon vào `docs/sources/<nguồn>.md`.
+4. Kiểm tra trước khi PR:
 
 ```powershell
-python -m src.unified_schema                 # dùng cache listing_date
-python -m src.unified_schema --fetch-sitemap # tải lại listing_date từ sitemap-detail
+python -m tools.validate_source_csv data/processed/<nguồn>.csv
+python -m tools.smoke_test
 ```
 
-Kết quả: `data/processed/oto_unified.csv` (21 cột) + `.jsonl`, kèm bảng audit độ phủ từng cột.
+Chi tiết quy ước nhánh/commit/ranh giới file: xem **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
-- Mapping từng cột → nguồn dữ liệu, độ phủ, và **những trường site không có**:
-  xem [`docs/oto_unified_schema.md`](docs/oto_unified_schema.md).
-- Độ phủ hiện tại: `price_vnd` / `raw_price_text` / `origin` / `seller_type` / `brand` / `model`
-  / `price_status` = **100%**; `mileage_km` 99,9%; `listing_date` 99,5%; `seats` 97,3%;
-  `body_type` 96,9%; `sub_model_trim` 89,1%; `engine_capacity` 76,9% (giá trị suy luận).
-- `listing_date` lấy từ `<lastmod>` của `sitemap-detail-*.xml` — là **ngày đăng/đẩy tin**, không
-  phải ngày đăng chính thức do site công bố (đã kiểm chứng tương quan với vị trí trang listing).
-
-### Cách site hoạt động (kết quả recon)
-
-| Đặc điểm | Phát hiện |
-|---|---|
-| robots.txt | `User-agent: *` → `Allow: /`; `/mua-ban-xe*` **không** bị chặn |
-| Kiểu render | HTML tĩnh, server-render (~330 KB/trang, không cần JS) |
-| Listing | `https://oto.com.vn/mua-ban-xe-<brand>`, 15 tin/trang |
-| Phân trang | `/p<N>` (vd `/mua-ban-xe-toyota/p2`) |
-| Trang vượt giới hạn | KHÔNG 404 — trả "0 tin" + rơi về danh sách trang 1 → phải dừng theo tổng số |
-| Tổng số tin | đọc từ text `Có N tin bán xe ...` |
-| Nguồn cấu trúc | `data-tinrao` = `hãng.model.tình trạng.id.viptype`; `data-call` = `hãng.model.tình trạng.xuất xứ.năm.giá.loại xe.màu.listtype.viptype.id` |
-| Tin **đã bán** | tin cũ (từ ~trang 15 trở đi) bị thêm class `sold` và site gỡ nút "Gọi ngay" → mất `phone`, `xuất xứ`, `loại xe`, `màu`, `listtype`. Cột `sold` đánh dấu để lọc |
-| Trang chi tiết | không có ngày đăng/JSON-LD Product → bỏ qua để tiết kiệm request |
-
-## Các field cào được
-
-`id, url, brand, model, car_name, title, condition, sold, origin, year, price_text,
-price_vnd, km, gearbox, fuel, body_type, color, province, seller_name, phone,
-vip_type, listing_type, image_url, source_page`
-
-> `sold = 1` là tin đã bán: vẫn có giá/năm/km nhưng thiếu `origin`, `body_type`,
-> `color`, `listing_type`, `phone` (site đã gỡ nút gọi). Dùng `--exclude-sold`
-> nếu chỉ muốn xe đang bán.
-
-## Kết quả lần cào gần nhất (11/10/2026)
-
-| Chỉ số | Giá trị |
-|---|---|
-| Tổng tin | **2.706** (đã loại trùng theo url) |
-| Theo hãng | Toyota 892 · Hyundai 534 · Kia 505 · Mazda 379 · Mitsubishi 203 · Honda 193 |
-| Tin đã bán (`sold=1`) | 1.294 (47,8%) |
-| Tin đang bán | 1.412 |
-| Có giá | 2.484 / 2.706 (91,8%) — trung vị **555 triệu**, thấp nhất 30 triệu, cao nhất 5,47 tỷ |
-| Giá trung vị theo hãng | Toyota 585 · Mazda 586 · Kia 562 · Honda 548 · Hyundai 542 · Mitsubishi 474 (triệu đồng) |
-| Năm sản xuất | 1990 – 2026, trung vị 2021 |
-| Số km | trung vị 58.140 km |
-| Tỉnh/thành | Hà Nội 1.548 · Tp.HCM 588 · Hưng Yên 113 |
-
-**Chất lượng dữ liệu** (đã kiểm chứng bằng tool, không phải phỏng đoán):
-
-- 0 tin trùng `url`/`id`.
-- 1.427 tin có `data-call` (tin đang bán) → bóc thành công 1.427/1.427 (100%).
-- Toàn bộ `origin`/`phone`/`listing_type` rỗng = đúng 1.294 tin đã bán (site gỡ nút
-  "Gọi ngay"), không phải lỗi parser.
-- 43 tin (3%) thiếu `body_type`/`color` vì chính `data-call` của site sai định dạng
-  (giá bị thêm `...`, vd `2010.268 triệu...F0`).
-- 222 tin không có giá → 221 trong đó là tin đã bán.
-- Vài tin có `km` rất lớn (12.000.000 km) là do **site ghi vậy** trong tag
-  (`tag-list = ['12.000.000 km', ...]`), parser giữ nguyên đúng dữ liệu gốc.
-- **Bẫy giá đã xử lý**: site ghi lẫn lộn `tỷ` / `tỉ` (`4 tỉ 390 triệu`). Bản parser
-  đầu chỉ nhận `tỷ` nên 258 tin bị hụt giá (đọc 390 triệu thay vì 4,39 tỷ) —
-  đã sửa và **parse lại từ HTML thô** bằng `--from-raw` (không tốn request nào).
-
-
-
-## Ghi chú kỹ thuật
-
-- Cào lại an toàn: bảng SQLite dùng `url` làm khóa chính +
-  `ON CONFLICT DO UPDATE` → chạy lại sẽ **làm mới** dữ liệu (không nhân đôi,
-  không giữ bản ghi lỗi cũ). Sửa parser xong chạy lại là dữ liệu tự đúng.
-- Nên dùng `--save-raw` ở lần cào đầu để giữ HTML thô: lần sau sửa parser có thể
-  thử lại bằng `python -m tools.validate_parser` (**offline**, không cần mạng).
-- Mọi request đi qua `requests.Session` + header trình duyệt + delay 1.5s (chỉnh qua `.env`).
-- Khi đọc HTML thô bằng `lxml` phải truyền chuỗi đã decode (hoặc `HTMLParser(encoding="utf-8")`),
-  nếu đưa bytes vào lxml có thể tự đoán sai charset → mojibake tiếng Việt.
-- Tôn trọng `robots.txt`, ToS của trang và header `Retry-After` khi bị 429.
-
+## Tools
 
 | Tool | Việc |
 |---|---|
-| `python -m tools.recon <url>` | robots.txt, tải trang, dò API/JSON ẩn |
-| `python -m tools.inspect_items` | soi cấu trúc 1 item + link lọc/phân trang |
-| `python -m tools.paging <url>` | dò khối phân trang + tổng số tin |
-| `python -m tools.check_pages <url>` | xác nhận quy tắc phân trang, trang cuối |
-| `python -m tools.test_paging_urls` | thử các dạng URL phân trang khả thi |
-| `python -m tools.field_stats [n]` | độ phủ field + định dạng giá/tag theo hãng |
-| `python -m tools.validate_parser` | parser vs HTML thô (offline, không cần mạng) |
-| `python -m tools.find_api` | dò endpoint AJAX trong HTML + JS |
-| `python -m tools.diag_data_call` | tìm tin bị từ chối khi bóc `data-call` |
-| `python -m tools.diag_sold <brand> <p...>` | tỷ lệ tin đã bán và field bị mất |
-| `python -m tools.diag_item <url> <id>` | in HTML thô 1 tin theo id |
-| `python -m tools.inspect_db` | cột nào rỗng nhiều + mẫu row bất thường |
-| `python -m tools.summarize_oto` | tổng hợp & kiểm tra chất lượng dữ liệu (pandas) |
-| `python -m tools.smoke_test` | regression offline cho parser (36 assert, không cần mạng) |
+| `tools.validate_source_csv` | **cổng kiểm tra PR**: CSV của nguồn có đúng 21 cột + giá trị chuẩn? |
+| `tools.smoke_test` | test hồi quy parser (offline, không cần mạng) |
+| `tools.validate_parser` | parser vs HTML thô đã lưu (offline) |
+| `tools.recon <url>` | robots.txt + tải trang + dò API/JSON ẩn |
+| `tools.paging <url>` · `tools.check_pages <url>` | tìm & xác nhận quy tắc phân trang |
+| `tools.field_stats [n]` | độ phủ field, định dạng giá trên mẫu nhiều trang |
+| `tools.detail_recon <url>` | soi cấu trúc trang chi tiết (JSON-LD, bảng thông số, salon) |
+| `tools.diag_*` | chẩn đoán lỗi parser (data-call, tin đã bán, field lạ) |
+| `tools.list_brands` | dò + xác thực danh sách hãng của oto.com.vn |
+| `tools.summarize_oto` | tổng hợp & kiểm tra chất lượng CSV đã cào (pandas) |
+| `tools.scan_sitemap` · `tools.lastmod_analysis` | kiểm chứng quy mô nguồn + ngày đăng |
 
-## Ghi chú kỹ thuật
+## Ghi chú kỹ thuật chung
 
-- Cào lại an toàn: bảng SQLite dùng `url` làm khóa chính +
-  `ON CONFLICT DO UPDATE` → chạy lại sẽ **làm mới** dữ liệu (không nhân đôi,
-  không giữ bản ghi lỗi cũ). Sửa parser xong chạy lại là dữ liệu tự đúng.
-- Nên dùng `--save-raw` ở lần cào đầu để giữ HTML thô: lần sau sửa parser có thể
-  thử lại bằng `python -m tools.validate_parser` (**offline**, không cần mạng).
-- Mọi request đi qua `requests.Session` + header trình duyệt + delay 1.5s (chỉnh qua `.env`).
-- Khi đọc HTML thô bằng `lxml` phải truyền chuỗi đã decode (hoặc `HTMLParser(encoding="utf-8")`),
-  nếu đưa bytes vào lxml có thể tự đoán sai charset → mojibake tiếng Việt.
-- Tôn trọng `robots.txt`, ToS của trang và header `Retry-After` khi bị 429.
+- Mọi request đi qua `ScraperSession`: header trình duyệt, delay 1.5s (+ jitter), retry/backoff,
+  tôn trọng `Retry-After`; tôn trọng `robots.txt` và điều khoản của từng site.
+- Ghi dữ liệu bằng `INSERT … ON CONFLICT(url) DO UPDATE` → chạy lại **làm mới**, không nhân đôi.
+- Nên dùng `--save-raw` ở lần cào đầu: sau này sửa parser chỉ cần parse lại HTML thô.
+- Đọc HTML thô bằng lxml phải truyền **chuỗi đã decode** (nếu đưa bytes, lxml có thể đoán sai
+  charset → mojibake tiếng Việt).
+- Trên Windows luôn đặt `$env:PYTHONIOENCODING='utf-8'` trước khi chạy tool.
 
+## Nguồn dữ liệu và quy mô (đã kiểm chứng)
+
+Xem `docs/sources/oto.md` — gồm bảng quy mô thật (sitemap ≠ tồn kho), những field site không có,
+và kết quả audit độ phủ của lần cào gần nhất.

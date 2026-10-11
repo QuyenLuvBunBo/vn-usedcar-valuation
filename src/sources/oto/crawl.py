@@ -26,21 +26,32 @@ from urllib.parse import urljoin
 from lxml import html
 from tqdm import tqdm
 
-from . import config, storage
-from .http_client import ScraperSession
+from ...common import config, storage
+from ...common.http_client import ScraperSession
+from ...common.parsing import (
+    clean_text as _clean,
+    first as _first,
+    parse_km_text,
+    parse_vnd_price,
+    parse_year_text,
+    text_of as _text_of,
+    to_int as _int_or_none,
+)
+
+# Tên tương thích: code cũ / tool cũ gọi parse_price, parse_km, parse_year
+parse_price = parse_vnd_price
+parse_km = parse_km_text
+parse_year = parse_year_text
+
+# Danh sách hãng tách riêng để 2 người cùng nguồn không phải sửa chung 1 file
+from .brands_asia import BRANDS as BRANDS_ASIA  # noqa: E402
+from .brands_other import BRANDS as BRANDS_OTHER  # noqa: E402
 
 BASE_URL = "https://oto.com.vn"
 PER_PAGE = 15
 TABLE = "oto_cars"
 
-BRANDS: dict[str, str] = {
-    "toyota": "Toyota",
-    "hyundai": "Hyundai",
-    "kia": "Kia",
-    "mazda": "Mazda",
-    "honda": "Honda",
-    "mitsubishi": "Mitsubishi",
-}
+BRANDS: dict[str, str] = {**BRANDS_ASIA, **BRANDS_OTHER}
 
 COLUMNS = [
     "url", "id", "brand", "model", "car_name", "title",
@@ -65,73 +76,13 @@ DESCRIPTION_MAX = 4000
 DETAIL_BATCH = 25
 
 ITEM_XPATH = '//div[contains(@class,"item-car") and contains(@class,"dev-item-car")]'
-# Site viết lẫn lộn "tỷ"/"tỉ", "nghìn"/"ngàn" -> nhận cả hai.
-PRICE_UNITS = {
-    "triệu": 10**6, "triêu": 10**6, "tr": 10**6,
-    "tỷ": 10**9, "tỉ": 10**9, "ty": 10**9, "ti": 10**9,
-    "nghìn": 10**3, "ngàn": 10**3,
-}
-PRICE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(triệu|triêu|tỷ|tỉ|nghìn|ngàn|tr|ty|ti)\b", re.I)
 VALID_ORIGINS = {"trong nước", "nhập khẩu"}
 VALID_CONDITIONS = {"xe cũ", "xe mới"}
 
 log = logging.getLogger("oto_scraper")
 
 
-# ---------------------------------------------------------------- tiện ích
-def _clean(value: str | None) -> str:
-    """Chuẩn hóa khoảng trắng và ký tự đặc biệt của HTML."""
-    if not value:
-        return ""
-    return re.sub(r"\s+", " ", value.replace("\xa0", " ")).strip()
-
-
-def _first(node, xpath: str) -> str:
-    """Lấy giá trị đầu tiên của xpath, trả về '' nếu không có."""
-    found = node.xpath(xpath)
-    return _clean(str(found[0])) if found else ""
-
-
-def _text_of(node) -> str:
-    """Gộp toàn bộ text con thành 1 chuỗi đã chuẩn hóa."""
-    return _clean(" ".join(node.itertext()))
-
-
-def parse_price(text: str) -> int | None:
-    """Đổi '335 triệu' / '1 tỷ 045 triệu' / '1 tỉ 450 triệu' / '1,2 tỷ' -> số VND.
-
-    Trả None nếu không có giá (ô giá rỗng, hoặc ghi 'Thỏa thuận'/'Liên hệ').
-    """
-    if not text:
-        return None
-    total = 0.0
-    for number, unit in PRICE_RE.findall(text):
-        total += float(number.replace(",", ".")) * PRICE_UNITS[unit.lower()]
-    if total <= 0:
-        return None
-    return int(round(total))
-
-
-def parse_km(tag: str) -> int | None:
-    """Đổi '140.000 km' -> 140000."""
-    digits = re.sub(r"\D", "", tag or "")
-    return int(digits) if digits else None
-
-
-def parse_year(car_name: str, title: str = "") -> int | None:
-    """Lấy năm sản xuất từ '2014 - Toyota ...'; nếu không có thì dò trong tiêu đề."""
-    match = re.match(r"^\s*((?:19|20)\d{2})\s*[-–]", car_name or "")
-    if match:
-        return int(match.group(1))
-    match = re.search(r"\b((?:19|20)\d{2})\b", title or "")
-    if match:
-        year = int(match.group(1))
-        if 1980 <= year <= 2100:
-            return year
-    return None
-
-
-
+# ------------------------------------------------------------- parser dữ liệu
 def parse_data_call(data_call: str) -> dict[str, str]:
     """Bóc thông tin cấu trúc trong thuộc tính data-call của nút "Gọi ngay".
 
@@ -622,8 +573,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Cào xe cũ nhóm phổ thông châu Á trên oto.com.vn",
     )
-    parser.add_argument("--brands", nargs="+", default=list(BRANDS), choices=list(BRANDS),
-                        help="chỉ cào các hãng này (mặc định: cả 6 hãng)")
+    parser.add_argument("--brands", nargs="+", default=None, choices=list(BRANDS),
+                        help="chỉ cào các hãng này (mặc định: theo --group)")
+    parser.add_argument("--group", choices=("all", "asia", "other"), default="all",
+                        help="nhóm hãng: asia = 6 hãng phổ thông châu Á, other = các hãng còn lại")
     parser.add_argument("--pages", type=int, default=None,
                         help="giới hạn số trang mỗi hãng (mặc định: cào hết)")
     parser.add_argument("--include-new", action="store_true",
@@ -656,6 +609,16 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     setup_logging()
+
+    # --group: chia phần việc giữa 2 người cùng nguồn
+    if args.brands is None:
+        if args.group == "asia":
+            args.brands = list(BRANDS_ASIA)
+        elif args.group == "other":
+            args.brands = list(BRANDS_OTHER)
+        else:
+            args.brands = list(BRANDS)
+
     if args.detail_missing_price:
         args.detail_only = True  # cào bù chi tiết -> chỉ đọc DB, không cào lại listing
     if args.detail_only:

@@ -12,7 +12,7 @@ from pathlib import Path
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from src.http_client import ScraperSession  # noqa: E402
+from src.common.http_client import ScraperSession  # noqa: E402
 
 BASE = "https://oto.com.vn"
 COUNT_RE = re.compile(r"C[oó]\s*([\d\.,]+)\s*tin")
@@ -22,7 +22,7 @@ def brand_slugs() -> list[str]:
     """Lấy danh sách HÃNG từ sitemap-mua-ban-hang-dong.xml (các URL 1 tầng)."""
     import re as _re
 
-    from src.http_client import ScraperSession as _S
+    from src.common.http_client import ScraperSession as _S
 
     with _S(delay=0.8) as session:
         text = session.get_text("https://oto.com.vn/sitemap-mua-ban-hang-dong.xml") or ""

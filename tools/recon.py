@@ -15,8 +15,8 @@ if hasattr(sys.stdout, "reconfigure"):
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src import config, storage  # noqa: E402
-from src.http_client import ScraperSession  # noqa: E402
+from src.common import config, storage  # noqa: E402
+from src.common.http_client import ScraperSession  # noqa: E402
 
 PATTERNS = {
     "api_paths": r"[\"'`/]((?:api|graphql|gql)/[A-Za-z0-9/_\-\.\{\}\$]{2,80})",

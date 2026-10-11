@@ -7,9 +7,10 @@ Quy mô đã cào: **2.706 tin** (196 trang listing + 2.706 trang chi tiết).
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
-python -m src.oto_scraper              # cào listing (~10 phút)
-python -m src.oto_scraper --detail-only   # cào trang chi tiết (~1h45m)
-python -m src.unified_schema              # xuất data/processed/oto_unified.csv
+python -m src.sources.oto --group asia        # cào listing 6 hãng châu Á (~10 phút)
+python -m src.sources.oto --group other       # cào listing các hãng còn lại
+python -m src.sources.oto --detail-only       # cào trang chi tiết từng tin (~1h45m)
+python -m src.sources.oto.unified             # xuất data/processed/oto_unified.csv (21 cột)
 ```
 
 ## Bảng mapping 16 thuộc tính + 5 metadata

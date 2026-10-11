@@ -13,8 +13,8 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from lxml import html  # noqa: E402
 
-from src import storage  # noqa: E402
-from src.http_client import ScraperSession  # noqa: E402
+from src.common import storage  # noqa: E402
+from src.common.http_client import ScraperSession  # noqa: E402
 
 ITEM_XPATH = '//div[contains(@class,"item-car") and contains(@class,"dev-item-car")]'
 

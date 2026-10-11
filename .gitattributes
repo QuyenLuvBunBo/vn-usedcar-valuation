@@ -1,0 +1,21 @@
+# Chuẩn hoá dấu xuống dòng: cả nhóm dùng Windows nhưng commit LF để tránh conflict CRLF/LF
+* text=auto eol=lf
+
+# File nhị phân — không diff/merge theo dòng
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.xlsx binary
+*.xls  binary
+*.parquet binary
+*.db   binary
+*.sqlite binary
+*.sqlite3 binary
+
+# Notebook: tránh merge tự động kiểu union (rất dễ hỏng JSON)
+*.ipynb -text -diff

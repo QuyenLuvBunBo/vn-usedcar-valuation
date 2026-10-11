@@ -15,8 +15,8 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from lxml import html  # noqa: E402
 
-from src import storage  # noqa: E402
-from src.http_client import ScraperSession  # noqa: E402
+from src.common import storage  # noqa: E402
+from src.common.http_client import ScraperSession  # noqa: E402
 
 KEYWORDS = [
     "Mã tin", "Ngày đăng", "Ngày cập nhật", "Lượt xem", "Tình trạng", "Số km", "Km đã đi",

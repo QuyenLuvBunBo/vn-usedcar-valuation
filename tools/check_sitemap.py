@@ -8,7 +8,7 @@ import sys
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from src.http_client import ScraperSession  # noqa: E402
+from src.common.http_client import ScraperSession  # noqa: E402
 
 
 def main() -> None:
