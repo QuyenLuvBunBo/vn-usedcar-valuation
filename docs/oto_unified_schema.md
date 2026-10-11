@@ -49,7 +49,29 @@ python -m src.unified_schema              # xuất data/processed/oto_unified.cs
 | Số chỗ | Chỉ có qua cào trang chi tiết (`#numberOfSeat`) |
 | `duplicate_group_id`, `quality_flags` | Thuộc Tuần 2 theo kế hoạch (chưa sinh) |
 
-## Ghi chú quan trọng khi dùng dữ liệu
+## Quy mô thật của nguồn oto.com.vn (đã kiểm chứng — quan trọng cho chỉ tiêu 15.000)
+
+| Nguồn đếm | Con số | Ý nghĩa |
+|---|---|---|
+| Tổng URL trong `sitemap-detail-1/2.xml` | **30.900** | ⚠️ **Không phải tồn kho đang rao** — đây là kho URL lịch sử site còn giữ |
+| Trong đó có hậu tố `aidxc` (xe cũ) | 29.392 | trang tin xe cũ còn truy cập được |
+| URL có `lastmod` trong 90 ngày | ~7.400 | phần "còn tươi" |
+| URL có `lastmod` cũ hơn 90 ngày | **23.484 (76%)** | phần lớn đã ngừng rao |
+| **Số tin đang hiển thị ở listing** | **≈ 5.000** | 6 hãng phổ thông châu Á: **2.706** (khớp đúng bộ đếm của site) + các hãng còn lại ≈ 2.200 |
+
+Bằng chứng cho kết luận "sitemap ≠ tồn kho":
+
+1. Toyota có **5.715 URL** trong sitemap nhưng listing chỉ báo `Có 892 tin` và vét hết 60 trang cũng đúng 892 tin.
+2. Lấy ngẫu nhiên 48 tin "chỉ có trong sitemap": **100% trả HTTP 200** và đủ dữ liệu, nhưng khi dò trong listing theo **hãng** và theo **dòng xe** thì **không có** ⇒ chúng đã bị bỏ khỏi danh sách rao nhưng trang vẫn sống (thường là tin đã gia hạn/đăng lại bằng id mới, hoặc hết hạn nhưng chưa xoá).
+3. Trong 40 tin sitemap-only, **34 tin (85%) vẫn còn nút "Trả giá"** (dấu hiệu chưa bị đánh bán) — nhưng vẫn không nằm trong listing ⇒ **nút Trả giá chỉ cho biết trang chưa bị đánh dấu "đã bán", KHÔNG chứng minh tin đang được rao**.
+
+**Hệ quả cho kế hoạch Tuần 1:** chỉ tiêu 15.000 tin/người cho oto.com.vn **không đạt được từ listing hiện tại** (~5.000 tin cho toàn site). Ba lựa chọn:
+1. Bù bằng 5 nguồn còn lại (bonbanh, chợ tốt, carmudi, carpla, anycar) — nên ưu tiên.
+2. Dùng thêm "tier lưu trữ" từ sitemap (thêm được ~26.600 tin) nhưng **phải thêm cột `in_listing`** để báo cáo tách riêng: nhóm này không đang rao, phần lớn đã cũ, và ~15% đã bán.
+3. Hạ chỉ tiêu cho nguồn oto.com.vn.
+
+Nếu dùng tier lưu trữ: crawl trực tiếp theo URL trong sitemap (không cần phân trang), sitemap **sắp giảm dần theo `lastmod`** nên lấy N URL đầu = N tin mới nhất; trang chi tiết đã đủ cả 21 cột của Unified Schema.
+
 
 1. **47,8% tin là "đã bán"** (`sold` trong DB gốc) — vẫn có đủ 16 thuộc tính, nhưng giá là giá **rao bán lịch sử**, không phải giá đang chào. Nên test độ nhạy khi lọc bỏ nhóm này.
 2. `listing_date` = ngày đẩy tin, **không dùng làm feature trực tiếp**; chỉ dùng để chia train/test theo thời gian.
