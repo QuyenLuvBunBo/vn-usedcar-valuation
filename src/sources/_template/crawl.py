@@ -1,9 +1,9 @@
-"""KHUÔN MẪU cho một nguồn mới: COPY thư mục này thành `src/sources/<nguồn>/` rồi sửa.
+"""TEMPLATE for a new data source: COPY this folder to `src/sources/<source>/` and edit it.
 
-Việc cần làm cho nguồn mới (chi tiết ở README.md cùng thư mục):
-  1. crawl.py  : viết `parse_*` cho site của bạn + hàm `crawl()` trả về list[dict]
-  2. unified.py: map dữ liệu thô sang 21 cột (dùng src/common/schema.py)
-  3. Kiểm tra trước khi PR:  python -m tools.validate_source_csv data/processed/<nguồn>.csv
+What you have to do for a new source (details in README.md in this folder):
+  1. crawl.py  : write `parse_*` for your site + a `crawl()` that returns list[dict]
+  2. unified.py: map the raw fields to the 21 unified columns (see src/common/schema.py)
+  3. Before opening a PR:  python -m tools.validate_source_csv data/processed/<source>.csv
 """
 
 from __future__ import annotations
@@ -28,9 +28,9 @@ log = logging.getLogger(SOURCE)
 
 
 def parse_list_page(page_html: str, base_url: str) -> tuple[list[dict], str | None]:
-    """Bóc 1 trang danh sách -> (danh sách record, URL trang kế tiếp).
+    """Parse one listing page -> (records, next_page_url).
 
-    ĐÂY LÀ HÀM DUY NHẤT BẠN PHẢI VIẾT LẠI cho từng website.
+    THIS IS THE ONLY FUNCTION YOU HAVE TO REWRITE for each website.
     """
     tree = html.fromstring(page_html)
     rows: list[dict] = []
@@ -51,7 +51,7 @@ def parse_list_page(page_html: str, base_url: str) -> tuple[list[dict], str | No
 
 
 def to_unified(raw: dict) -> dict:
-    """Map record thô sang 21 cột Unified Schema — xem src/common/schema.py."""
+    """Map a raw record to the 21 unified columns — see src/common/schema.py."""
     record = dict.fromkeys(SCHEMA_COLUMNS)
     record.update({
         "listing_id": f"BOOK_{abs(hash(raw['source_url'])) % 10**8}",
@@ -68,7 +68,7 @@ def to_unified(raw: dict) -> dict:
 
 
 def crawl(max_pages: int | None = MAX_PAGES) -> list[dict]:
-    """Cào listing -> trả về record đã map sang 21 cột, và ghi CSV cho nguồn."""
+    """Crawl listings, map them to the 21 columns, and write this source's CSV."""
     config.ensure_dirs()
     conn = storage.open_db()
     storage.create_table(conn, TABLE, ["source_url", "title", "price_raw", "price_vnd"])

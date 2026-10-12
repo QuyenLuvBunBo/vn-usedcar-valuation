@@ -1,6 +1,6 @@
-"""Dò + xác thực danh sách HÃNG trên oto.com.vn (dùng cho brands_other.py).
+"""Discover and validate the brand list of oto.com.vn (used for brands_other.py).
 
-Chạy: python -m tools.list_brands
+Run: python -m tools.list_brands [slug ...]
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ COUNT_RE = re.compile(r"C[oó]\s*([\d\.,]+)\s*tin")
 
 
 def verify(session: ScraperSession, slug: str) -> tuple[bool, int]:
-    """Trang /mua-ban-xe-<slug> có phải trang hãng thật không? -> (hợp lệ, số tin)."""
+    """Is /mua-ban-xe-<slug> a real brand page? -> (valid, listing count)."""
     text = session.get_text(f"{BASE_URL}/mua-ban-xe-{slug}")
     if not text:
         return False, 0
@@ -34,18 +34,17 @@ def main() -> None:
     if not slugs:
         from src.sources.oto.brands_other import BRANDS
         slugs = list(BRANDS)
-    print(f"Xác thực {len(slugs)} slug...\n")
+    print(f"Validating {len(slugs)} slug(s)...\n")
     ok, bad = [], []
     with ScraperSession(delay=1.2) as session:
         for slug in slugs:
             valid, count = verify(session, slug)
             (ok if valid else bad).append(slug)
-            print(f"  {'OK ' if valid else 'SAI'} {slug:22s} {count:6,} tin")
-    print(f"\nHợp lệ: {len(ok)} | không hợp lệ: {len(bad)}")
+            print(f"  {'OK ' if valid else 'BAD'} {slug:22s} {count:6,} listings")
+    print(f"\nValid: {len(ok)} | invalid: {len(bad)}")
     if bad:
-        print("Slug cần bỏ/ sửa trong brands_other.py:", ", ".join(bad))
-    total = 0
-    print("\nGợi ý cập nhật brands_other.py bằng các slug hợp lệ ở trên.")
+        print("Slugs to remove/fix in brands_other.py:", ", ".join(bad))
+    print("\nUpdate brands_other.py with the valid slugs listed above.")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
-"""Mỗi nguồn dữ liệu là một package con (oto, bonbanh, chotot, carmudi, carpla, anycar).
+"""One sub-package per data source (oto, bonbanh, chotot, carmudi, carpla, anycar).
 
-Cấu trúc một nguồn (copy từ `_template/`):
+Layout of a source (copy it from `_template/`):
 
-    src/sources/<nguồn>/
-    ├─ crawl.py      # cào listing + (tuỳ chọn) trang chi tiết, CLI riêng của nguồn
-    └─ unified.py    # đổi dữ liệu thô sang 21 cột Unified Schema, xuất CSV
+    src/sources/<source>/
+    ├─ crawl.py      # crawls listings (+ optionally detail pages), source-specific CLI
+    └─ unified.py    # maps raw data to the 21 unified columns and exports CSV
 
-Chạy: python -m src.sources.<nguồn>
+Run:  python -m src.sources.<source>
 """

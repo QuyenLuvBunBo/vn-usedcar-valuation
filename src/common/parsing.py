@@ -1,14 +1,15 @@
-"""Hàm parse dùng chung cho MỌI nguồn dữ liệu.
+"""Parsing helpers shared by EVERY data source.
 
-Không phụ thuộc nguồn cụ thể — các nhóm crawler (oto, bonbanh, chotot…) đều dùng lại:
-bóc text từ HTML bằng lxml, đổi giá tiếng Việt sang VND, đổi số km / năm.
+Source-independent: the oto, bonbanh, chotot… crawlers all reuse these to extract text
+from HTML with lxml, convert Vietnamese price expressions to VND, and read mileage/years.
 """
 
 from __future__ import annotations
 
 import re
 
-# Giá tiếng Việt: "550 triệu", "1 tỷ 250 tr", "1 tỉ 450 triệu", "1,2 tỷ"
+# Vietnamese price expressions: "550 triệu", "1 tỷ 250 tr", "1 tỉ 450 triệu", "1,2 tỷ".
+# Note: the sites themselves mix "tỷ"/"tỉ" and "nghìn"/"ngàn", so both spellings are accepted.
 PRICE_UNITS = {
     "triệu": 10**6, "triêu": 10**6, "tr": 10**6,
     "tỷ": 10**9, "tỉ": 10**9, "ty": 10**9, "ti": 10**9,
@@ -20,26 +21,26 @@ YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
 
 # --------------------------------------------------------------- HTML/text
 def clean_text(value: str | None) -> str:
-    """Gộp khoảng trắng, bỏ khoảng trắng đặc biệt của HTML."""
+    """Collapse whitespace and drop non-breaking spaces from HTML."""
     if not value:
         return ""
     return re.sub(r"\s+", " ", value.replace("\xa0", " ")).strip()
 
 
 def first(node, xpath: str) -> str:
-    """Lấy giá trị đầu tiên của xpath; trả '' nếu không có."""
+    """Return the first value matching `xpath`, or '' when there is none."""
     found = node.xpath(xpath)
     return clean_text(str(found[0])) if found else ""
 
 
 def text_of(node) -> str:
-    """Gộp toàn bộ text con của một element (đã chuẩn hoá)."""
+    """Return the concatenated, cleaned text of an element."""
     return clean_text(" ".join(node.itertext()))
 
 
-# ------------------------------------------------------------------ số
+# ------------------------------------------------------------------ numbers
 def to_int(value) -> int | None:
-    """Ép về int (SQLite trả về chuỗi); None nếu rỗng/không hợp lệ."""
+    """Coerce to int (SQLite hands back strings); None when empty or invalid."""
     if value in (None, ""):
         return None
     try:
@@ -49,7 +50,7 @@ def to_int(value) -> int | None:
 
 
 def to_float(value) -> float | None:
-    """Ép về float; None nếu rỗng/không hợp lệ."""
+    """Coerce to float; None when empty or invalid."""
     if value in (None, ""):
         return None
     try:
@@ -59,10 +60,11 @@ def to_float(value) -> float | None:
 
 
 def parse_vnd_price(text: str) -> int | None:
-    """Đổi biểu thức giá tiếng Việt sang VND.
+    """Convert a Vietnamese price expression to VND.
 
-    Hỗ trợ: '335 triệu', '1 tỷ 045 triệu', '1 tỉ 450 triệu', '550 triệu', '1 tỷ 250 tr'.
-    Trả None khi không có giá (ô rỗng, hoặc ghi 'Thỏa thuận' / 'Liên hệ' / 'trả góp').
+    Supports: '335 triệu', '1 tỷ 045 triệu', '1 tỉ 450 triệu', '550 triệu', '1 tỷ 250 tr'.
+    Returns None when there is no usable price (empty cell, or 'Thỏa thuận' / 'Liên hệ' /
+    instalment wording instead of a full asking price).
     """
     if not text:
         return None
@@ -75,13 +77,13 @@ def parse_vnd_price(text: str) -> int | None:
 
 
 def parse_km_text(text: str) -> int | None:
-    """Đổi '140.000 km' -> 140000."""
+    """Convert '140.000 km' to 140000."""
     digits = re.sub(r"\D", "", text or "")
     return int(digits) if digits else None
 
 
 def parse_year_text(*texts: str) -> int | None:
-    """Lấy năm 4 chữ số đầu tiên hợp lệ trong các chuỗi truyền vào."""
+    """Return the first plausible 4-digit year found in the given strings."""
     for text in texts:
         match = YEAR_RE.search(text or "")
         if match:
@@ -91,7 +93,7 @@ def parse_year_text(*texts: str) -> int | None:
     return None
 
 
-# Tên tương thích ngược (code cũ gọi parse_price/parse_km/parse_year)
+# Backwards-compatible aliases (older code calls parse_price / parse_km / parse_year)
 parse_price = parse_vnd_price
 parse_km = parse_km_text
 parse_year = parse_year_text

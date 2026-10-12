@@ -1,10 +1,10 @@
-"""Chuẩn hoá dữ liệu oto.com.vn về Unified Schema (15 thuộc tính + 5 metadata) — Tuần 1.
+"""Normalize oto.com.vn data into the Unified Schema (16 attributes + 5 metadata) — week 1.
 
-Chạy:
-    python -m src.unified_schema                 # dùng cache sitemap nếu có
-    python -m src.unified_schema --fetch-sitemap # tải lại lastmod từ sitemap rồi mới xuất
+Run:
+    python -m src.sources.oto.unified                 # reuse the cached sitemap if present
+    python -m src.sources.oto.unified --fetch-sitemap # refresh listing_date from the sitemap first
 
-Kết quả: data/processed/oto_unified.csv (+ .jsonl) và bảng audit độ phủ field.
+Output: data/processed/oto_unified.csv (+ .jsonl) and a per-column coverage audit.
 """
 
 from __future__ import annotations
@@ -25,27 +25,27 @@ LAST_MOD_CACHE = config.DATA_RAW / "sitemap_lastmod.json"
 SITEMAPS = ("sitemap-detail-1.xml", "sitemap-detail-2.xml")
 ENTRY_RE = re.compile(r"<loc>([^<]+)</loc><lastmod>([^<]+)</lastmod>")
 YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
-# Cho phép dính chữ ngay sau số (2.5Q, 1.5G, 2.4L) nhưng không khớp giữa số dài (123.45)
+# Allow letters right after the number (2.5Q, 1.5G, 2.4L) but never match inside a longer number
 ENGINE_RE = re.compile(r"(?<![\d.])([0-9]\.[0-9])(?!\d)")
 
-# 16 thuộc tính + 5 metadata — lấy từ hợp đồng dùng chung src/common/schema.py
+# 16 attributes + 5 metadata — taken from the shared contract in src/common/schema.py
 SCHEMA_COLUMNS = schema.SCHEMA_COLUMNS
 
 log = logging.getLogger("unified_schema")
 
 
-# ------------------------------------------------------------------ tiện ích
+# ------------------------------------------------------------------ helpers
 def _km_from_text(value: str | None) -> float | None:
-    """Đổi '140.000 km' -> 140000.0."""
+    """Convert '140.000 km' -> 140000.0."""
     km = to_int(value)
     return float(km) if km is not None else None
 
 
 def derive_trim(brand: str, model: str, title: str, car_name: str) -> str:
-    """Tách sub_model_trim (vd '1.8G CVT', '2.5Q') khỏi tiêu đề hoặc car_name."""
+    """Extract sub_model_trim (e.g. '1.8G CVT', '2.5Q') from the title or car_name."""
     text = (title or "").strip()
     if not text and car_name:
-        # car_name dạng "2021 - Honda CR-V 1.5 G - mô tả..."
+        # car_name looks like "2021 - Honda CR-V 1.5 G - description..."
         parts = [p.strip() for p in car_name.split(" - ")]
         text = parts[1] if len(parts) > 1 else car_name
     if not text:
@@ -61,7 +61,7 @@ def derive_trim(brand: str, model: str, title: str, car_name: str) -> str:
 
 
 def derive_engine_capacity(*texts: str) -> float | None:
-    """Ước lượng dung tích động cơ (L) từ trim/tiêu đề — vd '1.5 G' -> 1.5."""
+    """Estimate engine displacement (L) from the trim/title — e.g. '1.5 G' -> 1.5."""
     for text in texts:
         for found in ENGINE_RE.findall(text or ""):
             value = float(found)
@@ -72,12 +72,12 @@ def derive_engine_capacity(*texts: str) -> float | None:
 
 # ------------------------------------------------------- lastmod từ sitemap
 def fetch_lastmod_map(session: ScraperSession) -> dict[str, str]:
-    """Tải sitemap-detail -> dict url -> lastmod (ngày đăng/đẩy tin gần nhất)."""
+    """Download sitemap-detail -> dict of url -> lastmod (the listing's publication/bump date)."""
     result: dict[str, str] = {}
     for name in SITEMAPS:
         text = session.get_text(f"https://oto.com.vn/{name}")
         if not text:
-            log.warning("không lấy được %s", name)
+            log.warning("could not fetch %s", name)
             continue
         entries = ENTRY_RE.findall(text)
         log.info("%s: %s entry", name, len(entries))
@@ -87,23 +87,23 @@ def fetch_lastmod_map(session: ScraperSession) -> dict[str, str]:
 
 
 def load_lastmod_map(fetch: bool = False) -> dict[str, str]:
-    """Đọc cache lastmod; tải mới nếu --fetch-sitemap hoặc chưa có cache."""
+    """Read the lastmod cache; refresh from the sitemap when --fetch-sitemap is given or no cache."""
     if not fetch and LAST_MOD_CACHE.exists():
         cached = json.loads(LAST_MOD_CACHE.read_text(encoding="utf-8"))
-        log.info("Dùng cache lastmod: %s (%s tin)", LAST_MOD_CACHE, len(cached))
+        log.info("Using the cached lastmod map: %s (%s listings)", LAST_MOD_CACHE, len(cached))
         return cached
     with ScraperSession(delay=1.0) as session:
         mapping = fetch_lastmod_map(session)
     if mapping:
         config.ensure_dirs()
         LAST_MOD_CACHE.write_text(json.dumps(mapping, ensure_ascii=False), encoding="utf-8")
-        log.info("Đã lưu cache lastmod: %s (%s tin)", LAST_MOD_CACHE, len(mapping))
+        log.info("Saved the lastmod cache: %s (%s listings)", LAST_MOD_CACHE, len(mapping))
     return mapping
 
 
 # --------------------------------------------------------------- transform
 def _load_tables(conn: sqlite3.Connection) -> tuple[list[dict], dict[str, dict]]:
-    """Đọc bảng oto_cars và oto_car_details (nếu đã cào chi tiết)."""
+    """Read the oto_cars and oto_car_details tables (the latter only if details were crawled)."""
     cars = storage.read_rows(conn, "oto_cars")
     has_detail = any(
         row[0] == "oto_car_details"
@@ -114,7 +114,7 @@ def _load_tables(conn: sqlite3.Connection) -> tuple[list[dict], dict[str, dict]]
 
 
 def build_unified(conn: sqlite3.Connection, lastmods: dict[str, str]) -> list[dict]:
-    """Ghép oto_cars + oto_car_details rồi chuẩn hoá về Unified Schema."""
+    """Join oto_cars with oto_car_details and normalize everything into the Unified Schema."""
     cars, details = _load_tables(conn)
 
     rows: list[dict] = []
@@ -131,12 +131,12 @@ def build_unified(conn: sqlite3.Connection, lastmods: dict[str, str]) -> list[di
             car.get("brand", ""), car.get("model", ""),
             detail.get("d_title", ""), car.get("car_name", ""),
         )
-        # Giá: ưu tiên listing; nếu listing để trống thì lấy từ trang chi tiết
+        # Price: prefer the listing value; fall back to the detail page when the listing is empty
         price_vnd = to_int(car.get("price_vnd")) or to_int(detail.get("d_price_vnd"))
         raw_price = (car.get("price_text") or "").strip() or (detail.get("d_price_text") or "").strip()
 
-        # Dự phòng từ ul.list-info của trang chi tiết: tin ĐÃ BÁN không có data-call
-        # ở listing nên thiếu xuất xứ/loại xe/hộp số, nhưng trang chi tiết vẫn đủ.
+        # Fall back to the detail page's ul.list-info: SOLD listings have no data-call on the
+        # listing card, so origin/body type/gearbox would otherwise be missing.
         origin_raw = car.get("origin") or specs.get("Xuất xứ", "")
         body_raw = car.get("body_type") or specs.get("Kiểu dáng", "")
         fuel_raw = car.get("fuel") or specs.get("Nhiên liệu", "")
@@ -177,10 +177,10 @@ def build_unified(conn: sqlite3.Connection, lastmods: dict[str, str]) -> list[di
 
 # ------------------------------------------------------------------- audit
 def audit(rows: list[dict]) -> None:
-    """In bảng kiểm toán độ phủ / tỷ lệ thiếu từng cột (Milestone 1 yêu cầu)."""
+    """Print a coverage/missing-rate audit of every column (a Milestone 1 requirement)."""
     total = len(rows) or 1
     print("\n" + "=" * 74)
-    print(f"AUDIT UNIFIED SCHEMA — {len(rows)} tin")
+    print(f"AUDIT UNIFIED SCHEMA — {len(rows)} listings")
     print("=" * 74)
     print(f"{'column':22s} {'filled':>7s} {'missing':>8s} {'rate':>7s} {'distinct':>9s}")
     for col in SCHEMA_COLUMNS:
@@ -188,7 +188,7 @@ def audit(rows: list[dict]) -> None:
         distinct = len({r.get(col) for r in rows if r.get(col) not in (None, "")})
         print(f"{col:22s} {filled:7d} {total - filled:8d} {filled / total * 100:6.1f}% {distinct:9d}")
 
-    print("\nPhân bố các cột phân loại:")
+    print("\nDistribution of the categorical columns:")
     for col in ("price_status", "seller_type", "transmission", "fuel_type", "origin"):
         counts: dict[str, int] = {}
         for row in rows:
@@ -197,26 +197,26 @@ def audit(rows: list[dict]) -> None:
         top = ", ".join(f"{k}={v}" for k, v in sorted(counts.items(), key=lambda kv: -kv[1]))
         print(f"  {col:15s}: {top}")
 
-    print("\nKiểm tra theo quy tắc miền (domain rules) của report:")
-    print(f"  giá < 30 triệu (đưa vào review): {sum(1 for r in rows if (r.get('price_vnd') or 0) and r['price_vnd'] < 30_000_000)}")
-    print(f"  giá > 25 tỷ (segment riêng)    : {sum(1 for r in rows if (r.get('price_vnd') or 0) > 25_000_000_000)}")
+    print("\nDomain-rule checks from the report:")
+    print(f"  price < 30 million VND (send to review): {sum(1 for r in rows if (r.get('price_vnd') or 0) and r['price_vnd'] < 30_000_000)}")
+    print(f"  price > 25 billion VND (own segment)   : {sum(1 for r in rows if (r.get('price_vnd') or 0) > 25_000_000_000)}")
     print(f"  odometer < 100 km              : {sum(1 for r in rows if (r.get('mileage_km') or 0) < 100)}")
-    print(f"  odometer > 1.000.000 km        : {sum(1 for r in rows if (r.get('mileage_km') or 0) > 1_000_000)}")
+    print(f"  odometer > 1,000,000 km        : {sum(1 for r in rows if (r.get('mileage_km') or 0) > 1_000_000)}")
     years = [r["manufacture_year"] for r in rows if r.get("manufacture_year")]
     if years:
-        print(f"  năm SX: {min(years)}–{max(years)} | ngoài scope 1995–nay: "
+        print(f"  manufacture year: {min(years)}–{max(years)} | outside the 1995–present scope: "
               f"{sum(1 for y in years if y < 1995)}")
 
 
 # --------------------------------------------------------------------- main
 def build_parser() -> argparse.ArgumentParser:
-    """Tham số dòng lệnh."""
+    """Command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Xuất Unified Schema (15 thuộc tính + 5 metadata) cho dữ liệu oto.com.vn",
+        description="Export the Unified Schema (16 attributes + 5 metadata) for oto.com.vn data",
     )
-    parser.add_argument("--out", default="oto_unified", help="tên file CSV/JSONL đầu ra")
+    parser.add_argument("--out", default="oto_unified", help="output CSV/JSONL file name")
     parser.add_argument("--fetch-sitemap", action="store_true",
-                        help="tải lại listing_date (lastmod) từ sitemap-detail")
+                        help="refresh listing_date (lastmod) from sitemap-detail")
     return parser
 
 

@@ -1,9 +1,9 @@
-"""Các hãng còn lại (xe Âu/Mỹ, xe sang, xe Trung Quốc, xe điện) — phần việc của Nguyễn Thế Phương.
+"""All remaining brands (European/US, luxury, Chinese and EV) — owned by Nguyễn Thế Phương.
 
-Danh sách lấy từ menu hãng trên oto.com.vn. Kiểm tra/ bổ sung bằng:
-    python -m tools.list_brands          # dò hãng từ menu + xác thực slug còn hoạt động
+The list comes from the brand menu on oto.com.vn. Verify or extend it with:
+    python -m tools.list_brands          # harvest brand links and validate each slug
 
-Chạy:  python -m src.sources.oto --group other
+Run:  python -m src.sources.oto --group other
 """
 
 from __future__ import annotations

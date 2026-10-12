@@ -1,18 +1,19 @@
-# Notebook
+# Notebooks
 
-Quy ước để không conflict khi cả nhóm cùng làm EDA/model:
+Conventions so that nine people can work on EDA and modelling without conflicts:
 
-- Mỗi người tạo **một thư mục riêng theo tên mình**: `notebooks/quyen/`, `notebooks/bao/`…
-  Không ai sửa notebook của người khác.
-- **Luôn strip output trước khi commit** (output/execution_count làm diff loạn):
+- Each member creates **their own folder**: `notebooks/quyen/`, `notebooks/bao/`, …
+  Never edit another member's notebook.
+- **Always strip outputs before committing** (outputs and `execution_count` create noisy diffs):
 
-  ```powershell
+  ```bash
   pip install nbstripout
-  nbstripout --install        # tự động strip khi commit
+  nbstripout --install        # strips outputs automatically on commit
   ```
 
-- Tên notebook theo việc: `eda_gia_theo_hang.ipynb`, `baseline_median.ipynb`, …
-- Notebook dài → tách hàm ổn định ra `src/` (ví dụ `src/data_prep/`), notebook chỉ gọi lại.
+- Name notebooks after the task: `price_by_brand_eda.ipynb`, `median_baseline.ipynb`, …
+- When a notebook grows, move stable logic into `src/` (for example `src/data_prep/`) and call it
+  from the notebook.
 
-Phân công Tuần 2 (theo kế hoạch): EDA ở tiểu ban 3 (Phong, Tuấn Anh, Quang);
-missing data ở tiểu ban 2 (Hiếu, Bảo, Duy); merge/dedupe ở tiểu ban 1 (Quyền, Quyết, Phương).
+Week 2 split from the project plan: EDA in sub-team 3 (Phong, Tuấn Anh, Quang);
+missing-data audit in sub-team 2 (Hiếu, Bảo, Duy); merge/dedupe in sub-team 1 (Quyền, Quyết, Phương).

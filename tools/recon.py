@@ -1,6 +1,6 @@
-"""Công cụ recon: kiểm tra robots.txt, tải trang, dò API/JSON ẩn trong HTML.
+"""Recon tool: check robots.txt, fetch a page, and look for hidden API/JSON endpoints.
 
-Chạy:  python -m tools.recon https://oto.com.vn/mua-ban-xe
+Run:  python -m tools.recon https://oto.com.vn/mua-ban-xe
 """
 
 from __future__ import annotations
@@ -41,12 +41,12 @@ def main() -> None:
         print("=" * 70)
         print("ROBOTS.TXT", root)
         print("=" * 70)
-        print(robots if robots else "(không lấy được / không có)")
+        print(robots if robots else "(could not fetch / not present)")
 
-        # 2) tải trang
+        # 2) fetch the page
         resp = session.get(url)
         if resp is None:
-            print("KHÔNG fetch được:", url)
+            print("FETCH FAILED:", url)
             return
         html = resp.text
         print("=" * 70)
@@ -54,9 +54,9 @@ def main() -> None:
         print("=" * 70)
 
         raw_path = storage.save_raw(html, "recon_muabanxe")
-        print("Đã lưu HTML thô:", raw_path)
+        print("Saved raw HTML:", raw_path)
 
-        # 3) dò dấu hiệu trong HTML
+        # 3) look for API/JSON markers inside the HTML
         for name, pattern in PATTERNS.items():
             found = re.findall(pattern, html)
             if found and isinstance(found[0], tuple):
@@ -66,10 +66,10 @@ def main() -> None:
             for value, count in unique.most_common(12):
                 print(f"  [{count}x] {value[:160]}")
 
-        # 4) đếm thẻ xe trong HTML (nội dung có sẵn hay không?)
-        print("\n--- dấu hiệu nội dung server-render ---")
+        # 4) count listing-card markers (is the content server-rendered?)
+        print("\n--- server-render evidence ---")
         for probe in ("class=\"cb-item", "oto-item", "product-item", "item-car", "car-item", "price"):
-            print(f"  {probe!r}: {html.count(probe)} lần")
+            print(f"  {probe!r}: {html.count(probe)} occurrences")
 
 
 if __name__ == "__main__":

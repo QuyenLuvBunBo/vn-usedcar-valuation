@@ -1,35 +1,36 @@
-"""HỢP ĐỒNG DỮ LIỆU dùng chung cho cả nhóm: Unified Schema 16 thuộc tính + 5 metadata.
+"""THE TEAM'S DATA CONTRACT: the unified schema of 16 attributes + 5 metadata columns.
 
-Mọi nguồn (oto.com.vn, bonbanh, chotot, carmudi, carpla, anycar) PHẢI xuất ra đúng
-21 cột dưới đây, cùng tên và cùng cách viết giá trị:
+Every source (oto.com.vn, bonbanh, chotot, carmudi, carpla, anycar) MUST export exactly these
+21 columns, with these names and these normalized value spellings:
 
-    - truyền động  : Automatic / Manual / Other
-    - nhiên liệu   : Gasoline / Diesel / Hybrid / Electric / Unknown
-    - xuất xứ      : CKD (lắp ráp trong nước) / CBU (nhập khẩu) / Unknown
-    - loại xe      : Sedan / SUV / Crossover / MPV / Hatchback / Pickup / Van / Truck / ...
-    - người bán    : Dealership/Salon / Private Individual / Unknown
+    - transmission : Automatic / Manual / Other
+    - fuel_type    : Gasoline / Diesel / Hybrid / Electric / Unknown
+    - origin       : CKD (locally assembled) / CBU (imported) / Unknown
+    - body_type    : Sedan / SUV / Crossover / MPV / Hatchback / Pickup / Van / Truck / ...
+    - seller_type  : Dealership/Salon / Private Individual / Unknown
 
-Chỉ sửa file này khi cả nhóm đồng ý (đây là điểm xung đột duy nhất khi merge).
-Kiểm tra file CSV của bạn trước khi PR:  python -m tools.validate_source_csv <file.csv>
+Only change this file with team agreement — it is the single merge-conflict hotspot.
+Validate your CSV before opening a PR:  python -m tools.validate_source_csv <file.csv>
 """
 
 from __future__ import annotations
 
 import re
 
-# --- 16 thuộc tính ---
+# --- 16 attributes ---
 ATTRIBUTE_COLUMNS = [
     "listing_id", "source_platform", "brand", "model", "sub_model_trim",
     "manufacture_year", "mileage_km", "transmission", "fuel_type", "origin",
     "body_type", "engine_capacity", "seats", "location_province", "seller_type",
     "price_vnd",
 ]
-# --- 5 metadata ---
+# --- 5 metadata columns ---
 METADATA_COLUMNS = ["source_url", "listing_date", "scraped_at", "raw_price_text", "price_status"]
 
 SCHEMA_COLUMNS = ATTRIBUTE_COLUMNS + METADATA_COLUMNS
 NUMERIC_COLUMNS = ("manufacture_year", "mileage_km", "price_vnd", "engine_capacity", "seats")
 
+# Vietnamese source labels -> normalized English labels
 TRANSMISSION_MAP = {"số tự động": "Automatic", "số sàn": "Manual", "số hỗn hợp": "Other"}
 TRANSMISSION_VALUES = {"Automatic", "Manual", "Other", "Unknown"}
 
@@ -70,12 +71,12 @@ INSTALMENT = ("trả góp", "góp", "/tháng", "mỗi tháng")
 
 
 def _norm(value: str | None) -> str:
-    """Chuẩn hoá để so khớp: gộp khoảng trắng, về chữ thường."""
+    """Normalize for matching: collapse whitespace and lowercase."""
     return re.sub(r"\s+", " ", (value or "").replace("\xa0", " ")).strip().lower()
 
 
 def map_value(value: str | None, mapping: dict[str, str], unknown: str = "Unknown") -> str:
-    """Ánh xạ nhãn gốc sang nhãn chuẩn; không khớp -> giữ nhãn gốc / Unknown."""
+    """Map an original label to its normalized form; keep the original / Unknown if unmapped."""
     key = _norm(value)
     if not key:
         return unknown
@@ -108,7 +109,7 @@ def normalize_body(raw: str | None) -> str:
 
 
 def normalize_province(raw: str | None, city_code: str = "") -> str:
-    """Chuẩn hoá tỉnh/thành; gom 'Thủ Đức - Tp.HCM' -> 'TP. Hồ Chí Minh'."""
+    """Normalize a province/city; e.g. 'Thủ Đức - Tp.HCM' -> 'TP. Hồ Chí Minh'."""
     key = _norm(raw)
     if key in PROVINCE_MAP:
         return PROVINCE_MAP[key]
@@ -124,7 +125,7 @@ def normalize_province(raw: str | None, city_code: str = "") -> str:
 
 
 def price_status(price_vnd: int | None, raw_price_text: str | None) -> str:
-    """full / negotiable / instalment / invalid."""
+    """Classify the price expression: full / negotiable / instalment / invalid."""
     text = _norm(raw_price_text)
     if any(k in text for k in INSTALMENT):
         return "instalment"
@@ -134,5 +135,5 @@ def price_status(price_vnd: int | None, raw_price_text: str | None) -> str:
 
 
 def seller_type_from_subdomain(subdomain_url: str | None) -> str:
-    """Nguồn có subdomain riêng cho showroom -> Dealership/Salon, ngược lại cá nhân."""
+    """A source that gives showrooms their own subdomain -> Dealership/Salon, otherwise private."""
     return "Dealership/Salon" if (subdomain_url or "").strip() else "Private Individual"

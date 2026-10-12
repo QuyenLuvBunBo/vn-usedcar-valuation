@@ -1,6 +1,6 @@
-"""Xác nhận phân trang /p{N}: so sánh id các trang, dò khối số trang + tổng tin.
+"""Verify the /p{N} pagination rule: compare page ids and find the page/total counters.
 
-Chạy: python -m tools.check_pages https://oto.com.vn/mua-ban-xe-toyota
+Run: python -m tools.check_pages https://oto.com.vn/mua-ban-xe-toyota
 """
 
 from __future__ import annotations
@@ -25,19 +25,19 @@ def main() -> None:
             url = base + path
             text = session.get_text(url)
             if text is None:
-                print(f"{path or '(trang 1)':>10} -> KHÔNG lấy được / lỗi")
+                print(f"{path or '(page 1)':>10} -> could not fetch / error")
                 continue
             tree = html.fromstring(text)
             items = tree.xpath(ITEM_XPATH)
             ids = [i.get("data-autoid") for i in items]
 
-            # khối số trang: các link /p<N>
+            # page-number block: the /p<N> links
             page_links = sorted(set(re.findall(r'href="[^"]*/p(\d+)"', text)), key=int)
             total = re.findall(r"C[oó]\s*([\d\.]+)\s*tin", re.sub(r"\s+", " ", tree.text_content()))
 
-            print(f"{path or '(trang 1)':>10} -> {len(items):2d} tin | ids[:2]={ids[:2]} "
-                  f"| trang có link: {page_links[:6]}...{page_links[-3:] if len(page_links) > 6 else ''} "
-                  f"| tổng: {total[:2]}")
+            print(f"{path or '(page 1)':>10} -> {len(items):2d} listings | ids[:2]={ids[:2]} "
+                  f"| page links: {page_links[:6]}...{page_links[-3:] if len(page_links) > 6 else ''} "
+                  f"| counter: {total[:2]}")
 
 
 if __name__ == "__main__":

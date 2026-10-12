@@ -1,6 +1,6 @@
-"""Trích text từ file .docx (kể cả bảng biểu) — không cần pandoc/Word.
+"""Extract text from a .docx file (tables included) without pandoc or Word.
 
-Chạy: python -m tools.docx_to_text <file.docx> [-o out.txt]
+Run: python -m tools.docx_to_text <file.docx> [-o out.txt]
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 
 def _para_text(node) -> str:
-    """Gộp text của 1 đoạn, có xử lý tab và ngắt dòng mềm."""
+    """Concatenate the text of one paragraph, handling tabs and soft line breaks."""
     parts: list[str] = []
     for child in node.iter():
         tag = child.tag
@@ -32,12 +32,12 @@ def _para_text(node) -> str:
 
 
 def _cell_text(cell) -> str:
-    """Gộp text của 1 ô trong bảng."""
+    """Concatenate the text of one table cell."""
     return " ".join(t for t in (_para_text(p) for p in cell.findall(f"{W}p")) if t).strip()
 
 
 def docx_to_text(path: Path) -> str:
-    """Đọc word/document.xml và chuyển thành text (mỗi dòng 1 đoạn, bảng -> dạng 'a | b')."""
+    """Read word/document.xml and turn it into text (one paragraph per line, tables as 'a | b')."""
     with zipfile.ZipFile(path) as zf:
         with zf.open("word/document.xml") as fh:
             root = ET.parse(fh).getroot()
@@ -59,14 +59,14 @@ def docx_to_text(path: Path) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Trích text từ .docx")
-    parser.add_argument("path", help="đường dẫn file .docx")
-    parser.add_argument("-o", "--out", default=None, help="ghi ra file txt UTF-8")
+    parser = argparse.ArgumentParser(description="Extract text from a .docx file")
+    parser.add_argument("path", help="path to the .docx file")
+    parser.add_argument("-o", "--out", default=None, help="write the text to a UTF-8 file")
     args = parser.parse_args()
 
     path = Path(args.path)
     if not path.exists():
-        print("Không thấy file:", path)
+        print("File not found:", path)
         return 1
 
     text = docx_to_text(path)
@@ -74,7 +74,7 @@ def main() -> int:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(text, encoding="utf-8")
-        print(f"Đã ghi {len(text)} ký tự -> {out}")
+        print(f"Wrote {len(text)} characters -> {out}")
     else:
         print(text)
     return 0

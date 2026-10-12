@@ -1,88 +1,113 @@
-# Mapping dữ liệu oto.com.vn → Unified Schema (Tuần 1)
+# oto.com.vn → Unified Schema mapping (week 1)
 
-Nguồn: **oto.com.vn** — nhóm xe phổ thông châu Á (Toyota, Hyundai, Kia, Mazda, Honda, Mitsubishi), chỉ tin **xe cũ**.
-Quy mô đã cào: **2.706 tin** (196 trang listing + 2.706 trang chi tiết).
+Source: **oto.com.vn** — Asian mainstream segment (Toyota, Hyundai, Kia, Mazda, Honda,
+Mitsubishi), **used cars only**.
+Crawled so far: **2,706 listings** (196 listing pages + 2,706 detail pages).
 
-## Cách tạo lại file
+## How to regenerate the files
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
-python -m src.sources.oto --group asia        # cào listing 6 hãng châu Á (~10 phút)
-python -m src.sources.oto --group other       # cào listing các hãng còn lại
-python -m src.sources.oto --detail-only       # cào trang chi tiết từng tin (~1h45m)
-python -m src.sources.oto.unified             # xuất data/processed/oto_unified.csv (21 cột)
+python -m src.sources.oto --group asia        # listings for the six Asian brands (~10 min)
+python -m src.sources.oto --group other       # listings for the remaining brands
+python -m src.sources.oto --detail-only       # detail page per listing (~1h45m)
+python -m src.sources.oto.unified             # export data/processed/oto_unified.csv (21 cols)
 ```
 
-## Bảng mapping 16 thuộc tính + 5 metadata
+## Mapping of the 16 attributes + 5 metadata columns
 
-| # | Cột Unified Schema | Nguồn trên oto.com.vn | Độ phủ | Ghi chú |
+| # | Unified column | Where it comes from on oto.com.vn | Coverage | Notes |
 |---|---|---|---|---|
-| 1 | `listing_id` | `data-autoid` của thẻ tin | 100% | Ghi dạng `OTO_23444795` (composite prefix + ID) |
-| 2 | `source_platform` | hằng số | 100% | `oto.com.vn` |
-| 3 | `brand` | `data-tinrao[0]` | 100% | 6 hãng |
-| 4 | `model` | `data-tinrao[1]` | 100% | 103 dòng xe |
-| 5 | `sub_model_trim` | tách từ tiêu đề (`h1.title-detail` / `car_name`) | 89,1% | vd `1.8G CVT`, `2.5Q`, `2.7 V 4X2 AT`; 296 tin người bán **không ghi** trim |
-| 6 | `manufacture_year` | `data-call[4]` (hoặc `#year`) | 100% | 1990–2026 |
-| 7 | `mileage_km` | tag `tag-list` "140.000 km" | 99,9% | Dữ liệu gốc, có tin người bán ghi sai (vd `12.000.000 km`) |
-| 8 | `transmission` | tag "Số tự động/Số sàn" | 100% | Ánh xạ → `Automatic` / `Manual` / `Other` |
-| 9 | `fuel_type` | tag "Máy xăng/Máy dầu/Hybrid" | 100% | → `Gasoline` / `Diesel` / `Hybrid` |
-| 10 | `origin` | `data-call[3]`, dự phòng `Xuất xứ` ở trang chi tiết | 100% | → `CKD` (trong nước) / `CBU` (nhập khẩu). **Dự phòng cần thiết** vì tin đã bán không có `data-call` |
-| 11 | `body_type` | `data-call[6]`, dự phòng `Kiểu dáng` ở trang chi tiết | 96,9% | → `Sedan/SUV/Crossover/MPV/Hatchback/Pickup/Van/Truck/Sports/Convertible` |
-| 12 | `engine_capacity` | tách số `1.5`/`2.0`/`2.4` từ trim/tiêu đề | 76,9% | ⚠️ **Giá trị suy luận**, không có cột "dung tích" trên site. Report cho phép dùng mapping make/model/trim/năm |
-| 13 | `seats` | input ẩn `#numberOfSeat` (trang chi tiết) | 97,3% | Listing **không** có, phải cào trang chi tiết |
-| 14 | `location_province` | `Tỉnh thành` (chi tiết) → `province` (listing) | 100% | Đã gom "Thủ Đức - Tp.HCM" → `TP. Hồ Chí Minh`; 101 nhãn |
-| 15 | `seller_type` | suy ra từ `d_seller_url` | 100% | Có subdomain riêng ⇒ `Dealership/Salon` (1.818) · không ⇒ `Private Individual` (888) |
-| 16 | `price_vnd` (target) | `#price` (input ẩn, ví dụ `745000000`) → `p.price` | **100%** | 222 tin listing để trống giá nhưng trang chi tiết có ⇒ đã lấp đủ |
-| 17 | `source_url` | `h3/a @href` | 100% | URL tuyệt đối |
-| 18 | `listing_date` | `<lastmod>` trong `sitemap-detail-1/2.xml` | 99,5% | ⚠️ Ngày **đăng/đẩy tin gần nhất** (site không công bố "ngày đăng" ở trang tin). Đã kiểm chứng: tương quan với vị trí trang listing |
-| 19 | `scraped_at` | thời điểm chạy tool | 100% | UTC, ISO 8601 |
-| 20 | `raw_price_text` | `p.price` (listing) → `span.price` (chi tiết) | **100%** | Giữ nguyên văn bản gốc, vd `1 tỉ 450 triệu` |
-| 21 | `price_status` | suy ra từ giá + raw text | 100% | `full` / `negotiable` / `instalment` / `invalid`. Riêng oto.com.vn: 2.706 tin `full` |
+| 1 | `listing_id` | card attribute `data-autoid` | 100% | Written as `OTO_23444795` (source prefix + ID) |
+| 2 | `source_platform` | constant | 100% | `oto.com.vn` |
+| 3 | `brand` | `data-tinrao[0]` | 100% | 6 brands |
+| 4 | `model` | `data-tinrao[1]` | 100% | 103 models |
+| 5 | `sub_model_trim` | parsed from the title (`h1.title-detail` / `car_name`) | 89.1% | e.g. `1.8G CVT`, `2.5Q`, `2.7 V 4X2 AT`; 296 sellers did not state a trim |
+| 6 | `manufacture_year` | `data-call[4]` (or `#year`) | 100% | 1990–2026 |
+| 7 | `mileage_km` | `tag-list` entry "140.000 km" | 99.9% | Raw site value; some sellers typed it wrong (e.g. `12.000.000 km`) |
+| 8 | `transmission` | tag "Số tự động / Số sàn" | 100% | Mapped to `Automatic` / `Manual` / `Other` |
+| 9 | `fuel_type` | tag "Máy xăng / Máy dầu / Hybrid" | 100% | Mapped to `Gasoline` / `Diesel` / `Hybrid` |
+| 10 | `origin` | `data-call[3]`, falling back to the detail page's `Xuất xứ` | 100% | Mapped to `CKD` (locally assembled) / `CBU` (imported). The fallback is required because sold listings have no `data-call` |
+| 11 | `body_type` | `data-call[6]`, falling back to `Kiểu dáng` on the detail page | 96.9% | Mapped to `Sedan/SUV/Crossover/MPV/Hatchback/Pickup/Van/Truck/Sports/Convertible` |
+| 12 | `engine_capacity` | numeric part of the trim/title (`1.5`, `2.0`, `2.4`) | 76.9% | ⚠️ **Inferred value** — the site has no displacement field. The report allows a make/model/trim/year lookup table instead |
+| 13 | `seats` | hidden input `#numberOfSeat` (detail page) | 97.3% | Not present on the listing card, so a detail crawl is needed |
+| 14 | `location_province` | `Tỉnh thành` (detail) → `province` (listing) | 100% | "Thủ Đức - Tp.HCM" collapsed to `TP. Hồ Chí Minh`; 101 distinct labels |
+| 15 | `seller_type` | inferred from `d_seller_url` | 100% | Own subdomain ⇒ `Dealership/Salon` (1,818) · none ⇒ `Private Individual` (888) |
+| 16 | `price_vnd` (target) | hidden input `#price` (e.g. `745000000`) → `p.price` | **100%** | 222 listings had a blank price but the detail page had one ⇒ fully recovered |
+| 17 | `source_url` | `h3/a @href` | 100% | Absolute URL |
+| 18 | `listing_date` | `<lastmod>` in `sitemap-detail-1/2.xml` | 99.5% | ⚠️ The **publication/last-bump** date, because the site publishes no "posted on" date on the listing page. Verified: it correlates with the listing page position |
+| 19 | `scraped_at` | capture time of the tool run | 100% | UTC, ISO 8601 |
+| 20 | `raw_price_text` | `p.price` (listing) → `span.price` (detail) | **100%** | Unmodified text, e.g. `1 tỉ 450 triệu` |
+| 21 | `price_status` | derived from the price + raw text | 100% | `full` / `negotiable` / `instalment` / `invalid`. For oto.com.vn all 2,706 are `full` |
 
-## Những gì oto.com.vn **KHÔNG** có (để báo cáo ghi rõ là null)
+## What oto.com.vn does **NOT** provide (report them as null)
 
-| Trường | Tình trạng |
+| Field | Status |
 |---|---|
-| Ngày đăng tin công bố chính thức | Không hiển thị ở đâu; chỉ có `lastmod` trong sitemap (xem #18) |
-| Lượt xem tin | Không hiển thị |
-| Dung tích động cơ (cc/L) | Không có trên trang tin; có trên trang **thông số dòng xe** (`/bang-gia-xe-o-to-<brand>-<model>-moi-nhat`) → nên làm bảng tra ở Tuần 2 |
-| Thông số kỹ thuật chi tiết (công suất, kích thước) | Tab "Thông số kỹ thuật" không chứa dữ liệu |
-| Số chỗ | Chỉ có qua cào trang chi tiết (`#numberOfSeat`) |
-| `duplicate_group_id`, `quality_flags` | Thuộc Tuần 2 theo kế hoạch (chưa sinh) |
+| An officially published listing date | Not shown anywhere; only the sitemap `lastmod` exists (see #18) |
+| View count | Not shown |
+| Engine displacement (cc/L) | Not on the listing page; it appears on the **model spec page** (`/bang-gia-xe-o-to-<brand>-<model>-moi-nhat`) → build a lookup table in week 2 |
+| Detailed technical specs (power, dimensions) | The "Thông số kỹ thuật" tab contains no data |
+| Seats | Only available by crawling the detail page (`#numberOfSeat`) |
+| `duplicate_group_id`, `quality_flags` | Planned for week 2 (not generated yet) |
 
-## Quy mô thật của nguồn oto.com.vn (đã kiểm chứng — quan trọng cho chỉ tiêu 15.000)
+## Verified size of the oto.com.vn source (important for the 15,000 target)
 
-| Nguồn đếm | Con số | Ý nghĩa |
+| Measurement | Number | Meaning |
 |---|---|---|
-| Tổng URL trong `sitemap-detail-1/2.xml` | **30.900** | ⚠️ **Không phải tồn kho đang rao** — đây là kho URL lịch sử site còn giữ |
-| Trong đó có hậu tố `aidxc` (xe cũ) | 29.392 | trang tin xe cũ còn truy cập được |
-| URL có `lastmod` trong 90 ngày | ~7.400 | phần "còn tươi" |
-| URL có `lastmod` cũ hơn 90 ngày | **23.484 (76%)** | phần lớn đã ngừng rao |
-| **Số tin đang hiển thị ở listing** | **≈ 5.000** | 6 hãng phổ thông châu Á: **2.706** (khớp đúng bộ đếm của site) + các hãng còn lại ≈ 2.200 |
+| URLs in `sitemap-detail-1/2.xml` | **30,900** | ⚠️ **Not the current inventory** — this is the historical URL archive the site keeps |
+| Of those, `aidxc` suffix (used cars) | 29,392 | still-reachable used-car listing pages |
+| URLs whose `lastmod` is within 90 days | ~7,400 | the "fresh" part |
+| URLs whose `lastmod` is older than 90 days | **23,484 (76%)** | mostly no longer advertised |
+| **Listings actually shown in the listings** | **≈ 5,000** | six Asian brands: **2,706** (matches the site's own counter) + remaining brands ≈ 2,200 |
 
-Bằng chứng cho kết luận "sitemap ≠ tồn kho":
+Evidence that "sitemap ≠ inventory":
 
-1. Toyota có **5.715 URL** trong sitemap nhưng listing chỉ báo `Có 892 tin` và vét hết 60 trang cũng đúng 892 tin.
-2. Lấy ngẫu nhiên 48 tin "chỉ có trong sitemap": **100% trả HTTP 200** và đủ dữ liệu, nhưng khi dò trong listing theo **hãng** và theo **dòng xe** thì **không có** ⇒ chúng đã bị bỏ khỏi danh sách rao nhưng trang vẫn sống (thường là tin đã gia hạn/đăng lại bằng id mới, hoặc hết hạn nhưng chưa xoá).
-3. Trong 40 tin sitemap-only, **34 tin (85%) vẫn còn nút "Trả giá"** (dấu hiệu chưa bị đánh bán) — nhưng vẫn không nằm trong listing ⇒ **nút Trả giá chỉ cho biết trang chưa bị đánh dấu "đã bán", KHÔNG chứng minh tin đang được rao**.
+1. Toyota has **5,715 URLs** in the sitemap, yet the listing page reports `Có 892 tin` and
+   crawling all 60 pages yields exactly 892 listings.
+2. A random sample of 48 sitemap-only listings returned **HTTP 200 with full data**, but searching
+   the listings by **brand** and by **model** did not find any of them ⇒ they were removed from the
+   advertised set while the page stays online (usually an ad that was renewed/reposted under a new
+   id, or one that expired without being deleted).
+3. Of 40 sitemap-only listings, **34 (85%) still show the "Trả giá" (price-proposal) button**
+   (i.e. not marked as sold) — yet they are still absent from the listings ⇒ that button only means
+   the page was not marked sold, it does **not** prove the car is still advertised.
 
-**Hệ quả cho kế hoạch Tuần 1:** chỉ tiêu 15.000 tin/người cho oto.com.vn **không đạt được từ listing hiện tại** (~5.000 tin cho toàn site). Ba lựa chọn:
-1. Bù bằng 5 nguồn còn lại (bonbanh, chợ tốt, carmudi, carpla, anycar) — nên ưu tiên.
-2. Dùng thêm "tier lưu trữ" từ sitemap (thêm được ~26.600 tin) nhưng **phải thêm cột `in_listing`** để báo cáo tách riêng: nhóm này không đang rao, phần lớn đã cũ, và ~15% đã bán.
-3. Hạ chỉ tiêu cho nguồn oto.com.vn.
+**Consequence for the week-1 plan:** a target of 15,000 listings per person is **not reachable from
+the current oto.com.vn listings** (~5,000 listings site-wide). Three options:
 
-Nếu dùng tier lưu trữ: crawl trực tiếp theo URL trong sitemap (không cần phân trang), sitemap **sắp giảm dần theo `lastmod`** nên lấy N URL đầu = N tin mới nhất; trang chi tiết đã đủ cả 21 cột của Unified Schema.
+1. Make it up from the other five sources (bonbanh, chotot, carmudi, carpla, anycar) — the preferred route.
+2. Add an "archive tier" from the sitemap (about 26,600 more listings) but **add an `in_listing`
+   column** so the report keeps them separate: they are not currently advertised, most are old, and
+   roughly 15% are sold.
+3. Lower the target for this source.
 
+If the archive tier is used: crawl straight from the sitemap URLs (no pagination needed). The
+sitemap is **sorted by `lastmod` descending**, so the first N URLs are the N newest listings, and a
+detail page already carries all 21 unified columns.
 
-1. **47,8% tin là "đã bán"** (`sold` trong DB gốc) — vẫn có đủ 16 thuộc tính, nhưng giá là giá **rao bán lịch sử**, không phải giá đang chào. Nên test độ nhạy khi lọc bỏ nhóm này.
-2. `listing_date` = ngày đẩy tin, **không dùng làm feature trực tiếp**; chỉ dùng để chia train/test theo thời gian.
-3 `price_vnd` là **target**, không được đưa vào tập predictors (tránh leakage). Tương tự, không dùng `raw_price_text`, `price_status`, và các cột `d_price_vnd` khi huấn luyện.
-4. **Không đưa thông tin liên hệ** (số điện thoại, tên/địa chỉ salon cá nhân) vào dataset công bố — report yêu cầu loại bỏ; dùng `seller_type` thay thế.
-5. `engine_capacity` là giá trị suy luận: nên gắn cờ chất lượng và đối chiếu bảng tra dòng xe trước khi dùng làm predictor quan trọng.
+## Important notes when using the data
 
-## Gợi ý chọn thuộc tính cho mô hình (Tuần 3)
+1. **47.8% of the listings are "sold"** (the `sold` flag in the raw table). They still have all 16
+   attributes, but the price is a **historical asking price**, not a current one. Run the model both
+   with and without them to test sensitivity.
+2. `listing_date` is a bump date: **do not use it as a feature**; use it only to split train/test by time.
+3. `price_vnd` is the **target**: never feed it to the predictors (leakage). Do not use
+   `raw_price_text`, `price_status` or the `d_price_vnd` column for training either.
+4. **Do not publish contact information** (phone numbers, individual sellers' names/addresses) — the
+   report requires removing it. Use `seller_type` instead.
+5. `engine_capacity` is inferred: attach a quality flag and validate it against the model-spec lookup
+   before treating it as an important predictor.
+
+## Suggested column selection for modelling (week 3)
 
 - **Target**: `price_vnd`
-- **Predictors chính**: `brand`, `model`, `sub_model_trim`, `manufacture_year`, `mileage_km`, `transmission`, `fuel_type`, `origin`, `body_type`, `engine_capacity`, `seats`, `location_province`, `seller_type`
-- **Feature kỹ nghệ nên tạo**: `vehicle_age = listing/capture year − manufacture_year`, `km_per_year = mileage_km / max(vehicle_age, 1)`, `geo_tier` (Hà Nội/TP.HCM vs tỉnh), `brand_retention_rate` (theo nhóm)
-- **Metadata (không dùng làm feature)**: `listing_id`, `source_platform`, `source_url`, `listing_date`, `scraped_at`, `raw_price_text`, `price_status`
+- **Main predictors**: `brand`, `model`, `sub_model_trim`, `manufacture_year`, `mileage_km`,
+  `transmission`, `fuel_type`, `origin`, `body_type`, `engine_capacity`, `seats`,
+  `location_province`, `seller_type`
+- **Engineered features to build**: `vehicle_age = listing/capture year − manufacture_year`,
+  `km_per_year = mileage_km / max(vehicle_age, 1)`, `geo_tier` (Hà Nội/TP.HCM vs provinces),
+  `brand_retention_rate` (by group)
+- **Metadata — never used as features**: `listing_id`, `source_platform`, `source_url`,
+  `listing_date`, `scraped_at`, `raw_price_text`, `price_status`
+

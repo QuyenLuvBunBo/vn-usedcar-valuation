@@ -1,6 +1,6 @@
-"""Tuần 2: ghép 6 nguồn thành Master Dataset (`data/master/master_clean_dataset.csv`).
+"""Week 2: merge the six sources into the Master Dataset (`data/master/master_clean_dataset.csv`).
 
-Chạy khi đã có đủ 6 file `data/processed/<nguồn>.csv` đúng 21 cột:
+Run once every `data/processed/<source>.csv` exists with the correct 21 columns:
 
     python -m src.merge.build_master
 """
@@ -19,12 +19,12 @@ SOURCES = ["oto", "bonbanh", "chotot", "carmudi", "carpla", "anycar"]
 
 
 def build(sources: list[str] = SOURCES) -> list[dict]:
-    """Đọc CSV từng nguồn, gắn source_platform, gộp thành một danh sách record.
+    """Read each source CSV, tag source_platform, and concatenate into one record list.
 
-    TODO (Tuần 2):
-      1. Kiểm tra mỗi file trước khi gộp:  python -m tools.validate_source_csv <file>
-      2. Ghi lại số dòng mỗi nguồn + tỷ lệ thiếu để đưa vào báo cáo Milestone 1.
-      3. Sau khi gộp: chạy dedupe (xem src/merge/dedupe.py) rồi mới ghi master.
+    TODO (week 2):
+      1. Validate every file before merging:  python -m tools.validate_source_csv <file>
+      2. Record the row count and missing rate per source for the Milestone 1 report.
+      3. After merging, run dedupe (see src/merge/dedupe.py) before writing the master file.
     """
     import csv
 
@@ -32,20 +32,20 @@ def build(sources: list[str] = SOURCES) -> list[dict]:
     for source in sources:
         path = config.DATA_PROCESSED / f"{source}.csv"
         if not path.exists():
-            log.warning("chưa có file %s -> bỏ qua", path)
+            log.warning("no file yet for %s -> skipping", path)
             continue
         with path.open(encoding="utf-8-sig", newline="") as fh:
             part = list(csv.DictReader(fh))
         for row in part:
             row.setdefault("source_platform", source)
         rows.extend(part)
-        log.info("%-10s %6d tin", source, len(part))
-    log.info("Tổng sau khi gộp: %d tin", len(rows))
+        log.info("%-10s %6d listings", source, len(part))
+    log.info("Total after merging: %d listings", len(rows))
     return rows
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Gộp 6 nguồn thành Master Dataset")
+    parser = argparse.ArgumentParser(description="Merge the six sources into the Master Dataset")
     parser.add_argument("--sources", nargs="+", default=SOURCES)
     parser.add_argument("--out", default="master_clean_dataset")
     args = parser.parse_args(argv)
@@ -54,9 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     config.ensure_dirs()
 
     rows = build(args.sources)
-    # TODO: rows = dedupe.duplicate_groups(rows)  (Tuần 2)
+    # TODO: rows = dedupe.duplicate_groups(rows)  (week 2)
     csv_path = storage.save_csv(rows, args.out, schema.SCHEMA_COLUMNS)
-    log.info("Đã ghi %s", csv_path)
+    log.info("Wrote %s", csv_path)
     return 0
 
 

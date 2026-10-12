@@ -1,6 +1,6 @@
-"""Thử các dạng URL phân trang để xem server có hỗ trợ không.
+"""Try different pagination URL patterns to see which ones the server supports.
 
-Chạy: python -m tools.test_paging_urls
+Run: python -m tools.test_paging_urls
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def main() -> None:
         for url in CANDIDATES:
             text = session.get_text(url)
             if text is None:
-                print(f"{url}\n    -> KHÔNG lấy được")
+                print(f"{url}\n    -> could not fetch")
                 continue
             tree = html.fromstring(text)
             items = tree.xpath(ITEM_XPATH)
@@ -42,7 +42,7 @@ def main() -> None:
             if items:
                 names = items[0].xpath('.//span[@class="car-name"]/text()')
                 first_title = names[0].strip()[:60] if names else ""
-            print(f"{url}\n    -> {len(items)} tin | ids[:3]={ids[:3]} | tin1={first_title!r}")
+            print(f"{url}\n    -> {len(items)} listings | ids[:3]={ids[:3]} | first={first_title!r}")
 
 
 if __name__ == "__main__":

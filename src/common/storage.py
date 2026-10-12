@@ -1,4 +1,4 @@
-"""Lưu dữ liệu: HTML/JSON thô, JSONL, CSV và SQLite chống trùng."""
+"""Data storage: raw HTML/JSON, JSONL, CSV and a deduplicating SQLite writer."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from . import config
 
 # ------------------------------------------------------------------ raw data
 def save_raw(content: str | bytes, name: str) -> Path:
-    """Lưu nguyên văn HTML/JSON response vào data/raw để parse lại về sau."""
+    """Store a raw HTML/JSON response under data/raw so it can be re-parsed later."""
     config.ensure_dirs()
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", name)[:120] or "page"
     path = config.DATA_RAW / f"{safe}.html"
@@ -27,7 +27,7 @@ def save_raw(content: str | bytes, name: str) -> Path:
 
 
 def save_json(records: Iterable[dict], name: str) -> Path:
-    """Lưu danh sách record ra JSON kèm timestamp."""
+    """Write a list of records to JSON together with a capture timestamp."""
     config.ensure_dirs()
     payload = {
         "scraped_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -41,10 +41,10 @@ def save_json(records: Iterable[dict], name: str) -> Path:
 
 
 def save_jsonl(records: Iterable[dict], name: str, append: bool = False) -> Path:
-    """Lưu mỗi record 1 dòng JSON.
+    """Write one JSON object per line.
 
-    append=True khi cần ghi nối tiếp (dữ liệu lớn); mặc định ghi đè để mỗi lần
-    xuất là một file sạch, không bị nhân bản record.
+    Pass append=True to continue an existing file (large datasets). The default overwrites,
+    so every export is a clean file without duplicated records.
     """
     config.ensure_dirs()
     path = config.DATA_PROCESSED / f"{name}.jsonl"
@@ -56,7 +56,7 @@ def save_jsonl(records: Iterable[dict], name: str, append: bool = False) -> Path
 
 
 def save_csv(records: Sequence[dict], name: str, fieldnames: Sequence[str] | None = None) -> Path:
-    """Lưu ra CSV UTF-8 BOM để Excel mở không bị lỗi tiếng Việt."""
+    """Write CSV as UTF-8 with BOM so Excel opens Vietnamese text correctly."""
     config.ensure_dirs()
     path = config.DATA_PROCESSED / f"{name}.csv"
     if not records:
@@ -72,7 +72,7 @@ def save_csv(records: Sequence[dict], name: str, fieldnames: Sequence[str] | Non
 
 # ---------------------------------------------------------------------- sqlite
 def open_db(path: Path | str = "data/scraped.db") -> sqlite3.Connection:
-    """Mở (và tạo nếu chưa có) SQLite DB ở thư mục project."""
+    """Open (creating it if needed) the project SQLite database."""
     config.ensure_dirs()
     db_path = Path(path)
     if not db_path.is_absolute():
@@ -84,7 +84,7 @@ def open_db(path: Path | str = "data/scraped.db") -> sqlite3.Connection:
 
 
 def create_table(conn: sqlite3.Connection, table: str, columns: Sequence[str]) -> None:
-    """Tạo bảng với cột `url` là UNIQUE để chống ghi trùng."""
+    """Create a table whose `url` column is the PRIMARY KEY, so writes never duplicate."""
     cols_sql = ", ".join(f'"{c}" TEXT' for c in columns if c != "url")
     conn.execute(
         f'CREATE TABLE IF NOT EXISTS "{table}" ('
@@ -95,7 +95,7 @@ def create_table(conn: sqlite3.Connection, table: str, columns: Sequence[str]) -
 
 
 def ensure_columns(conn: sqlite3.Connection, table: str, columns: Sequence[str]) -> None:
-    """Thêm cột còn thiếu vào bảng đã tồn tại (migration nhẹ cho SQLite)."""
+    """Add any missing columns to an existing table (a lightweight SQLite migration)."""
     existing = {row[1] for row in conn.execute(f'PRAGMA table_info("{table}")')}
     for column in columns:
         if column not in existing:
@@ -104,10 +104,10 @@ def ensure_columns(conn: sqlite3.Connection, table: str, columns: Sequence[str])
 
 
 def upsert_rows(conn: sqlite3.Connection, table: str, rows: Sequence[dict]) -> int:
-    """Ghi/cập nhật record theo khóa url.
+    """Insert or refresh records, keyed on url.
 
-    Dùng ON CONFLICT DO UPDATE (không phải INSERT OR IGNORE) để chạy lại sau khi
-    sửa parser sẽ làm mới dữ liệu cũ thay vì giữ mãi bản ghi lỗi.
+    ON CONFLICT DO UPDATE (rather than INSERT OR IGNORE) means that re-running after a parser
+    fix refreshes stale rows instead of keeping the old, wrong values forever.
     """
     if not rows:
         return 0
@@ -126,14 +126,12 @@ def upsert_rows(conn: sqlite3.Connection, table: str, rows: Sequence[dict]) -> i
     return cur.rowcount
 
 
-
 def count_rows(conn: sqlite3.Connection, table: str) -> int:
-    """Đếm số record hiện có trong bảng."""
+    """Return the number of records currently stored in a table."""
     return int(conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0])
 
 
 def read_rows(conn: sqlite3.Connection, table: str) -> list[dict]:
-    """Đọc toàn bộ bảng thành list[dict] (để xuất lại CSV/JSONL không cần cào lại)."""
+    """Read a whole table into list[dict] (used to re-export CSV/JSONL without re-crawling)."""
     cursor = conn.execute(f'SELECT * FROM "{table}"')
     return [dict(row) for row in cursor.fetchall()]
-

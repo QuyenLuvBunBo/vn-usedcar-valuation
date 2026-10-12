@@ -1,59 +1,61 @@
-# Khuôn mẫu cho một nguồn dữ liệu mới
+# Template for a new data source
 
-Copy cả thư mục này thành `src/sources/<nguồn>/` (ví dụ `src/sources/bonbanh/`), rồi làm 4 bước:
+Copy this whole folder to `src/sources/<source>/` (for example `src/sources/bonbanh/`),
+then follow the four steps below.
 
-## 1. Khảo sát site trước khi code (đừng đoán)
+## 1. Recon the site before writing code
 
-Dùng các tool có sẵn ở `tools/`:
+Use the helpers in `tools/`:
 
-```powershell
-python -m tools.recon <url>            # robots.txt + tải trang + dò API/JSON ẩn
-python -m tools.paging <url>           # tìm quy tắc phân trang + tổng số tin
-python -m tools.check_pages <url>      # xác nhận phân trang, trang cuối
-python -m tools.field_stats 2          # đo độ phủ field / định dạng giá trên mẫu
+```bash
+python -m tools.recon <url>            # robots.txt + fetch + discover hidden API/JSON
+python -m tools.paging <url>           # find the pagination rule and the total count
+python -m tools.check_pages <url>      # confirm pagination, find the last page
+python -m tools.field_stats 2          # measure field coverage / price formats on a sample
 ```
 
-Ghi lại kết quả vào `docs/sources/<nguồn>.md`: robots.txt có cho phép không, HTML tĩnh hay
-render bằng JS, quy tắc phân trang, các class/xpath dùng để bóc dữ liệu, và **những field
-site không có**.
+Record the results in `docs/sources/<source>.md`: whether robots.txt allows crawling, whether the
+HTML is server-rendered or JS-driven, the pagination rule, the selectors/XPaths you use, and
+**which fields the site does not expose**.
 
-## 2. Viết `crawl.py`
+## 2. Write `crawl.py`
 
-Giữ nguyên cấu trúc file mẫu; chỉ cần:
+Keep the structure of the template file; you only need to change:
 
 - `SOURCE`, `BASE_URL`, `START_URL`, `TABLE`
 - `parse_list_page(page_html, base_url)` → `(records, next_url)`
-- (tuỳ nguồn) `parse_detail_page(page_html, url)` nếu cần vào từng tin để lấy thêm field
-- `to_unified(raw)` → dict đủ **21 cột** theo `src/common/schema.py`
+- (if needed) `parse_detail_page(page_html, url)` to fetch extra fields from each listing page
+- `to_unified(raw)` → a dict with the **21 columns** from `src/common/schema.py`
 
-Quy tắc bắt buộc:
+Mandatory rules:
 
-- Mọi request đi qua `ScraperSession` (đã có header trình duyệt + delay + retry + xử lý 429).
-- Delay tối thiểu **1.5s/request** (chỉnh trong `.env`), không chạy song song ồ ạt.
-- Ghi vào SQLite bằng `storage.upsert_rows` (khóa chính = URL) → chạy lại không nhân đôi.
-- Luôn lưu HTML thô (`storage.save_raw`) ở nơi cần sửa parser nhiều lần.
+- Every request must go through `ScraperSession` (browser headers, delay, retry, 429 handling).
+- Keep at least a **1.5 s delay per request** (configurable in `.env`) — no aggressive parallel runs.
+- Write to SQLite with `storage.upsert_rows` (primary key = URL) so re-running never duplicates rows.
+- Save raw HTML (`storage.save_raw`) wherever you expect to iterate on the parser.
 
-## 3. Chuẩn hoá về 21 cột
+## 3. Normalize to the 21 columns
 
-Dùng `src/common/schema.py` và `src/common/parsing.py`, **không tự viết lại**:
+Use `src/common/schema.py` and `src/common/parsing.py` — **do not re-implement**:
 
-| Việc | Hàm dùng |
+| Task | Helper |
 |---|---|
-| Giá "550 triệu", "1 tỷ 250 tr" → VND | `parse_vnd_price` |
-| Km "140.000 km" → 140000 | `parse_km_text` |
-| Truyền động → Automatic/Manual | `schema.normalize_transmission` |
-| Nhiên liệu → Gasoline/Diesel/Hybrid/Electric | `schema.normalize_fuel` |
-| Xuất xứ → CKD/CBU | `schema.normalize_origin` |
-| Loại xe → Sedan/SUV/Pickup/... | `schema.normalize_body` |
-| Tỉnh/thành | `schema.normalize_province` |
-| Trạng thái giá | `schema.price_status` |
-| Người bán salon/cá nhân | `schema.seller_type_from_subdomain` |
+| Vietnamese price "550 triệu", "1 tỷ 250 tr" → VND | `parse_vnd_price` |
+| Mileage "140.000 km" → 140000 | `parse_km_text` |
+| Transmission → Automatic/Manual | `schema.normalize_transmission` |
+| Fuel → Gasoline/Diesel/Hybrid/Electric | `schema.normalize_fuel` |
+| Origin → CKD/CBU | `schema.normalize_origin` |
+| Body type → Sedan/SUV/Pickup/… | `schema.normalize_body` |
+| Province / city | `schema.normalize_province` |
+| Price interpretation status | `schema.price_status` |
+| Seller salon vs. private | `schema.seller_type_from_subdomain` |
 
-## 4. Kiểm tra rồi mới PR
+## 4. Validate, then open a pull request
 
-```powershell
-python -m tools.validate_source_csv data/processed/<nguồn>.csv
+```bash
+python -m tools.validate_source_csv data/processed/<source>.csv
 ```
 
-Script sẽ báo: thiếu/ thừa cột, sai thứ tự, sai kiểu dữ liệu, giá trị categorical lạ.
-**Chỉ PR khi pass** — đây là điều kiện để Tuần 2 merge 6 nguồn không phải sửa tay.
+The script reports missing/extra columns, wrong order, wrong data types and unexpected categorical
+values. **Only open a PR once it passes** — this is what lets us merge six sources in week 2
+without hand-fixing anything.

@@ -1,9 +1,9 @@
-"""Tuần 2: lọc trùng đa nguồn + sinh duplicate_group_id.
+"""Week 2: cross-source deduplication and duplicate_group_id generation.
 
-Hai bước theo kế hoạch:
-  1. Trùng trong cùng nguồn: theo listing_id / source_url (khoá chính) — đã xử lý khi cào.
-  2. Trùng giữa các nguồn: composite key (brand, model, sub_model_trim, manufacture_year,
-     location_province, +/- dung sai mileage_km) và fuzzy match cho model/trim.
+Two steps, as planned:
+  1. Duplicates inside one source: by listing_id / source_url (primary key) — handled at crawl time.
+  2. Duplicates across sources: composite key (brand, model, sub_model_trim, manufacture_year,
+     location_province, +/- mileage tolerance) plus fuzzy matching on model/trim.
 """
 
 from __future__ import annotations
@@ -12,9 +12,10 @@ import hashlib
 
 
 def composite_key(row: dict, mileage_tolerance: int = 5000) -> str:
-    """Khoá gộp thô để tìm ứng viên trùng giữa các nguồn.
+    """Coarse grouping key used to find cross-source duplicate candidates.
 
-    TODO (Tuần 2): cân nhắc thêm sub_model_trim đã chuẩn hoá và dung sai km theo nhóm tuổi xe.
+    TODO (week 2): consider adding the normalized sub_model_trim and an age-dependent
+    mileage tolerance instead of one global value.
     """
     mileage = row.get("mileage_km")
     try:
@@ -32,7 +33,7 @@ def composite_key(row: dict, mileage_tolerance: int = 5000) -> str:
 
 
 def duplicate_groups(rows: list[dict]) -> list[dict]:
-    """Gán duplicate_group_id cho từng record (nhóm cùng tổ hợp khoá = cùng xe)."""
+    """Assign a duplicate_group_id to each record (same key combination = same vehicle)."""
     groups: dict[str, int] = {}
     for row in rows:
         key = composite_key(row)

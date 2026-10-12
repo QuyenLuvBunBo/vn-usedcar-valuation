@@ -1,4 +1,4 @@
-"""Cho phép chạy `python -m src.sources.oto` (gọi vào CLI của crawl.py)."""
+"""Allows running `python -m src.sources.oto` (delegates to crawl.py's CLI)."""
 
 import sys
 

@@ -1,6 +1,6 @@
-"""Kiểm tra parser trên HTML thô đã lưu: số record vs số thẻ tin, độ phủ field.
+"""Validate the parser against saved raw HTML: record count vs card count, field coverage.
 
-Chạy: python -m tools.validate_parser            # quét mọi file data/raw/oto_*.html
+Run: python -m tools.validate_parser            # scan every data/raw/oto_*.html
       python -m tools.validate_parser <file.html>
 """
 
@@ -34,9 +34,9 @@ def check(path: Path) -> tuple[int, int, Counter, Counter]:
                 if on_sale:
                     coverage_onsale[key] += 1
 
-    status = "OK " if len(records) == raw_count else "LỆCH"
+    status = "OK   " if len(records) == raw_count else "MISMATCH"
     sold = sum(1 for r in records if r["sold"])
-    print(f"[{status}] {path.name}: HTML {raw_count} thẻ | parser {len(records)} record | đã bán {sold}")
+    print(f"[{status}] {path.name}: HTML {raw_count} cards | parser {len(records)} records | sold {sold}")
     return raw_count, len(records), coverage, coverage_onsale
 
 
@@ -49,7 +49,7 @@ def main() -> None:
             raw.glob("recon_brand.html")
         )
     if not files:
-        print("Không có file HTML thô nào trong data/raw (chạy scraper với --save-raw trước).")
+        print("No raw HTML files in data/raw (run the scraper with --save-raw first).")
         return
 
     total_html = total_parsed = total_onsale = 0
@@ -57,7 +57,7 @@ def main() -> None:
     coverage_onsale: Counter = Counter()
     for path in files:
         if not path.exists():
-            print("bỏ qua (không tồn tại):", path)
+            print("skipping (missing):", path)
             continue
         raw_count, parsed, cov, cov_on = check(path)
         total_html += raw_count
@@ -66,20 +66,20 @@ def main() -> None:
         coverage.update(cov)
         coverage_onsale.update(cov_on)
 
-    print("\n################ TỔNG ################")
-    print(f"HTML: {total_html} thẻ | parser: {total_parsed} record "
-          f"({'KHỚP' if total_html == total_parsed else 'LỆCH!'})")
-    print(f"Trong đó đang bán (sold=0): {total_onsale} | đã bán: {total_parsed - total_onsale}")
+    print("\n################ TOTAL ################")
+    print(f"HTML: {total_html} cards | parser: {total_parsed} records "
+          f"({'MATCH' if total_html == total_parsed else 'MISMATCH!'})")
+    print(f"Of which on sale (sold=0): {total_onsale} | sold: {total_parsed - total_onsale}")
 
-    print("\n################ ĐỘ PHỦ FIELD ################")
-    print(f"{'field':14s} {'tất cả':>16s} {'chỉ tin đang bán':>20s}")
+    print("\n################ FIELD COVERAGE ################")
+    print(f"{'field':14s} {'all':>16s} {'on-sale only':>20s}")
     for col in COLUMNS:
         if col == "sold":
-            continue  # cờ 0/1, không phải field có/không
+            continue  # a 0/1 flag, not a present/absent field
         n, n_on = coverage[col], coverage_onsale[col]
         pct = n / total_parsed * 100 if total_parsed else 0
         pct_on = n_on / total_onsale * 100 if total_onsale else 0
-        flag = "" if pct_on >= 99 else "  <-- xem lại parser"
+        flag = "" if pct_on >= 99 else "  <-- check the parser"
         print(f"  {col:14s} {n:5d} ({pct:5.1f}%) {n_on:8d} ({pct_on:5.1f}%){flag}")
 
 

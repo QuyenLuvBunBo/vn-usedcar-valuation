@@ -1,1 +1,1 @@
-"""Tuần 2: kiểm toán dữ liệu, xử lý giá trị thiếu/ngoại lai, chia tập huấn luyện."""
+"""Week 2: audit the data, handle missing/outlier values, build the train/val/test split."""

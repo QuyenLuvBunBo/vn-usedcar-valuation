@@ -1,6 +1,6 @@
-"""Kiểm tra dữ liệu trong SQLite: cột nào rỗng nhiều, mẫu row bất thường.
+"""Inspect the SQLite data: which columns are mostly empty, plus unusual sample rows.
 
-Chạy: python -m tools.inspect_db
+Run: python -m tools.inspect_db
 """
 
 from __future__ import annotations
@@ -21,16 +21,16 @@ def main() -> None:
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     total = conn.execute("SELECT COUNT(*) FROM oto_cars").fetchone()[0]
-    print(f"oto_cars: {total} dòng\n")
+    print(f"oto_cars: {total} rows\n")
 
-    print("### Số dòng rỗng/None theo cột")
+    print("### Empty/NULL rows per column")
     for col in COLS:
         n = conn.execute(
             f'SELECT COUNT(*) FROM oto_cars WHERE "{col}" IS NULL OR "{col}" = ""'
         ).fetchone()[0]
-        print(f"  {col:14s} rỗng {n:5d} ({n / total * 100:5.1f}%)")
+        print(f"  {col:14s} empty {n:5d} ({n / total * 100:5.1f}%)")
 
-    print("\n### 8 dòng có origin rỗng")
+    print("\n### 8 rows with an empty origin")
     rows = conn.execute(
         'SELECT id, brand, model, car_name, price_text, origin, body_type, color, '
         'listing_type, vip_type, source_page FROM oto_cars '
@@ -43,7 +43,7 @@ def main() -> None:
               f"listtype={r['listing_type']!r} vip={r['vip_type']!r}")
         print(f"    source_page={r['source_page']}")
 
-    print("\n### 3 dòng có origin đầy đủ (để so sánh)")
+    print("\n### 3 rows with a complete origin (for comparison)")
     for r in conn.execute(
         'SELECT id, brand, model, origin, body_type, color, listing_type, vip_type '
         'FROM oto_cars WHERE origin = "Nhập khẩu" OR origin = "Trong nước" LIMIT 3'

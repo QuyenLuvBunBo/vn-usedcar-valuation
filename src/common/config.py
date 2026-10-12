@@ -1,7 +1,7 @@
-"""Cấu hình dùng chung cho các script cào dữ liệu.
+"""Shared configuration for every data-collection script.
 
-Đọc giá trị từ file `.env` (xem `.env.example`), fallback về biến môi trường,
-sau đó tới giá trị mặc định trong code.
+Values are read from `.env` (see `.env.example`), then from environment variables,
+then fall back to the defaults defined here.
 """
 
 from __future__ import annotations
@@ -13,7 +13,8 @@ from dotenv import load_dotenv
 
 
 def _find_root(start: Path) -> Path:
-    """Tìm thư mục gốc repo (nơi có requirements.txt / .git) để mọi nguồn dùng chung data/."""
+    """Locate the repository root (the folder containing requirements.txt / .git)
+    so that every source shares the same data/ directory."""
     for parent in (start, *start.parents):
         if (parent / "requirements.txt").exists() or (parent / ".git").exists():
             return parent
@@ -30,12 +31,12 @@ load_dotenv(ROOT / ".env")
 
 
 def _get(name: str, default: str = "") -> str:
-    """Đọc biến môi trường, trả về default nếu chưa khai báo."""
+    """Read an environment variable, returning `default` when it is not set."""
     value = os.getenv(name)
     return value if value not in (None, "") else default
 
 
-# Header giả lập trình duyệt thật để hạn chế bị chặn.
+# Browser-like headers, to reduce the chance of being blocked.
 USER_AGENT = _get(
     "USER_AGENT",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -51,25 +52,25 @@ DEFAULT_HEADERS: dict[str, str] = {
     "Upgrade-Insecure-Requests": "1",
 }
 
-# Cookie / Authorization lấy từ DevTools -> Network -> Copy as cURL.
+# Cookie / Authorization: copy them from DevTools -> Network -> "Copy as cURL".
 COOKIE = _get("COOKIE")
 AUTHORIZATION = _get("AUTHORIZATION")
 PROXY_URL = _get("PROXY_URL")
 
-# Tham số cào
-REQUEST_DELAY = float(_get("REQUEST_DELAY", "1.5"))  # giây giữa 2 request
+# Crawl settings
+REQUEST_DELAY = float(_get("REQUEST_DELAY", "1.5"))  # seconds between two requests
 MAX_RETRIES = int(_get("MAX_RETRIES", "3"))
-TIMEOUT = int(_get("TIMEOUT", "20"))  # giây
+TIMEOUT = int(_get("TIMEOUT", "20"))  # seconds
 
 
 def ensure_dirs() -> None:
-    """Tạo sẵn các thư mục dữ liệu nếu chưa tồn tại."""
+    """Create the data and log directories if they do not exist yet."""
     for path in (DATA_RAW, DATA_PROCESSED, DATA_MASTER, LOGS_DIR):
         path.mkdir(parents=True, exist_ok=True)
 
 
 def now_iso() -> str:
-    """Thời điểm hiện tại dạng ISO 8601 UTC (dùng cho cột scraped_at)."""
+    """Current time as an ISO 8601 UTC string (used for the scraped_at column)."""
     from datetime import datetime, timezone
 
     return datetime.now(timezone.utc).isoformat(timespec="seconds")

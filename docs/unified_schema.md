@@ -1,46 +1,47 @@
-# Unified Schema — hợp đồng dữ liệu của nhóm
+# Unified Schema — the team's data contract
 
-**Nguồn chân lý là code, không phải tài liệu này**: `src/common/schema.py`.
-File này giải thích ý nghĩa từng cột để viết báo cáo.
+**The source of truth is code, not this document**: `src/common/schema.py`.
+This file explains each column for the written report.
 
-## 16 thuộc tính + 5 metadata
+## 16 attributes + 5 metadata columns
 
-| # | Cột | Kiểu | Ý nghĩa / miền giá trị |
+| # | Column | Type | Meaning / allowed values |
 |---|---|---|---|
-| 1 | `listing_id` | string | Mã tin duy nhất, có tiền tố nguồn (`OTO_23444795`, `BAN_...`) |
+| 1 | `listing_id` | string | Unique listing id, prefixed by source (`OTO_23444795`, `BAN_…`) |
 | 2 | `source_platform` | enum | `oto.com.vn`, `bonbanh`, `chotot`, `carmudi`, `carpla`, `anycar` |
-| 3 | `brand` | string | Hãng: `Toyota`, `Hyundai`, `Ford`, … |
-| 4 | `model` | string | Dòng xe: `Vios`, `Accent`, `CX-5`, … |
-| 5 | `sub_model_trim` | string | Phiên bản: `1.8G CVT`, `2.5Q`, `2.7 V 4X2 AT` (rỗng nếu người bán không ghi) |
-| 6 | `manufacture_year` | int | Năm sản xuất, scope đề xuất 1995–nay |
-| 7 | `mileage_km` | float | Số km đã đi (dữ liệu gốc, có thể sai do người bán nhập) |
+| 3 | `brand` | string | Manufacturer: `Toyota`, `Hyundai`, `Ford`, … |
+| 4 | `model` | string | Model designation: `Vios`, `Accent`, `CX-5`, … |
+| 5 | `sub_model_trim` | string | Engine trim / grade: `1.8G CVT`, `2.5Q`, `2.7 V 4X2 AT` (empty if the seller omitted it) |
+| 6 | `manufacture_year` | int | Manufacture year; proposed scope 1995–present |
+| 7 | `mileage_km` | float | Cumulative odometer reading in km (raw site value; sellers can mistype) |
 | 8 | `transmission` | enum | `Automatic` / `Manual` / `Other` / `Unknown` |
 | 9 | `fuel_type` | enum | `Gasoline` / `Diesel` / `Hybrid` / `Electric` / `Unknown` |
-| 10 | `origin` | enum | `CKD` (lắp ráp trong nước) / `CBU` (nhập khẩu) / `Unknown` |
+| 10 | `origin` | enum | `CKD` (locally assembled) / `CBU` (imported) / `Unknown` |
 | 11 | `body_type` | enum | `Sedan` / `SUV` / `Crossover` / `MPV` / `Hatchback` / `Pickup` / `Van` / `Truck` / `Other` |
-| 12 | `engine_capacity` | float | Dung tích (L): 1.5, 2.0, 2.4 — nhiều nguồn phải suy luận từ tên phiên bản |
-| 13 | `seats` | int | Số chỗ ngồi |
-| 14 | `location_province` | string | Tỉnh/thành đã chuẩn hoá (`Hà Nội`, `TP. Hồ Chí Minh`, …) |
+| 12 | `engine_capacity` | float | Displacement in litres (1.5, 2.0, 2.4); often inferred from the trim name |
+| 13 | `seats` | int | Registered seating capacity |
+| 14 | `location_province` | string | Normalized province/city (`Hà Nội`, `TP. Hồ Chí Minh`, …) |
 | 15 | `seller_type` | enum | `Dealership/Salon` / `Private Individual` / `Unknown` |
-| 16 | `price_vnd` | int (target) | **Giá rao bán** (VND); rỗng/`invalid` nếu không có giá xác định |
-| 17 | `source_url` | string | URL gốc để truy vết |
-| 18 | `listing_date` | datetime (nullable) | Ngày đăng/đẩy tin, ISO 8601; nguồn không có thì để trống |
-| 19 | `scraped_at` | datetime | Thời điểm cào (UTC, ISO 8601) |
-| 20 | `raw_price_text` | string | **Nguyên văn** biểu thức giá: `1 tỷ 250 tr`, `550 triệu` |
+| 16 | `price_vnd` | int (target) | **Advertised asking price** in VND; empty/`invalid` if there is no definite price |
+| 17 | `source_url` | string | Original listing URL, for traceability |
+| 18 | `listing_date` | datetime (nullable) | Publication/bump date, ISO 8601; leave empty when the source does not expose it |
+| 19 | `scraped_at` | datetime | Capture time (UTC, ISO 8601) |
+| 20 | `raw_price_text` | string | **Unmodified** price expression: `1 tỷ 250 tr`, `550 triệu` |
 | 21 | `price_status` | enum | `full` / `negotiable` / `instalment` / `invalid` |
 
-## Nguyên tắc
+## Rules
 
-1. **Null phải để trống**, không thay bằng 0 hay `Unknown` một cách tuỳ tiện; cột phân loại
-   không xác định được thì dùng `Unknown` (đúng như report yêu cầu).
-2. `price_vnd` là **target** — khi huấn luyện mô hình **không** đưa nó vào tập predictors,
-   và cũng không dùng `raw_price_text`, `price_status`, `listing_date` làm feature.
-3. Chuẩn hoá **chỉ** bằng hàm trong `src/common/parsing.py` và `src/common/schema.py`.
-4. Trước khi PR: `python -m tools.validate_source_csv data/processed/<nguồn>.csv` phải PASS.
+1. **Nulls stay null** — do not silently replace them with 0. For categorical columns that cannot be
+   recovered, use `Unknown` (as the project report requires).
+2. `price_vnd` is the **target**: never use it as a predictor, and never use `raw_price_text`,
+   `price_status` or `listing_date` as model features (leakage / not a real predictor).
+3. Normalize **only** with the helpers in `src/common/parsing.py` and `src/common/schema.py`.
+4. Before opening a PR: `python -m tools.validate_source_csv data/processed/<source>.csv` must PASS.
 
-## Kiểm tra nhanh sau khi gộp (Tuần 2)
+## Checks after merging (week 2)
 
-- Trùng `listing_id` / `source_url` = 0.
-- `duplicate_group_id` (Tuần 2) phải giữ mọi bản ghi cùng một xe trong **cùng một tập** train/val/test.
-- Báo cáo cần ghi: số dòng mỗi nguồn, tỷ lệ thiếu từng cột, tỷ lệ trùng, số dòng bị loại
-  và lý do (Milestone 1).
+- Zero duplicate `listing_id` / `source_url`.
+- `duplicate_group_id` (week 2) must keep all records of the same vehicle inside the **same**
+  train/val/test partition.
+- The report must state: record count per source, missing rate per column, duplicate rate,
+  and how many records were excluded (with reasons) — Milestone 1 requirements.

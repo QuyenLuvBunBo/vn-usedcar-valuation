@@ -1,1 +1,1 @@
-"""Package chứa code cào dữ liệu."""
+"""Data-collection and data-preparation package."""

@@ -1,6 +1,6 @@
-"""Thống kê đa dạng dữ liệu của 6 hãng: định dạng giá, tag, độ phủ field.
+"""Field-diversity statistics across the six brands: price formats, tags, field coverage.
 
-Chạy: python -m tools.field_stats [so_trang_moi_hang]
+Run: python -m tools.field_stats [pages_per_brand]
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ def main() -> None:
                 url = base if page == 1 else f"{base}/p{page}"
                 text = session.get_text(url)
                 if text is None:
-                    print(f"  p{page}: KHÔNG lấy được")
+                    print(f"  p{page}: could not fetch")
                     continue
                 tree = html.fromstring(text)
                 items = tree.xpath(ITEM_XPATH)
@@ -48,7 +48,7 @@ def main() -> None:
                     body = re.sub(r"\s+", " ", tree.text_content())
                     m = re.search(r"C[oó]\s*([\d\.]+)\s*tin", body)
                     totals[brand] = int(m.group(1).replace(".", "")) if m else -1
-                print(f"  p{page}: {len(items)} tin | tổng hãng = {totals.get(brand)}")
+                print(f"  p{page}: {len(items)} listings | brand total = {totals.get(brand)}")
 
                 for it in items:
                     for tag in it.xpath('.//ul[@class="tag-list"]/li//text()'):
@@ -77,15 +77,15 @@ def main() -> None:
                         if dc:
                             calls.append(f"{it.get('data-tinrao')}   ||   {dc[0]}")
 
-    print("\n\n############ TỔNG SỐ TIN THEO HÃNG ############")
+    print("\n\n############ TOTAL LISTINGS PER BRAND ############")
     for b, n in totals.items():
-        print(f"  {b:12s} {n:5d} tin -> ~{(n + 14) // 15} trang")
+        print(f"  {b:12s} {n:5d} listings -> ~{(n + 14) // 15} pages")
 
-    print("\n############ ĐỘ PHỦ FIELD ############")
+    print("\n############ FIELD COVERAGE ############")
     for k, v in coverage.most_common():
         print(f"  {k:18s} {v}/{total_items} = {v / total_items * 100:.1f}%")
 
-    print("\n############ ĐỊNH DẠNG GIÁ (top 30) ############")
+    print("\n############ PRICE FORMATS (top 30) ############")
     for p, n in prices.most_common(30):
         print(f"  [{n:4d}x] {p!r}")
 
@@ -93,7 +93,7 @@ def main() -> None:
     for t, n in tags.most_common(40):
         print(f"  [{n:4d}x] {t!r}")
 
-    print("\n############ MẪU data-tinrao || data-call ############")
+    print("\n############ SAMPLES: data-tinrao || data-call ############")
     for c in calls:
         print("  ", c)
 

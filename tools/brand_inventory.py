@@ -1,6 +1,6 @@
-"""Đếm TỒN KHO THỰC (xe cũ đang rao) của TẤT CẢ hãng trên oto.com.vn.
+"""Count the ACTUAL inventory (used cars currently advertised) of every brand on oto.com.vn.
 
-Chạy: python -m tools.brand_inventory
+Run: python -m tools.brand_inventory
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ COUNT_RE = re.compile(r"C[oó]\s*([\d\.,]+)\s*tin")
 
 
 def brand_slugs() -> list[str]:
-    """Lấy danh sách HÃNG từ sitemap-mua-ban-hang-dong.xml (các URL 1 tầng)."""
+    """Read the BRAND list from sitemap-mua-ban-hang-dong.xml (single-segment URLs)."""
     import re as _re
 
     from src.common.http_client import ScraperSession as _S
@@ -40,7 +40,7 @@ def brand_slugs() -> list[str]:
 
 def main() -> None:
     slugs = brand_slugs()
-    print(f"Ứng viên slug: {len(slugs)}")
+    print(f"Candidate slugs: {len(slugs)}")
 
     total = 0
     rows: list[tuple[str, int]] = []
@@ -48,31 +48,31 @@ def main() -> None:
         for slug in slugs:
             text = session.get_text(f"{BASE}/mua-ban-xe-{slug}")
             if not text:
-                print(f"  {slug:30s} -> không lấy được")
+                print(f"  {slug:30s} -> could not fetch")
                 continue
-            # chỉ nhận trang HÃNG: phải có tiêu đề hãng và bộ đếm tin
+            # only accept BRAND pages: they carry a brand title and the listing counter
             if "Kết quả" in text and "Có " not in text:
                 continue
             m = COUNT_RE.search(re.sub(r"\s+", " ", text))
             if not m:
-                print(f"  {slug:30s} -> không đọc được số tin (bỏ qua)")
+                print(f"  {slug:30s} -> could not read the counter (skipped)")
                 continue
             count = int(m.group(1).replace(".", "").replace(",", ""))
             rows.append((slug, count))
             total += count
-            print(f"  {slug:30s} {count:6,} tin")
+            print(f"  {slug:30s} {count:6,} listings")
 
-    print("\n### Kết quả")
+    print("\n### Result")
     rows.sort(key=lambda r: -r[1])
     for slug, count in rows[:25]:
         print(f"  {slug:20s} {count:6,}")
-    print(f"  tổng số trang hãng đọc được: {len(rows)}")
-    print(f"  TỔNG TIN XE CŨ (mọi hãng)  : {total:,}")
+    print(f"  brand pages read successfully : {len(rows)}")
+    print(f"  TOTAL USED-CAR LISTINGS       : {total:,}")
 
     six = {"toyota", "hyundai", "kia", "mazda", "honda", "mitsubishi"}
     our_total = sum(c for s, c in rows if s in six)
-    print(f"  6 hãng phổ thông châu Á    : {our_total:,}")
-    print(f"  phần còn lại cho bạn Phương: {total - our_total:,}")
+    print(f"  six Asian mainstream brands   : {our_total:,}")
+    print(f"  remaining brands (Phương)     : {total - our_total:,}")
 
 
 if __name__ == "__main__":

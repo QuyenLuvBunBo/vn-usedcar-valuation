@@ -1,13 +1,14 @@
-"""Cào xe cũ nhóm phổ thông châu Á trên oto.com.vn.
+"""Crawl used cars in the Asian mainstream segment from oto.com.vn.
 
-Phạm vi: Toyota, Hyundai, Kia, Mazda, Honda, Mitsubishi — chỉ tin "Xe cũ".
-Nguồn: trang listing /mua-ban-xe-<brand>[/p<N>], 15 tin/trang, server-render.
+Scope: Toyota, Hyundai, Kia, Mazda, Honda, Mitsubishi — only "Xe cũ" (used) listings.
+Source: listing pages /mua-ban-xe-<brand>[/p<N>], 15 listings per page, server-rendered.
 
-Chạy:
-    python -m src.oto_scraper                       # cào cả 6 hãng
-    python -m src.oto_scraper --brands toyota kia   # chỉ 1 vài hãng
-    python -m src.oto_scraper --pages 3             # giới hạn 3 trang/hãng (test)
-    python -m src.oto_scraper --save-raw            # lưu thêm HTML thô từng trang
+Run:
+    python -m src.sources.oto                        # all brands
+    python -m src.sources.oto --group asia           # the six Asian brands
+    python -m src.sources.oto --brands toyota kia    # only a few brands
+    python -m src.sources.oto --pages 3              # limit to 3 pages per brand (test)
+    python -m src.sources.oto --save-raw             # also save the raw HTML of each page
 """
 
 from __future__ import annotations
@@ -38,12 +39,12 @@ from ...common.parsing import (
     to_int as _int_or_none,
 )
 
-# Tên tương thích: code cũ / tool cũ gọi parse_price, parse_km, parse_year
+# Backwards-compatible names: older code and tools call parse_price, parse_km, parse_year
 parse_price = parse_vnd_price
 parse_km = parse_km_text
 parse_year = parse_year_text
 
-# Danh sách hãng tách riêng để 2 người cùng nguồn không phải sửa chung 1 file
+# Brand lists live in separate modules so two owners never edit the same file
 from .brands_asia import BRANDS as BRANDS_ASIA  # noqa: E402
 from .brands_other import BRANDS as BRANDS_OTHER  # noqa: E402
 
@@ -63,7 +64,7 @@ COLUMNS = [
 
 NUMERIC_COLUMNS = ("year", "price_vnd", "km", "sold")
 
-# --- Trang chi tiết (bảng riêng, ghép vào CSV khi xuất) ---
+# --- Listing detail pages (separate table, merged into the exported CSV) ---
 DETAIL_TABLE = "oto_car_details"
 DETAIL_COLUMNS = [
     "url", "d_title", "d_price_vnd", "d_price_text", "d_color", "d_seats", "d_city_code",
@@ -84,11 +85,11 @@ log = logging.getLogger("oto_scraper")
 
 # ------------------------------------------------------------- parser dữ liệu
 def parse_data_call(data_call: str) -> dict[str, str]:
-    """Bóc thông tin cấu trúc trong thuộc tính data-call của nút "Gọi ngay".
+    """Extract the structured payload of the "Gọi ngay" (call) button's data-call attribute.
 
-    Định dạng (neo từ cuối để chịu được dấu '.' trong tên model):
-        hãng.model.tình trạng.xuất xứ.năm.giá.loại xe.màu.listtype.viptype.id.
-    Trả về {} nếu định dạng không khớp (khi đó dùng dữ liệu DOM/tinrao thay thế).
+    Format (anchored from the end so dots inside a model name are tolerated):
+        brand.model.condition.origin.year.price.body_type.color.listtype.viptype.id.
+    Returns {} when the format does not match (the caller then falls back to DOM/tinrao data).
     """
     if not data_call or not data_call.endswith("."):
         return {}
@@ -110,7 +111,8 @@ def parse_data_call(data_call: str) -> dict[str, str]:
         "id": parts[-1],
     }
 
-    # Kiểm tra chéo: lệch cấu trúc thì bỏ, tránh ghi dữ liệu rác.
+    # Cross-check: reject anything that does not fit the expected structure, so that no
+    # garbage ends up in the dataset.
     if not re.fullmatch(r"\d{4}", info["year"]):
         return {}
     if not re.fullmatch(r"\d+", info["id"]):
@@ -129,19 +131,20 @@ def parse_data_call(data_call: str) -> dict[str, str]:
 
 # ------------------------------------------------------------------ parser
 def parse_item(item, page_url: str) -> dict | None:
-    """Bóc dữ liệu 1 tin đăng từ thẻ div.item-car.
+    """Extract one listing from a div.item-car card.
 
-    Lưu ý về tin đã bán: khi tin bán xong, site thêm class "sold" và gỡ nút
-    "Gọi ngay" -> không còn `data-call`/`data-phone`. Vì vậy các field
-    origin/body_type/color/listing_type/phone sẽ rỗng với tin đã bán
-    (cột `sold` = 1 giúp lọc ra chúng).
+    Note on sold listings: once a car is sold the site adds the class "sold" and removes the
+    "Gọi ngay" (call) button, so `data-call`/`data-phone` disappear. Therefore
+    origin/body_type/color/listing_type/phone are empty for sold listings
+    (the `sold` column marks them so they can be filtered out).
     """
     href = _first(item, './/h3/a/@href') or _first(item, './/div[@class="photo"]//a/@href')
     if not href:
         return None
     url = urljoin(BASE_URL, href)
 
-    # Nguồn có cấu trúc sẵn: data-tinrao (hãng.model.tình trạng.id.vip) và data-call (đầy đủ hơn)
+    # Structured sources already provided by the site:
+    #   data-tinrao -> brand.model.condition.id.vip   and   data-call -> the fuller payload
     tinrao = (item.get("data-tinrao") or "").split(".")
     data_call = parse_data_call(_first(item, './/a[contains(@class,"btn-tel")]/@data-call'))
     sold = 1 if "sold" in (item.get("class") or "").split() else 0
@@ -189,7 +192,7 @@ def parse_item(item, page_url: str) -> dict | None:
 
 
 def parse_total(html_text: str) -> int | None:
-    """Đọc 'Có 892 tin bán xe ...' -> 892. None nếu không tìm thấy."""
+    """Read the site's "Có 892 tin bán xe ..." counter -> 892. None when it is absent."""
     tree = html.fromstring(html_text)
     body = re.sub(r"\s+", " ", tree.text_content())
     match = re.search(r"C[oó]\s*([\d\.,]+)\s*tin", body)
@@ -199,7 +202,7 @@ def parse_total(html_text: str) -> int | None:
 
 
 def parse_list_page(html_text: str, page_url: str) -> list[dict]:
-    """Bóc toàn bộ tin đăng trong 1 trang listing."""
+    """Extract every listing on one listing page."""
     tree = html.fromstring(html_text)
     records = []
     for item in tree.xpath(ITEM_XPATH):
@@ -210,9 +213,9 @@ def parse_list_page(html_text: str, page_url: str) -> list[dict]:
 
 
 
-# --------------------------------------------------------------- trang chi tiết
+# --------------------------------------------------------------- detail pages
 def _hidden_inputs(tree) -> dict[str, str]:
-    """Lấy toàn bộ <input type="hidden"> thành dict id -> value."""
+    """Collect every <input type="hidden"> into a dict of id -> value."""
     return {
         inp.get("id"): _clean(inp.get("value"))
         for inp in tree.xpath("//input[@type='hidden']")
@@ -221,30 +224,29 @@ def _hidden_inputs(tree) -> dict[str, str]:
 
 
 def _int_or_none(value: str | None) -> int | None:
-    """Đổi chuỗi số (có thể lẫn dấu) thành int; None nếu rỗng."""
+    """Turn a digit string (separators allowed) into an int; None when empty."""
     digits = re.sub(r"\D", "", value or "")
     return int(digits) if digits else None
 
 
 def parse_detail_page(html_text: str, url: str) -> dict:
-    """Bóc thông tin trang chi tiết của 1 tin đăng.
+    """Extract the information from one listing's detail page.
 
-    Trang chi tiết KHÔNG có ngày đăng và KHÔNG có bảng thông số kỹ thuật chi tiết
-    (động cơ/công suất/kích thước). Những gì lấy được:
-      - input ẩn  : #price (giá dạng số), #numberOfSeat (số chỗ), #cityCode,
-                    #hddMakeId, #hddModelId, #hddCityId, #hddSegmentId,
-                    #hddUserId (id người bán), #hddVipType, #countImage
-      - data-tragia : tên hãng/dòng/tình trạng/xuất xứ/năm/giá/loại xe/MÀU/listtype
-      - ul.list-info: Năm SX, Nhiên liệu, Kiểu dáng, Tình trạng, Km đã đi, Hộp số,
-                      Xuất xứ, Tỉnh thành
-      - .box-salon  : tên salon/người bán, subdomain, địa chỉ, avatar
-      - .content-description .description : mô tả của người bán
-      - ảnh gallery (ảnh /crop/640x480/...)
+    The detail page has NO publication date and NO full technical spec sheet
+    (engine/power/dimensions). What it does provide:
+      - hidden inputs : #price (numeric price), #numberOfSeat, #cityCode,
+                        #hddMakeId, #hddModelId, #hddCityId, #hddSegmentId,
+                        #hddUserId (seller id), #hddVipType, #countImage
+      - data-tragia   : brand/model/condition/origin/year/price/body type/COLOUR/listtype
+      - ul.list-info  : year, fuel, body type, condition, mileage, gearbox, origin, province
+      - .box-salon    : seller (salon) name, subdomain, address, avatar
+      - .content-description .description : the seller's description text
+      - gallery images (/crop/640x480/...)
     """
     tree = html.fromstring(html_text)
     hidden = _hidden_inputs(tree)
 
-    # 8 thông số trong ul.list-info (nhãn nằm trong <label>, giá trị là text/div con)
+    # The 8 specs inside ul.list-info (label in a <label>, value as text or a child div)
     specs: dict[str, str] = {}
     for li in tree.xpath('//ul[contains(@class,"list-info")]/li'):
         label = _first(li, ".//label/text()").rstrip(":")
@@ -253,7 +255,7 @@ def parse_detail_page(html_text: str, url: str) -> dict:
         if label:
             specs[label] = value
 
-    # màu xe nằm trong data-tragia: hãng.dòng.tình trạng.xuất xứ.năm.giá.loại xe.MÀU.listtype...
+    # The colour lives in data-tragia: brand.model.condition.origin.year.price.bodystyle.COLOUR...
     color = ""
     tragia = tree.xpath("//*[@data-tragia]/@data-tragia")
     if tragia:
@@ -264,7 +266,8 @@ def parse_detail_page(html_text: str, url: str) -> dict:
     salon_nodes = tree.xpath('//div[contains(@class,"box-salon")]')
     salon = salon_nodes[0] if salon_nodes else None
 
-    # Tên salon: lấy TOÀN BỘ text của h3 (tên nằm trong <a> con, text node đầu là khoảng trắng)
+    # Seller name: take the FULL text of the h3 (the name sits in a child <a>, so the first
+    # text node is just whitespace)
     seller_name = ""
     if salon is not None:
         name_nodes = salon.xpath('.//h3[contains(@class,"name")]')
@@ -280,8 +283,8 @@ def parse_detail_page(html_text: str, url: str) -> dict:
         '//div[contains(@class,"content-description")]//div[contains(@class,"description")]'
     )
 
-    # Giá hiển thị: span.price nằm trong span.price-big; phải loại price-big ra
-    # (nếu không, text node đầu tiên sẽ là khoảng trắng -> rỗng).
+    # Displayed price: span.price sits inside span.price-big, so price-big must be excluded
+    # (otherwise the first text node is whitespace and the value comes back empty).
     price_nodes = tree.xpath(
         '//div[contains(@class,"box-price")]//span[contains(@class,"price")'
         ' and not(contains(@class,"price-big"))]'
@@ -317,7 +320,7 @@ def parse_detail_page(html_text: str, url: str) -> dict:
 
 
 def table_exists(conn, name: str) -> bool:
-    """Kiểm tra bảng đã tồn tại trong SQLite chưa."""
+    """Check whether a table already exists in the SQLite database."""
     row = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
     ).fetchone()
@@ -325,11 +328,11 @@ def table_exists(conn, name: str) -> bool:
 
 
 def merge_details(conn, rows: list[dict]) -> list[dict]:
-    """Ghép dữ liệu trang chi tiết (bảng riêng) vào record để xuất CSV/JSONL.
+    """Merge detail-page data (its own table) into each record before exporting CSV/JSONL.
 
-    Để riêng một bảng vì dữ liệu chi tiết chỉ có sau khi cào thêm: nếu ghi chung
-    vào oto_cars thì mỗi lần cào lại listing (ON CONFLICT DO UPDATE) sẽ xoá mất
-    các cột chi tiết này.
+    Detail data lives in a separate table because it only exists after an extra crawl pass:
+    if it were written into oto_cars, every listing re-crawl (ON CONFLICT DO UPDATE) would
+    wipe those detail columns.
     """
     if not rows or not table_exists(conn, DETAIL_TABLE):
         return rows
@@ -350,9 +353,10 @@ def enrich_details(
     save_raw: bool = False,
     only_urls: set[str] | None = None,
 ) -> int:
-    """Cào trang chi tiết cho các tin chưa có (đã có thì bỏ qua -> chạy tiếp được).
+    """Crawl detail pages for listings that do not have one yet (already-done rows are skipped,
+    so the job is resumable).
 
-    only_urls: chỉ cào đúng danh sách URL này (dùng để cào bù một nhóm nhỏ tin).
+    only_urls: crawl exactly this set of URLs (used to back-fill a small batch).
     """
     storage.create_table(conn, DETAIL_TABLE, DETAIL_COLUMNS)
     storage.ensure_columns(conn, DETAIL_TABLE, DETAIL_COLUMNS)
@@ -365,13 +369,14 @@ def enrich_details(
         todo = [u for u in urls if u not in done]
     if limit is not None:
         todo = todo[:limit]
-    log.info("Trang chi tiết: cần cào %s tin (đã có %s / tổng %s)", len(todo), len(done), len(urls))
+    log.info("Detail pages: %s listings to crawl (already done %s / total %s)",
+             len(todo), len(done), len(urls))
     if not todo:
         return 0
 
     buffer: list[dict] = []
     ok = fail = 0
-    for url in tqdm(todo, desc="Chi tiết", unit="tin"):
+    for url in tqdm(todo, desc="Details", unit="listing"):
         html_text = session.get_text(url, headers={"Referer": f"{BASE_URL}/mua-ban-xe"})
         if html_text is None:
             fail += 1
@@ -385,11 +390,11 @@ def enrich_details(
             buffer.clear()
     if buffer:
         storage.upsert_rows(conn, DETAIL_TABLE, buffer)
-    log.info("Trang chi tiết: xong %s tin, lỗi %s tin", ok, fail)
+    log.info("Detail pages: finished %s listings, %s failed", ok, fail)
     return ok
 
 
-# --------------------------------------------------------------- parse lại raw
+# --------------------------------------------------------------- re-parse raw HTML
 
 
 
@@ -401,9 +406,9 @@ def parse_raw_files(
     only_used: bool = True,
     exclude_sold: bool = False,
 ) -> list[dict]:
-    """Parse lại HTML thô trong data/raw (không gọi mạng).
+    """Re-parse the raw HTML stored in data/raw (no network access).
 
-    Dùng khi sửa parser: khỏi phải cào lại 181 trang, chỉ cần chạy lại bước parse.
+    Use this after fixing the parser: no need to re-crawl 181 pages, just re-run the parse step.
     """
     files = sorted(config.DATA_RAW.glob("oto_*_p*.html"))
     records: list[dict] = []
@@ -427,19 +432,19 @@ def parse_raw_files(
             if exclude_sold and record["sold"]:
                 continue
             records.append(record)
-    log.info("Parse lại %s file HTML thô -> %s record", used, len(records))
+    log.info("Re-parsed %s raw HTML files -> %s records", used, len(records))
     return records
 
 
 # -------------------------------------------------------------------- crawl
 def list_url(brand: str, page: int) -> str:
-    """URL trang listing: trang 1 không có hậu tố, các trang sau là /p<N>."""
+    """Listing URL: page 1 has no suffix, later pages use /p<N>."""
     base = f"{BASE_URL}/mua-ban-xe-{brand}"
     return base if page <= 1 else f"{base}/p{page}"
 
 
 def coerce_numeric(rows: Iterable[dict]) -> list[dict]:
-    """Ép các cột số về int (SQLite lưu tất cả dạng TEXT khi đọc lại)."""
+    """Coerce numeric columns to int (SQLite returns every column as TEXT when read back)."""
     out: list[dict] = []
     for row in rows:
         for column in NUMERIC_COLUMNS:
@@ -456,10 +461,10 @@ def coerce_numeric(rows: Iterable[dict]) -> list[dict]:
 
 
 def dedupe_rows(rows: Iterable[dict]) -> list[dict]:
-    """Loại tin trùng theo url (giữ bản ghi đầu tiên).
+    """Drop duplicate listings by url (keeping the first occurrence).
 
-    Cần thiết vì khi đang cào, tin mới được đăng lên làm các trang dịch nội dung,
-    nên cùng một tin có thể xuất hiện ở 2 trang khác nhau.
+    Needed because while crawling, newly posted listings shift the pages, so the same listing
+    can show up on two different pages.
     """
     seen: set[str] = set()
     unique: list[dict] = []
@@ -482,16 +487,17 @@ def crawl_brand(
     save_raw: bool = False,
     page_retries: int = 3,
 ) -> Iterable[dict]:
-    """Sinh ra từng record của 1 hãng, dừng đúng theo tổng số tin công bố.
+    """Yield every record of one brand, stopping exactly at the advertised listing count.
 
-    Hai đặc thù của site cần xử lý:
-    1. Trang vượt giới hạn (vd /p999) KHÔNG trả 404 mà trả "0 tin" + danh sách
-       rơi về trang 1 -> phải tính số trang từ tổng số tin ("Có N tin").
-    2. Thỉnh thoảng server trả về trang rỗng -> thử lại vài lần trước khi bỏ.
+    Two quirks of this site have to be handled:
+    1. An out-of-range page (e.g. /p999) does NOT return 404 — it returns "0 tin" plus a list
+       that falls back to page 1, so the number of pages must come from the counter
+       ("Có N tin").
+    2. The server occasionally returns an empty page -> retry a few times before giving up.
     """
     page = 1
     state = {"last_page": max_pages or 1, "total": None}
-    bar = tqdm(total=state["last_page"], desc=f"{BRANDS.get(brand, brand):<11}", unit="trang")
+    bar = tqdm(total=state["last_page"], desc=f"{BRANDS.get(brand, brand):<11}", unit="page")
 
     try:
         while page <= state["last_page"]:
@@ -507,45 +513,48 @@ def crawl_brand(
                 if save_raw:
                     storage.save_raw(html_text, f"oto_{brand}_p{page:03d}")
 
-                # Trang 1: đọc tổng số tin để biết cần cào bao nhiêu trang.
+                # Page 1: read the total listing count to know how many pages to crawl.
                 if page == 1 and state["total"] is None:
                     state["total"] = parse_total(html_text)
                     if state["total"]:
                         state["last_page"] = math.ceil(state["total"] / PER_PAGE)
                         if max_pages is not None:
                             state["last_page"] = min(state["last_page"], max_pages)
-                        log.info("[%s] tổng %s tin -> %s trang", brand, state["total"], state["last_page"])
+                        log.info("[%s] %s listings in total -> %s pages",
+                                 brand, state["total"], state["last_page"])
                     else:
                         state["last_page"] = max_pages or 1
-                        log.warning("[%s] không đọc được tổng số tin -> cào %s trang", brand, state["last_page"])
+                        log.warning("[%s] could not read the listing counter -> crawling %s page(s)",
+                                    brand, state["last_page"])
                     bar.total = state["last_page"]
 
                 records = parse_list_page(html_text, url)
                 if only_used:
                     kept = [r for r in records if r["condition"].lower() == "xe cũ"]
                     if len(kept) != len(records):
-                        log.info("[%s] trang %s: loại %s tin không phải xe cũ",
+                        log.info("[%s] page %s: dropped %s non-used listing(s)",
                                  brand, page, len(records) - len(kept))
                     records = kept
                 if exclude_sold:
                     kept = [r for r in records if not r["sold"]]
                     if len(kept) != len(records):
-                        log.info("[%s] trang %s: loại %s tin đã bán",
+                        log.info("[%s] page %s: dropped %s sold listing(s)",
                                  brand, page, len(records) - len(kept))
                     records = kept
 
                 if records:
                     break
-                log.warning("[%s] trang %s trả 0 tin (lần %s/%s) -> thử lại",
+                log.warning("[%s] page %s returned 0 listings (attempt %s/%s) -> retrying",
                             brand, page, attempt, page_retries)
                 time.sleep(2 * attempt)
 
             if not records:
-                log.error("[%s] bỏ qua trang %s: không có tin sau %s lần thử", brand, page, page_retries)
+                log.error("[%s] skipping page %s: no listings after %s attempts",
+                          brand, page, page_retries)
                 break
 
             bar.update(1)
-            bar.set_postfix_str(f"{len(records)} tin")
+            bar.set_postfix_str(f"{len(records)} listings")
             yield from records
             page += 1
     finally:
@@ -556,7 +565,7 @@ def crawl_brand(
 
 # --------------------------------------------------------------------- main
 def setup_logging() -> None:
-    """Log ra console + logs/oto_scraper.log."""
+    """Log to the console and to logs/oto_scraper.log."""
     config.ensure_dirs()
     logging.basicConfig(
         level=logging.INFO,
@@ -569,40 +578,42 @@ def setup_logging() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Khai báo tham số dòng lệnh."""
+    """Declare the command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Cào xe cũ nhóm phổ thông châu Á trên oto.com.vn",
+        description="Crawl used cars in the Asian mainstream segment from oto.com.vn",
     )
     parser.add_argument("--brands", nargs="+", default=None, choices=list(BRANDS),
-                        help="chỉ cào các hãng này (mặc định: theo --group)")
+                        help="crawl only these brands (default: whatever --group selects)")
     parser.add_argument("--group", choices=("all", "asia", "other"), default="all",
-                        help="nhóm hãng: asia = 6 hãng phổ thông châu Á, other = các hãng còn lại")
+                        help="brand group: asia = six Asian mainstream brands, other = the rest")
     parser.add_argument("--pages", type=int, default=None,
-                        help="giới hạn số trang mỗi hãng (mặc định: cào hết)")
+                        help="limit the number of pages per brand (default: crawl everything)")
     parser.add_argument("--include-new", action="store_true",
-                        help="lấy cả tin 'Xe mới' (mặc định chỉ xe cũ)")
+                        help="also take 'Xe mới' (brand-new) listings (default: used cars only)")
     parser.add_argument("--exclude-sold", action="store_true",
-                        help="bỏ tin đã bán (class 'sold'; mất phone/xuất xứ do site gỡ nút gọi)")
+                        help="drop sold listings (class 'sold'; the site removes the call button, "
+                             "so phone/origin are missing for them)")
     parser.add_argument("--save-raw", action="store_true",
-                        help="lưu HTML thô từng trang vào data/raw")
-    parser.add_argument("--out", default="oto_cars", help="tên file CSV/JSONL đầu ra")
+                        help="save the raw HTML of every page under data/raw")
+    parser.add_argument("--out", default="oto_cars", help="output CSV/JSONL file name")
     parser.add_argument("--from-db", action="store_true",
-                        help="không cào, chỉ xuất lại CSV/JSONL từ dữ liệu có trong DB")
+                        help="do not crawl: just re-export CSV/JSONL from the database")
     parser.add_argument("--from-raw", action="store_true",
-                        help="không cào, parse lại HTML thô trong data/raw (dùng khi vừa sửa parser)")
+                        help="do not crawl: re-parse the raw HTML in data/raw (after a parser fix)")
     parser.add_argument("--detail", action="store_true",
-                        help="cào thêm trang chi tiết từng tin (mô tả, màu, số chỗ, salon...); "
-                             "~1 request/tin nên chạy sẽ lâu")
+                        help="also crawl each listing's detail page (description, colour, seats, "
+                             "salon...); about 1 request per listing, so it takes a while")
     parser.add_argument("--detail-only", action="store_true",
-                        help="chỉ cào trang chi tiết từ danh sách tin có trong DB (không cào lại listing)")
+                        help="crawl detail pages only, for the listings already in the database")
     parser.add_argument("--detail-limit", type=int, default=None,
-                        help="giới hạn số tin cào chi tiết (dùng để test nhanh)")
+                        help="cap the number of detail pages to crawl (for quick tests)")
     parser.add_argument("--detail-refresh", action="store_true",
-                        help="cào lại chi tiết cả những tin đã có (mặc định bỏ qua tin đã có)")
+                        help="re-crawl detail pages even for listings that already have one")
     parser.add_argument("--detail-save-raw", action="store_true",
-                        help="lưu HTML thô trang chi tiết vào data/raw (tốn dung lượng)")
+                        help="save the raw HTML of detail pages under data/raw (large files)")
     parser.add_argument("--detail-missing-price", action="store_true",
-                        help="cào lại chi tiết cho các tin THIẾU GIÁ ở listing, để lấy raw_price_text")
+                        help="back-fill detail pages for listings with NO price, to recover "
+                             "raw_price_text")
     return parser
 
 
@@ -610,7 +621,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     setup_logging()
 
-    # --group: chia phần việc giữa 2 người cùng nguồn
+    # --group: split the work between the two owners of this source
     if args.brands is None:
         if args.group == "asia":
             args.brands = list(BRANDS_ASIA)
@@ -620,7 +631,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.brands = list(BRANDS)
 
     if args.detail_missing_price:
-        args.detail_only = True  # cào bù chi tiết -> chỉ đọc DB, không cào lại listing
+        args.detail_only = True  # back-filling details -> read the DB only, do not re-crawl listings
     if args.detail_only:
         args.from_db = True
 
@@ -631,7 +642,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.from_db:
         all_rows = coerce_numeric(storage.read_rows(conn, TABLE))
-        log.info("Xuất lại từ DB: %s tin (không cào)", len(all_rows))
+        log.info("Re-exporting from the DB: %s listings (no crawling)", len(all_rows))
     elif args.from_raw:
         all_rows = dedupe_rows(
             parse_raw_files(
@@ -641,7 +652,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
         storage.upsert_rows(conn, TABLE, all_rows)
-        log.info("Đã parse lại & ghi đè %s tin vào DB từ HTML thô", len(all_rows))
+        log.info("Re-parsed and overwrote %s listings in the DB from raw HTML", len(all_rows))
     else:
         all_rows = []
         with ScraperSession() as session:
@@ -658,23 +669,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
                 )
                 storage.upsert_rows(conn, TABLE, all_rows)
-                log.info("-> %s xong: %s tin", BRANDS[brand], len(all_rows) - before)
+                log.info("-> %s done: %s listings", BRANDS[brand], len(all_rows) - before)
 
         duplicates = len(all_rows) - len(dedupe_rows(all_rows))
         if duplicates:
-            log.warning("Có %s tin trùng url (tin mới chen vào khi phân trang dịch) -> đã loại bỏ",
+            log.warning("%s duplicate urls (new listings pushed older ones across pages) -> removed",
                         duplicates)
         all_rows = dedupe_rows(all_rows)
 
     for row in all_rows:
         per_brand[row.get("brand") or "?"] += 1
 
-    # Cào thêm trang chi tiết nếu được yêu cầu (~1 request/tin)
+    # Crawl detail pages too, when requested (~1 request per listing)
     if args.detail or args.detail_only:
         only_urls = None
         if args.detail_missing_price:
             only_urls = {r["url"] for r in all_rows if not (r.get("price_text") or "").strip()}
-            log.info("Cào bù chi tiết cho %s tin thiếu giá ở listing", len(only_urls))
+            log.info("Back-filling detail pages for %s listings without a price", len(only_urls))
         with ScraperSession() as session:
             enrich_details(
                 session,
@@ -685,7 +696,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 only_urls=only_urls,
             )
 
-    # Ghép dữ liệu chi tiết (nếu đã có) vào record rồi mới xuất file
+    # Merge detail data (when available) into the records before exporting
     detail_count = storage.count_rows(conn, DETAIL_TABLE) if table_exists(conn, DETAIL_TABLE) else 0
     if detail_count:
         all_rows = merge_details(conn, all_rows)
@@ -701,21 +712,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     log.info("=" * 62)
     for name, count in per_brand.most_common():
-        log.info("  %-12s %5d tin", name, count)
+        log.info("  %-12s %5d listings", name, count)
     log.info("-" * 62)
-    log.info("Số tin lần xuất này : %s (đã loại trùng)", len(all_rows))
-    log.info("Tổng trong DB       : %s (khóa chính = url)", total_db)
+    log.info("Exported this run : %s listings (deduplicated)", len(all_rows))
+    log.info("Total in the DB   : %s (primary key = url)", total_db)
     sold_count = sum(1 for r in all_rows if r.get("sold"))
-    log.info("Trong đó đã bán     : %s tin (%.1f%%) — dùng --exclude-sold để bỏ",
+    log.info("Of which sold     : %s listings (%.1f%%) — use --exclude-sold to drop them",
              sold_count, sold_count / len(all_rows) * 100 if all_rows else 0)
     if detail_count:
-        log.info("Đã có trang chi tiết: %s tin (đã ghép vào CSV/JSONL)", detail_count)
+        log.info("Detail pages      : %s listings crawled (merged into CSV/JSONL)", detail_count)
     log.info("CSV   : %s", csv_path)
     log.info("JSONL : %s", jsonl_path)
 
     priced = [r["price_vnd"] for r in all_rows if r.get("price_vnd")]
     if priced:
-        log.info("Giá: %s/%s tin có giá | thấp nhất %.0f triệu | trung vị %.0f triệu | cao nhất %.2f tỷ",
+        log.info("Price: %s/%s listings have a price | min %.0f million | median %.0f million | "
+                 "max %.2f billion VND",
                  len(priced), len(all_rows),
                  min(priced) / 1e6,
                  sorted(priced)[len(priced) // 2] / 1e6,
