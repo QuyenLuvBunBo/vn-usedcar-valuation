@@ -86,6 +86,37 @@ If the archive tier is used: crawl straight from the sitemap URLs (no pagination
 sitemap is **sorted by `lastmod` descending**, so the first N URLs are the N newest listings, and a
 detail page already carries all 21 unified columns.
 
+## Archive tier (optional, extra data beyond the listings)
+
+`sitemap-detail-*.xml` lists ~30,900 URLs but only ~5,000 listings are currently advertised, so the
+rest is an archive of pages the site still serves (renewed under a new id, expired, or sold). These
+pages are normal detail pages and carry all 21 unified columns, but the car is **not currently
+listed**, so they are stored and exported separately.
+
+```powershell
+python -m src.sources.oto.archive --limit 50         # quick sample (~2 min)
+python -m src.sources.oto.archive                    # everything, resumable (~16-18h)
+python -m src.sources.oto.archive --summary          # coverage/price stats of what was crawled
+python -m src.sources.oto.unified --include-archive  # -> data/processed/oto_archive_unified.csv
+python -m src.sources.oto.unified --check-derivation # validate brand/model extraction
+```
+
+How it stays honest:
+
+- Rows live in their own table (`oto_archive`) and carry `in_listing = 0`, `ad_id`, `listing_date`
+  (sitemap `lastmod`) and `sold_marker` (1 when the price-proposal button is still present).
+- URLs already in the listings are skipped, so the two tiers never overlap.
+- `--skip-recent-days 30` (default) ignores URLs bumped in the last 30 days: those are probably
+  still in the listings.
+- The archive CSV has the same 21 columns but is **not** part of the week-1 deliverable — merge it
+  into a dataframe only when you want the extra history, and keep the `in_listing` distinction.
+
+Because an archive page has no listing card, brand/model come from the title. That extraction was
+validated against the 2,706 crawled listings (whose brand/model the site publishes directly in
+`data-tinrao`): **brand matches 100%**, **model matches 95.6%** (the remainder are titles with extra
+grade words such as "Land Cruiser **V6**", "Alphard **Executive Lounge**"). Run
+`--check-derivation` to reproduce those numbers.
+
 ## Important notes when using the data
 
 1. **47.8% of the listings are "sold"** (the `sold` flag in the raw table). They still have all 16

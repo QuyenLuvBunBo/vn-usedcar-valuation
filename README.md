@@ -101,6 +101,9 @@ python -m src.sources.oto --detail-only            # also crawl each listing det
 python -m src.sources.oto --detail-missing-price   # back-fill detail pages for price-less ads
 python -m src.sources.oto --from-raw               # parser changed: re-parse saved HTML, no re-crawl
 python -m src.sources.oto.unified                  # export the 21-column unified CSV + audit
+python -m src.sources.oto.archive --limit 50       # archive tier: sitemap URLs no longer listed
+python -m src.sources.oto.archive --summary        # what the archive tier holds so far
+python -m src.sources.oto.unified --include-archive  # + oto_archive_unified.csv (separate file)
 ```
 
 Outputs: `data/processed/oto_cars.csv` (parsed listing fields), `data/processed/oto_unified.csv`

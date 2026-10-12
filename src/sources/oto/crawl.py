@@ -76,6 +76,12 @@ DETAIL_EXPORT_COLUMNS = COLUMNS + [c for c in DETAIL_COLUMNS if c != "url"]
 DESCRIPTION_MAX = 4000
 DETAIL_BATCH = 25
 
+# --- Archive tier (sitemap URLs that are no longer in the public listings) ---
+ARCHIVE_TABLE = "oto_archive"
+ARCHIVE_COLUMNS = ["url", "ad_id", "in_listing", "listing_date", "sold_marker"] + [
+    c for c in DETAIL_COLUMNS if c != "url"
+]
+
 ITEM_XPATH = '//div[contains(@class,"item-car") and contains(@class,"dev-item-car")]'
 VALID_ORIGINS = {"trong nước", "nhập khẩu"}
 VALID_CONDITIONS = {"xe cũ", "xe mới"}
