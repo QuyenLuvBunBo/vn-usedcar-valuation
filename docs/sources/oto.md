@@ -97,9 +97,14 @@ listed**, so they are stored and exported separately.
 python -m src.sources.oto.archive --limit 50         # quick sample (~2 min)
 python -m src.sources.oto.archive                    # everything, resumable (~16-18h)
 python -m src.sources.oto.archive --summary          # coverage/price stats of what was crawled
+python -m tools.archive_progress                     # live progress + rate + ETA (one snapshot)
+python -m tools.archive_progress --watch 5           # refresh every 5 s, Ctrl+C to stop
 python -m src.sources.oto.unified --include-archive  # -> data/processed/oto_archive_unified.csv
 python -m src.sources.oto.unified --check-derivation # validate brand/model extraction
 ```
+
+The crawler writes a tqdm bar to `logs/archive_run.err`, so the raw bar can also be watched with
+`Get-Content logs\archive_run.err -Tail 1` (or `-Wait` for a scrolling log).
 
 How it stays honest:
 

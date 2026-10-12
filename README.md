@@ -131,6 +131,7 @@ Outputs: `data/processed/oto_cars.csv` (parsed listing fields), `data/processed/
 | `tools.detail_recon <url>` | inspect a detail page (JSON-LD, spec table, seller block) |
 | `tools.list_brands` | discover and verify oto.com.vn brand slugs |
 | `tools.summarize_oto` | pandas summary + quality checks of a crawled CSV |
+| `tools.archive_progress` | live progress + ETA of the archive crawl (log bar + DB counts) |
 | `tools.scan_sitemap` · `tools.lastmod_analysis` | verify source size and listing dates |
 
 ## General technical notes
