@@ -112,6 +112,27 @@ Outputs: `data/processed/oto_cars.csv` (parsed listing fields), `data/processed/
 `data/processed/oto_archive_unified.csv` (archive tier only), tables `oto_cars` + `oto_car_details` +
 `oto_archive` in `data/scraped.db`.
 
+## Merging into the Master Dataset (week 2)
+
+```bash
+python -m src.merge.build_master                     # every source file that exists yet
+python -m src.merge.build_master --sources oto oto_archive
+```
+
+It reads every `data/processed/<source>.csv` that exists (a missing source is skipped with a warning),
+refuses a file whose header does not match the 21-column contract, then adds three columns:
+
+| Column | Meaning |
+|---|---|
+| `tier` | `listed` (advertised when captured) / `archived` (page still served, no longer advertised) |
+| `duplicate_group_id` | candidate same-vehicle key: brand + model + trim + year + province + ± mileage |
+| `quality_flags` | report §4.3 review reasons (`missing_mileage`, `low_mileage_older_car`, …) |
+
+Nothing is deleted or merged away: a group is a review candidate, so the flags and the group id travel
+with every record to the modelling stage. The run also prints the Milestone 1 numbers — records per
+source, missing rate per source, duplicate rate, flag counts — and writes
+`data/master/master_clean_dataset.csv` (21 columns + the three above).
+
 ## Shared documentation
 
 | Document | Contents |

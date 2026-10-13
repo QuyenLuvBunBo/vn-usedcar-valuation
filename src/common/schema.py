@@ -67,6 +67,8 @@ BIG_CITY_NEEDLES = (
     ("sài gòn", "TP. Hồ Chí Minh"), ("hà nội", "Hà Nội"), ("đà nẵng", "Đà Nẵng"),
     ("hải phòng", "Hải Phòng"), ("cần thơ", "Cần Thơ"),
 )
+# Official province names that contain a dash: the "district - province" rule below must skip them.
+DASH_PROVINCES = {"bà rịa - vũng tàu", "bà rịa-vũng tàu", "thừa thiên - huế", "thừa thiên-huế"}
 
 NEGOTIABLE = ("thỏa thuận", "thương lượng", "liên hệ", "tl")
 INSTALMENT = ("trả góp", "góp", "/tháng", "mỗi tháng")
@@ -121,6 +123,14 @@ def normalize_province(raw: str | None, city_code: str = "") -> str:
     for needle, name in BIG_CITY_NEEDLES:
         if needle in key:
             return name
+    # Listing cards print the district first ("Khoái Châu - Hưng Yên", "Đồng Xoài - Bình Phước").
+    # This column is the province: keeping the district splits one market into 20+ values and makes the
+    # dedupe key needlessly fine. Provinces whose real name has a dash are excluded above.
+    if " - " in key and key not in DASH_PROVINCES:
+        # take the tail from the raw value so the province keeps its original casing ("Hưng Yên")
+        tail = re.split(r"\s+-\s+", str(raw).strip())[-1]
+        if tail and _norm(tail) != key:
+            return normalize_province(tail, city_code)
     if raw and raw.strip():
         return raw.strip()
     return CITY_CODE_MAP.get((city_code or "").upper(), "Unknown")

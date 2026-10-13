@@ -139,6 +139,10 @@ Data facts worth a line in the report:
 - Outlier review for week 2: 4 implausible asking prices (180 / 162 / 159 / 52 billion VND),
   5 rows above the report's 25-billion rule, 476 rows with < 100 km on a car older than 2 years,
   15 rows above 1,000,000 km, 6 rows outside 1995–present. Flag, do not delete.
+- `location_province` is normalized to the **province**: listing cards often print the district first
+  ("Khoái Châu - Hưng Yên", 1,239 rows = 4.4%), which used to split one market into 20+ values and
+  made the dedupe key needlessly fine. Provinces whose real name contains a dash (Bà Rịa - Vũng Tàu)
+  are kept as they are.
 
 How it stays honest:
 
