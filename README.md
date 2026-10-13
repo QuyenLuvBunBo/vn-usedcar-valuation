@@ -104,10 +104,13 @@ python -m src.sources.oto.unified                  # export the 21-column unifie
 python -m src.sources.oto.archive --limit 50       # archive tier: sitemap URLs no longer listed
 python -m src.sources.oto.archive --summary        # what the archive tier holds so far
 python -m src.sources.oto.unified --include-archive  # + oto_archive_unified.csv (separate file)
+python -m src.sources.oto.unified --out oto --include-archive --combine  # oto.csv = both tiers, 28,428 rows
 ```
 
 Outputs: `data/processed/oto_cars.csv` (parsed listing fields), `data/processed/oto_unified.csv`
-(21 unified columns), tables `oto_cars` + `oto_car_details` in `data/scraped.db`.
+(21 unified columns), `data/processed/oto.csv` (both tiers — the file the week-2 merge reads),
+`data/processed/oto_archive_unified.csv` (archive tier only), tables `oto_cars` + `oto_car_details` +
+`oto_archive` in `data/scraped.db`.
 
 ## Shared documentation
 
@@ -132,6 +135,7 @@ Outputs: `data/processed/oto_cars.csv` (parsed listing fields), `data/processed/
 | `tools.list_brands` | discover and verify oto.com.vn brand slugs |
 | `tools.summarize_oto` | pandas summary + quality checks of a crawled CSV |
 | `tools.archive_progress` | live progress + ETA of the archive crawl (log bar + DB counts) |
+| `tools.compare_tiers` | live tier vs archive tier: size, price, age, mileage, sellers, quality flags |
 | `tools.scan_sitemap` · `tools.lastmod_analysis` | verify source size and listing dates |
 
 ## General technical notes

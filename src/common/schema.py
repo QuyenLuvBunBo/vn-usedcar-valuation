@@ -37,6 +37,8 @@ TRANSMISSION_VALUES = {"Automatic", "Manual", "Other", "Unknown"}
 FUEL_MAP = {
     "máy xăng": "Gasoline", "xăng": "Gasoline", "máy dầu": "Diesel", "dầu": "Diesel",
     "hybrid": "Hybrid", "máy điện": "Electric", "điện": "Electric",
+    # the site's own "other" label (a few archive pages) carries no fuel information
+    "loại khác": "Unknown", "khác": "Unknown", "other": "Unknown",
 }
 FUEL_VALUES = {"Gasoline", "Diesel", "Hybrid", "Electric", "Unknown"}
 

@@ -264,10 +264,31 @@ def _archive_row(record: dict, lastmods: dict[str, str]) -> dict:
 
 
 def build_archive_unified(conn: sqlite3.Connection, lastmods: dict[str, str]) -> list[dict]:
-    """Build unified rows for the archive tier (sitemap URLs no longer in the listings)."""
+    """Build unified rows for the archive tier (sitemap URLs no longer in the listings).
+
+    Two kinds of rows are left out so the exported file matches its definition:
+      * pages served without a listing payload (the ad was removed at the source) — no title, no price;
+      * ads already present in the live tier through a second sitemap URL whose slug is empty
+        (e.g. `/mua-ban-xe-honda-cr-v-ha-noi/-aidxc23433857`), which would duplicate live rows.
+    """
     if not table_exists(conn, ARCHIVE_TABLE):
         return []
-    return [_archive_row(r, lastmods) for r in storage.read_rows(conn, ARCHIVE_TABLE)]
+    listed_ids = {f"OTO_{r.get('id') or ''}" for r in storage.read_rows(conn, TABLE)}
+    rows: list[dict] = []
+    empty_pages = duplicates = 0
+    for record in storage.read_rows(conn, ARCHIVE_TABLE):
+        if not (record.get("d_title") or record.get("d_price_vnd")):
+            empty_pages += 1
+            continue
+        row = _archive_row(record, lastmods)
+        if row["listing_id"] in listed_ids:
+            duplicates += 1
+            continue
+        rows.append(row)
+    if empty_pages or duplicates:
+        log.info("Archive export: %d listings kept, %d pages without data, %d duplicates of the live tier",
+                 len(rows), empty_pages, duplicates)
+    return rows
 
 
 def check_derivation(conn: sqlite3.Connection) -> None:
@@ -351,6 +372,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--include-archive", action="store_true",
                         help="also export the archive tier (sitemap URLs no longer listed) to "
                              "oto_archive_unified.csv")
+    parser.add_argument("--combine", action="store_true",
+                        help="write the main CSV with both tiers (live + archive); use it to hand "
+                             "the whole oto.com.vn source to the week-2 merge step")
     parser.add_argument("--check-derivation", action="store_true",
                         help="validate the title-based brand/model extraction against the listings "
                              "and exit")
@@ -376,8 +400,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     rows = build_unified(conn, lastmods)
-    archive_rows = build_archive_unified(conn, lastmods) if args.include_archive else []
+    archive_rows = build_archive_unified(conn, lastmods) if (args.include_archive or args.combine) else []
     conn.close()
+
+    if args.combine:
+        # One file for the merge step: the live snapshot + the long tail of delisted ads.
+        # Rows stay disjoint (the archive export drops ads that are in the live tier), so the
+        # number of records is simply the sum of the two tiers.
+        log.info("Combining tiers: %d live + %d archive", len(rows), len(archive_rows))
+        rows = rows + archive_rows
 
     csv_path = storage.save_csv(rows, args.out, SCHEMA_COLUMNS)
     jsonl_path = storage.save_jsonl(rows, args.out)
