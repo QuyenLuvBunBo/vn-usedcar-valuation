@@ -108,9 +108,10 @@ python -m src.sources.oto.unified --out oto --include-archive --combine  # oto.c
 ```
 
 Outputs: `data/processed/oto_cars.csv` (parsed listing fields), `data/processed/oto_unified.csv`
-(21 unified columns), `data/processed/oto.csv` (both tiers — the file the week-2 merge reads),
-`data/processed/oto_archive_unified.csv` (archive tier only), tables `oto_cars` + `oto_car_details` +
-`oto_archive` in `data/scraped.db`.
+(21 unified columns, live tier), `data/processed/oto_archive_unified.csv` (archive tier only),
+`data/processed/oto.csv` (both tiers concatenated, 28,428 rows — a single-file hand-off for
+exploration; the week-2 merge reads the two per-tier files above, because `tier` is assigned per file),
+tables `oto_cars` + `oto_car_details` + `oto_archive` in `data/scraped.db`.
 
 ## Merging into the Master Dataset (week 2)
 

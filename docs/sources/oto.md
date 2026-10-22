@@ -105,8 +105,10 @@ python -m src.sources.oto.unified --check-derivation # validate brand/model extr
 python -m tools.compare_tiers                        # live tier vs archive tier, side by side
 ```
 
-The crawler writes a tqdm bar to `logs/archive_run.err`, so the raw bar can also be watched with
-`Get-Content logs\archive_run.err -Tail 1` (or `-Wait` for a scrolling log).
+The crawler keeps its tqdm bar on stderr; redirect it when the log is long
+(`python -m src.sources.oto.archive 2> logs\archive_run.err`), then watch the raw bar with
+`Get-Content logs\archive_run.err -Tail 1` (or `-Wait` for a scrolling log). `tools.archive_progress`
+reads that file by default.
 
 ### Result (2026-10-13)
 
@@ -114,7 +116,7 @@ The crawler writes a tqdm bar to `logs/archive_run.err`, so the raw bar can also
 |---|---|---|---|
 | Live | 2,713 | `data/processed/oto_unified.csv` | advertised in the listings right now |
 | Archive | 25,715 | `data/processed/oto_archive_unified.csv` | page still served, no longer advertised |
-| **Both** | **28,428** | **`data/processed/oto.csv`** | week-1 hand-off for the merge (both tiers) |
+| **Both** | **28,428** | **`data/processed/oto.csv`** | the two tiers concatenated (a single-file hand-off, not the merge input: `tier` is per file) |
 
 `python -m tools.validate_source_csv data/processed/oto.csv` → **PASS** (21 columns, no duplicate
 `listing_id`/`source_url`, all categorical values inside the contract).
@@ -133,11 +135,11 @@ Data facts worth a line in the report:
   so the target needs no negotiation filtering for this source.
 - The archive holds the old/cheap long tail: median asking price 495 M vs 555 M live, median year 2020
   vs 2021, private sellers 83.5% vs 33% (dealers keep their ads visible by bumping them).
-- 17 of 25,729 crawled pages (0.07%) are unusable and are dropped at export: 7 served without a listing
+- 14 of 25,729 crawled pages (0.05%) are unusable and are dropped at export: 7 served without a listing
   payload (ad deleted at the source) and 7 duplicate a live ad reached through a sitemap URL with an
   empty slug (`.../mua-ban-xe-<brand>-<city>/-aidxcNNNN`).
 - Outlier review for week 2: 4 implausible asking prices (180 / 162 / 159 / 52 billion VND),
-  5 rows above the report's 25-billion rule, 476 rows with < 100 km on a car older than 2 years,
+  5 rows above the report's 25-billion rule, 522 rows with < 100 km on a car older than 2 years,
   15 rows above 1,000,000 km, 6 rows outside 1995–present. Flag, do not delete.
 - `location_province` is normalized to the **province**: listing cards often print the district first
   ("Khoái Châu - Hưng Yên", 1,239 rows = 4.4%), which used to split one market into 20+ values and
@@ -154,7 +156,9 @@ How it stays honest:
 - `--skip-recent-days 30` (default) ignores URLs bumped in the last 30 days: those are probably
   still in the listings.
 - The archive CSV has the same 21 columns but is **not** part of the week-1 deliverable — merge it
-  into a dataframe only when you want the extra history, and keep the `in_listing` distinction.
+  into a dataframe only when you want the extra history. The crawler-only `in_listing` flag does not
+  survive the 21-column contract: `build_master` keeps the distinction in the `tier` column
+  (`listed` / `archived`), which is what the split and the report must use.
 
 Because an archive page has no listing card, brand/model come from the title. That extraction was
 validated against the 2,706 crawled listings (whose brand/model the site publishes directly in
