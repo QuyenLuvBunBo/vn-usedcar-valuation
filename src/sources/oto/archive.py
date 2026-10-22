@@ -24,6 +24,7 @@ import json
 import logging
 import re
 import sys
+from datetime import datetime, timedelta
 
 from tqdm import tqdm
 
@@ -67,6 +68,10 @@ def pending_urls(conn, lastmods: dict[str, str], limit: int | None = None,
     URLs already in the listing table are skipped (that is the live inventory, already crawled).
     Already-crawled archive URLs are skipped too, unless `refresh` is set.
     """
+    if not lastmods:
+        log.warning("empty sitemap cache -> nothing to crawl (run the sitemap fetch first)")
+        return []
+
     known = {r[0] for r in conn.execute(f'SELECT url FROM "{TABLE}"')}
     done = set() if refresh else {r[0] for r in conn.execute(f'SELECT url FROM "{ARCHIVE_TABLE}"')}
 
@@ -74,8 +79,6 @@ def pending_urls(conn, lastmods: dict[str, str], limit: int | None = None,
     urls = [u for u in lastmods if USED_CAR_URL_RE.search(u)]
 
     if skip_recent_days:
-        from datetime import datetime, timedelta
-
         cutoff = (datetime.fromisoformat(max(lastmods.values()))
                   - timedelta(days=skip_recent_days)).isoformat()
         urls = [u for u in urls if lastmods[u] < cutoff]
@@ -167,6 +170,10 @@ def summary() -> None:
     print("=" * 74)
     print(f"OTO ARCHIVE TIER — {total} pages crawled")
     print("=" * 74)
+    if not total:
+        print("No rows yet — run: python -m src.sources.oto.archive --limit 50")
+        conn.close()
+        return
 
     print("\nField coverage (rows with a value):")
     for col in ("d_title", "d_price_vnd", "d_price_text", "d_color", "d_seats", "d_city_code",

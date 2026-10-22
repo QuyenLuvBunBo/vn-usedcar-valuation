@@ -48,6 +48,7 @@ def db_stats(db_path: Path) -> tuple[int, str, str]:
     """(rows, first scraped_at, last scraped_at) of the archive table."""
     if not db_path.exists():
         return 0, "", ""
+    conn = None
     try:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         row = conn.execute(
@@ -56,7 +57,8 @@ def db_stats(db_path: Path) -> tuple[int, str, str]:
     except sqlite3.Error:
         return 0, "", ""
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
     return int(row[0]), row[1] or "", row[2] or ""
 
 
