@@ -73,7 +73,12 @@ def _bucket(mileage: float | None, step: int) -> str:
 
 
 def composite_key(row: dict, tolerance: int | None = None, capture_year: int | None = None) -> str:
-    """Exact-match grouping key used to find cross-source duplicate candidates."""
+    """Exact-match grouping key used to find cross-source duplicate candidates.
+
+    The mileage part is a *bucket*, not a distance band: two records less than one tolerance apart can
+    still fall into neighbouring buckets (4,999 km and 7,498 km both fit a 5,000 km tolerance, yet their
+    bucket numbers differ). The key is therefore a coarse candidate signal — see the module docstring.
+    """
     year = _as_int(row.get("manufacture_year"))
     step = tolerance or tolerance_for(year, capture_year)
     parts = [
@@ -99,7 +104,12 @@ def loose_key(row: dict) -> str:
 
 
 def duplicate_groups(rows: list[dict], capture_year: int | None = None) -> list[dict]:
-    """Assign a duplicate_group_id to each record (one key combination = one candidate vehicle)."""
+    """Assign a duplicate_group_id to each record (one key combination = one candidate vehicle).
+
+    Numbering follows the order the keys first appear, so it is stable for one input order and changes
+    when the sources are concatenated differently. Persist the split together with the ids instead of
+    rebuilding them later from a different order.
+    """
     groups: dict[str, int] = {}
     for row in rows:
         key = composite_key(row, capture_year=capture_year)

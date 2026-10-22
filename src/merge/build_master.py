@@ -48,6 +48,10 @@ SOURCE_FILES: dict[str, tuple[str, str]] = {
 
 MASTER_COLUMNS = [*schema.SCHEMA_COLUMNS, "tier", "duplicate_group_id", "quality_flags"]
 
+# `source_platform` is a contract enum (docs/unified_schema.md), so the internal source key must not
+# leak into the CSV when a row arrives without it: the archive tier belongs to the same platform.
+SOURCE_PLATFORMS = {"oto": "oto.com.vn", "oto_archive": "oto.com.vn"}
+
 # Report §4.3 domain rules: provisional scope rules, not proof of an error.
 PRICE_REVIEW_LOW = 30_000_000            # below this -> review candidate
 PRICE_SEPARATE_SEGMENT = 25_000_000_000  # above this -> "separate segment" and a review
@@ -112,9 +116,15 @@ def quality_flags(row: dict, capture_year: int) -> str:
 
 
 def load_source(name: str) -> tuple[list[dict] | None, str]:
-    """Read one source CSV, check the 21-column contract, and tag its tier."""
+    """Read one source CSV, check the 21-column contract, and tag its tier.
+
+    The tier is a property of the file, so a combined export (every tier in one CSV, e.g.
+    data/processed/oto.csv) can only be read through the fallback below — and then every row gets the
+    same tier. That file is still supported, but it is not what this merge is meant to read.
+    """
     stem, tier = SOURCE_FILES[name]
-    for path in (config.DATA_PROCESSED / f"{stem}.csv", config.DATA_PROCESSED / f"{name}.csv"):
+    candidates = (config.DATA_PROCESSED / f"{stem}.csv", config.DATA_PROCESSED / f"{name}.csv")
+    for index, path in enumerate(candidates):
         if not path.exists():
             continue
         with path.open(encoding="utf-8-sig", newline="") as fh:
@@ -125,10 +135,14 @@ def load_source(name: str) -> tuple[list[dict] | None, str]:
                           "'python -m tools.validate_source_csv %s' first", path.name, path)
                 return None, path.name
             rows = list(reader)
+        if index:
+            log.warning("%s: using the fallback file %s — every row is tagged tier=%s. If that file "
+                        "concatenates several tiers, use the per-tier exports instead so the column "
+                        "stays correct.", name, path.name, tier)
         for row in rows:
             row["tier"] = tier
             if _blank(row.get("source_platform")):
-                row["source_platform"] = name
+                row["source_platform"] = SOURCE_PLATFORMS.get(name, name)
         return rows, path.name
     return None, ""
 
