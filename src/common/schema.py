@@ -31,7 +31,8 @@ SCHEMA_COLUMNS = ATTRIBUTE_COLUMNS + METADATA_COLUMNS
 NUMERIC_COLUMNS = ("manufacture_year", "mileage_km", "price_vnd", "engine_capacity", "seats")
 
 # Vietnamese source labels -> normalized English labels
-TRANSMISSION_MAP = {"số tự động": "Automatic", "số sàn": "Manual", "số hỗn hợp": "Other"}
+TRANSMISSION_MAP = {"số tự động": "Automatic", "số sàn": "Manual", "số hỗn hợp": "Other",
+                    "bán tự động": "Other", "số bán tự động": "Other"}
 TRANSMISSION_VALUES = {"Automatic", "Manual", "Other", "Unknown"}
 
 FUEL_MAP = {

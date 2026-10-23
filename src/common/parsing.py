@@ -77,8 +77,32 @@ def parse_vnd_price(text: str) -> int | None:
 
 
 def parse_km_text(text: str) -> int | None:
-    """Convert '140.000 km' to 140000."""
-    digits = re.sub(r"\D", "", text or "")
+    """Convert a Vietnamese odometer expression to km.
+
+    The marketplaces print odometers in several shapes, not only '140.000 km':
+        '140.000 km' / '106,985'  -> 140000 / 106985   (dot or comma thousands separator)
+        '5 vạn'                   -> 50000             (vạn = 10.000)
+        '1 vạn km'                -> 10000
+        '34k km'                  -> 34000             (k = nghìn = 1.000)
+        '5v8km'                   -> 58000             (5 vạn 8 nghìn)
+    """
+    text = (text or "").replace("\xa0", " ").strip().lower()
+    if not text:
+        return None
+
+    # '5 vạn', '1,2 vạn', '5v8' — the shorthand "v" is only accepted in front of a digit/space/k.
+    van = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:vạn|v(?=\d|\s|k|$))\s*(\d)?", text)
+    if van:
+        base = float(van.group(1).replace(",", "."))
+        tail = int(van.group(2)) if van.group(2) else 0
+        return int(round(base * 10_000)) + tail * 1_000
+
+    # '34k km' — the k must be glued to the number, otherwise '140.000 km' would match the '0 k'.
+    thousand = re.search(r"(\d+(?:[.,]\d+)?)k(?!m)\b", text)
+    if thousand:
+        return int(round(float(thousand.group(1).replace(",", ".")) * 1_000))
+
+    digits = re.sub(r"\D", "", text)
     return int(digits) if digits else None
 
 
