@@ -61,7 +61,7 @@ Measured on 194 crawled ads (2026-10-24):
 | Kiểu dáng | 72% | `body_type` (`SUV/Crossover`, `Sedan`, `Hatchback`, `Pick Up`, `Van/Mini Van`) |
 | Xuất xứ | 55% | `origin` (`Việt nam` → CKD, any country → CBU) |
 | Màu xe | 20% | not in the contract (kept in `muaban_car_details.parameters`) |
-| Tình trạng | 100% | not in the contract (`Đã sử dụng` / `Xe mới`) |
+| Tình trạng | 100% | `condition` in `muaban_car_details`; `--used-only` drops `Xe mới` |
 
 Additionally `price` (int VND), `price_display`, `title`, `body`, `address`, `publish_at`,
 `created_at`, `images[]`, `is_company`, `contact_name`.
@@ -77,6 +77,7 @@ reports the counts:
 |---|---|---|
 | `not_for_sale` | `/cho-thue-` (rental), `/dich-vu-` (service), `phu-tung` (parts), `vay-mua` | skipped |
 | `commercial` | `xe-tai`, `dau-keo`, `xe-khach`, `container`, `xe-cong-trinh` | skipped (`--include-commercial` keeps them) |
+| `new_car` | `Tình trạng = Xe mới` | kept by default; `unified --used-only` drops them |
 
 With 194 ads: 6 skipped as `not_for_sale`, 0 as `commercial`; the teammate's file (6,657 ads) still
 contains 39 truck ads and 4 rental/service/parts ads.
@@ -86,9 +87,10 @@ contains 39 truck ads and 4 rental/service/parts ads.
 ```powershell
 python -m src.sources.muaban --pages 2                 # 40 ads, ~4 s (list only)
 python -m src.sources.muaban --pages 2 --details       # + 40 detail pages (~1 min)
-python -m src.sources.muaban --details                 # every stored ad that lacks a detail row
+python -m src.sources.muaban --details                 # full crawl: ALL listing pages + every detail page
+python -m src.sources.muaban --details --limit 50      # only 50 detail pages (resume later)
 python -m src.sources.muaban --details --refresh       # re-fetch all detail pages
-python -m src.sources.muaban.unified                   # data/processed/muaban.csv (21 columns)
+python -m src.sources.muaban.unified --used-only       # data/processed/muaban.csv, used cars only
 python -m tools.validate_source_csv data/processed/muaban.csv
 ```
 

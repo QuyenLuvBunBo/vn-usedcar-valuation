@@ -10,6 +10,7 @@ from src.sources.muaban.unified import (
     _body_type,
     _brand,
     _engine_capacity,
+    _is_new_car,
     _model,
     _origin,
     _province,
@@ -167,6 +168,12 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(_brand("Xe tải, đầu kéo…"), "Unknown")
         self.assertEqual(_model("CRV"), "CR-V")
         self.assertEqual(_model("Dòng khác"), "Unknown")
+
+    def test_new_car_filter(self):
+        self.assertTrue(_is_new_car("Xe mới"))
+        self.assertTrue(_is_new_car("xe mới nguyên seal"))
+        self.assertFalse(_is_new_car("Đã sử dụng"))
+        self.assertFalse(_is_new_car(""))          # unknown -> treated as used
 
     def test_scope_filter(self):
         self.assertEqual(is_excluded("https://muaban.net/o-to/cho-thue-o-to-quan-1/x-id1"),

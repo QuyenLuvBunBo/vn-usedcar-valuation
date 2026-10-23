@@ -148,6 +148,12 @@ def _safe(value: str, allowed: set[str]) -> str:
     return value if value in allowed else "Unknown"
 
 
+def _is_new_car(condition: str) -> bool:
+    """The site's 'Tình trạng' is 'Đã sử dụng' or 'Xe mới'; unknown counts as used."""
+    text = (condition or "").strip().lower()
+    return text.startswith("xe mới") or text in ("mới", "new")
+
+
 def _brand(raw: str) -> str:
     """Clean brand: drop the site's placeholder categories and align the spelling with oto."""
     text = _clean(raw)
@@ -206,8 +212,8 @@ def _to_row(listing: dict, detail: dict | None) -> dict:
     }
 
 
-def build_unified(conn: sqlite3.Connection, include_commercial: bool = False
-                  ) -> tuple[list[dict], dict[str, int]]:
+def build_unified(conn: sqlite3.Connection, include_commercial: bool = False,
+                  used_only: bool = False) -> tuple[list[dict], dict[str, int]]:
     """Join muaban_cars with muaban_car_details and normalize into the Unified Schema."""
     listings = storage.read_rows(conn, TABLE)
     details = {}
@@ -216,7 +222,7 @@ def build_unified(conn: sqlite3.Connection, include_commercial: bool = False
 
     rows: list[dict] = []
     stats = {"listings": len(listings), "without_detail": 0,
-             "not_for_sale": 0, "commercial": 0}
+             "not_for_sale": 0, "commercial": 0, "new_car": 0}
     for listing in listings:
         reason = is_excluded(listing.get("url"), include_commercial=include_commercial)
         if reason:
@@ -225,6 +231,9 @@ def build_unified(conn: sqlite3.Connection, include_commercial: bool = False
         detail = details.get(listing.get("url"))
         if detail is None:
             stats["without_detail"] += 1
+        elif used_only and _is_new_car(detail.get("condition")):
+            stats["new_car"] += 1
+            continue
         rows.append(_to_row(listing, detail))
     return rows, stats
 
@@ -249,6 +258,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", default="muaban", help="output CSV/JSONL file name")
     parser.add_argument("--include-commercial", action="store_true",
                         help="keep trucks/buses (default: passenger cars only)")
+    parser.add_argument("--used-only", action="store_true",
+                        help="drop ads the site marks as 'Xe mới' (used cars only)")
     return parser
 
 
@@ -263,13 +274,14 @@ def main(argv: list[str] | None = None) -> int:
         log.error("no crawl data yet -> run: python -m src.sources.muaban --pages 2 --details")
         conn.close()
         return 1
-    rows, stats = build_unified(conn, include_commercial=args.include_commercial)
+    rows, stats = build_unified(conn, include_commercial=args.include_commercial,
+                                used_only=args.used_only)
     conn.close()
 
-    log.info("listings %s | exported %s | skipped: %s not-for-sale, %s commercial | "
+    log.info("listings %s | exported %s | skipped: %s not-for-sale, %s commercial, %s new cars | "
              "without detail page: %s",
              stats["listings"], len(rows), stats["not_for_sale"], stats["commercial"],
-             stats["without_detail"])
+             stats["new_car"], stats["without_detail"])
 
     csv_path = storage.save_csv(rows, args.out, SCHEMA_COLUMNS)
     jsonl_path = storage.save_jsonl(rows, args.out)

@@ -57,7 +57,7 @@ DETAIL_COLUMNS = [
     "url", "id", "title", "description", "price_vnd", "price_text", "address",
     "publish_at", "created_at", "image_count", "contact_name", "is_company",
     "brand", "model", "year", "km", "gearbox", "fuel", "seats", "origin", "body_style",
-    "parameters",
+    "condition", "parameters",
 ]
 
 NEXT_DATA_RE = re.compile(
@@ -156,6 +156,7 @@ def parse_detail_page(html_text: str, url: str) -> dict:
         "seats": params.get("Số chỗ", ""),
         "origin": params.get("Xuất xứ", ""),
         "body_style": params.get("Kiểu dáng", ""),
+        "condition": params.get("Tình trạng", ""),
         "parameters": json.dumps(params, ensure_ascii=False),
     }
 
