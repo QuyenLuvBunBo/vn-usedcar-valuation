@@ -17,6 +17,7 @@ from src.sources.muaban.unified import (
     _brand,
     _engine_capacity,
     _is_new_car,
+    _mileage,
     _model,
     _origin,
     _province,
@@ -198,6 +199,16 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(_brand("Xe tải, đầu kéo…"), "Unknown")
         self.assertEqual(_model("CRV"), "CR-V")
         self.assertEqual(_model("Dòng khác"), "Unknown")
+
+    def test_mileage_falls_back_to_the_title_when_the_field_is_truncated(self):
+        self.assertEqual(_mileage("4", "KIA Carnival 2025 4 vạn km"), 40_000)
+        self.assertEqual(_mileage("100", "Mercedes GLK300 2009 100k km"), 100_000)
+        self.assertEqual(_mileage("1", "Suzuki XL7 2022 1 vạn km"), 10_000)
+        self.assertEqual(_mileage("65000", "Toyota Vios 2019"), 65_000)
+        self.assertIsNone(_mileage("", "Ford Ranger 2022 Wildtrak 4x4"))
+        self.assertEqual(_mileage(None, ""), None)
+        # a bare number in the title is not trusted
+        self.assertEqual(_mileage("78", "Ford Ranger Wildtrak 2022 78.xxx km"), 78)
 
     def test_new_car_filter(self):
         self.assertTrue(_is_new_car("Xe mới"))

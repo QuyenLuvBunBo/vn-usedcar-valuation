@@ -130,53 +130,67 @@ python -m src.sources.muaban --by-brand --brands toyota honda       # only a few
 - Verified 2026-10-24: `--brands honda mazda` → 799 ads seen, **680 new rows**;
   `--brands mercedes land-rover` → 373 seen, **320 new rows**.
 
-## 6. Result (2026-10-24, sample)
+## 6. Result — full crawl (2026-10-24)
 
-194 rows exported (200 ads with details, 6 skipped as not for sale), contract **PASS**:
+`python -m src.sources.muaban --by-brand --used-only --details` → **6,781 ads, every one with a
+detail page**, exported as **6,686 rows** (skips: 13 rental/service, 37 commercial, 45 new cars).
+Contract **PASS**.
 
 | column | filled | column | filled |
 |---|---|---|---|
-| brand / model / year | 100% | body_type | 74.2% |
-| mileage_km | 97.9% | engine_capacity | 25.3% |
-| transmission | 100% | seats | 87.1% |
-| fuel_type | 98.5% | origin | 57.2% |
-| price_vnd | 99.5% | sub_model_trim | 99.5% |
+| manufacture_year / transmission / province / seller_type / price_vnd | 100% | seats | 72.6% |
+| brand | 99.5% | body_type | 63.4% |
+| sub_model_trim | 99.4% | origin | 55.0% |
+| mileage_km | 98.1% | engine_capacity | 24.7% |
+| model / fuel_type | 97–98% | | |
+
+Top brands: Toyota 1,243 · Ford 844 · Kia 749 · Hyundai 641 · Mitsubishi 530 · Mazda 447 ·
+Vinfast 439 · Mercedes-Benz 358 · Honda 356 · Chevrolet 255.
 
 ## 7. Comparison with the file from Quang (2026-10-23, 6,657 ads)
 
-Same site, two independent pipelines. On the **67 ads present in both files**:
+Same site, two independent pipelines: **6,686 vs 6,657 rows**, 5,539 ads present in both
+(1,147 ads only in ours, 1,118 only in his).
 
-| field | agreement | note |
+| field | agreement on the 5,539 shared ads |
+|---|---|
+| location_province | 100.0% |
+| price_vnd | 99.7% |
+| brand | 99.4% |
+| manufacture_year | 98.7% |
+| mileage_km | 94.8% |
+| transmission | 94.5% |
+| model | 93.3% |
+| fuel_type | 92.2% |
+| seats | 76.8% |
+| body_type | 66.4% |
+
+| coverage | Quang (6,657) | This crawler (6,686) |
 |---|---|---|
-| location_province | 67/67 (100%) | |
-| brand | 66/67 (99%) | the only difference is his placeholder `Các hãng khác` |
-| manufacture_year | 65/67 (97%) | ours fills the year where his is empty |
-| price_vnd | 65/67 (97%) | 2 ads were edited between the two crawls |
-| model | 63/67 (94%) | `CRV` vs `CR-V` (we align with oto), placeholders |
-| fuel_type | 61/67 (91%) | ours fills `Gasoline`/`Diesel` where his is `Unknown` |
-| mileage_km | 60/67 (90%) | 1 ad edited; ours empty when the site drops the field |
-| transmission | 58/67 (87%) | ours maps `Bán tự động` → `Other`; his calls it `Automatic` |
-| engine_capacity | 54/67 (81%) | his has more coverage (likely parsed from the description) |
-| origin | 53/67 (79%) | his has more coverage (same reason) |
-| seats | 50/67 (75%) | his has more coverage |
-| body_type | 48/67 (72%) | his has more coverage, but **inconsistent** (Innova appears as MPV 88 / Van 70 / SUV 22 / Sedan 1) |
-| seller_type | 47/67 (70%) | we use the site's `is_company`; his used a keyword heuristic |
+| sub_model_trim | 40.1% | **99.4%** |
+| transmission | 93.6% | **100%** |
+| seller_type | 91.3% | **100%** |
+| manufacture_year | 98.6% | **100%** |
+| mileage_km | 89.8% | **98.1%** |
+| fuel_type | 90.8% | **98.0%** |
+| seats | **89.4%** | 72.6% |
+| body_type | **89.8%** | 63.4% |
+| origin | **75.5%** | 55.0% |
+| engine_capacity | **44.2%** | 24.7% |
 
-Data-quality differences on the whole files:
-
-| check | Quang (6,657) | This crawler (194) |
+| data quality | Quang | Ours |
 |---|---|---|
-| placeholder brands (`Các hãng khác`, `Xe tải, đầu kéo…`) | 63 | 0 |
-| models containing `khác` | 202 | 0 |
-| `mileage_km` < 1,000 km | 374 (e.g. `5 vạn` → 5.0) | 10 |
-| `price_vnd` < 30 M VND | 51 (rental / instalment teasers) | 0 |
-| `sub_model_trim` coverage | 40.1% | 99.5% |
-| duplicate `listing_id` / `source_url` | 0 / 0 | 0 / 0 |
+| placeholder brands | 63 | 34 (all genuinely unknown at the source) |
+| models containing `khác` | 202 | **0** |
+| `mileage_km` < 1,000 | 374 | 295 |
+| `price_vnd` < 30 M | 51 | 65 (teaser/instalment ads, kept for the week-2 flags) |
+| duplicate `source_url` | 0 | 0 |
 
-**Recommendation:** his file is broader (6,657 ads) but needs the mileage/price/junk fixes before it
-can be merged; this crawler is the reference for *how* the fields are extracted (structured
-`parameters`, numeric `price`), so the cheapest path is: take his extra ads, re-export them with this
-pipeline (`--details` re-fetch), or merge his rows only after fixing the four issues above.
+**Reading:** his file wins on `seats` / `body_type` / `origin` / `engine_capacity` coverage — he
+clearly parsed the free-text description as a fallback, which is also why his `body_type` is
+inconsistent (Innova appears as MPV 88 / Van 70 / SUV 22 / Sedan 1). Our values are the site's
+structured fields, so they are consistent but less complete; the gap is the week-2 job of mapping
+model → body/seats/engine, or copying his extra fields after a review.
 
 ## 8. Known limitations
 

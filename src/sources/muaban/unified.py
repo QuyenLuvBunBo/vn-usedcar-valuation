@@ -32,6 +32,8 @@ SCHEMA_COLUMNS = schema.SCHEMA_COLUMNS
 YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
 ENGINE_RE = re.compile(r"(?<![\d.])([0-9]\.[0-9])(?!\d)")
 KM_TEXT_RE = re.compile(r"\b\d{1,3}(?:[.,]\d{3})+\s*km\b", re.I)
+# muaban truncates the odometer on some ads ("4", "78", "100"); the title keeps the unit.
+TITLE_KM_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(vạn|van|k)\b\s*(?:km)?", re.I)
 
 # Ads in /o-to that are not a passenger car for sale.
 NON_SALE_URL = ("/cho-thue-", "/dich-vu-", "phu-tung", "vay-mua", "tin-tuc", "sua-chua")
@@ -133,6 +135,31 @@ def _trim(title: str, brand: str, model: str) -> str:
     return _clean(text).strip(" -–,.")[:40]
 
 
+def _km_from_title(title: str) -> int | None:
+    """Recover an odometer the site truncated, e.g. '4 vạn km' -> 40,000, '100k km' -> 100,000.
+
+    Only unit-scaled patterns are accepted: a bare number in a title ('Wildtrak 2022 78.xxx km')
+    is too ambiguous to trust.
+    """
+    for match in TITLE_KM_RE.finditer(title or ""):
+        number = float(match.group(1).replace(",", "."))
+        unit = match.group(2).lower()
+        value = number * (10_000 if unit in ("vạn", "van") else 1_000)
+        if 1_000 <= value <= 1_000_000:
+            return int(round(value))
+    return None
+
+
+def _mileage(raw: str, title: str) -> int | None:
+    """Odometer from the site field, falling back to the title when the field is implausibly low."""
+    km = parse_km_text(raw)
+    if km is None or km < 1_000:
+        from_title = _km_from_title(title)
+        if from_title:
+            return from_title
+    return km
+
+
 def is_excluded(url: str, include_commercial: bool = False) -> str:
     """Reason this ad is out of scope ('' when it is a passenger car for sale)."""
     low = (url or "").lower()
@@ -192,7 +219,7 @@ def _to_row(listing: dict, detail: dict | None) -> dict:
         "model": model or "Unknown",
         "sub_model_trim": _trim(title, brand, model),
         "manufacture_year": year,
-        "mileage_km": parse_km_text(detail.get("km")),
+        "mileage_km": _mileage(detail.get("km"), title),
         "transmission": _safe(schema.normalize_transmission(detail.get("gearbox")),
                              schema.TRANSMISSION_VALUES),
         "fuel_type": _safe(schema.normalize_fuel(detail.get("fuel")), schema.FUEL_VALUES),
