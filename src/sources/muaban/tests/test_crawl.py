@@ -5,7 +5,13 @@ from __future__ import annotations
 import json
 import unittest
 
-from src.sources.muaban.crawl import parse_detail_page, parse_list_page
+from src.sources.muaban.crawl import (
+    brand_candidates,
+    facets,
+    parse_detail_page,
+    parse_list_page,
+    slugify,
+)
 from src.sources.muaban.unified import (
     _body_type,
     _brand,
@@ -62,6 +68,30 @@ def page(payload: dict) -> str:
     data = {"props": {"pageProps": payload}}
     return ('<html><body><script id="__NEXT_DATA__" type="application/json">'
             + json.dumps(data, ensure_ascii=False) + "</script></body></html>")
+
+
+class PartitionTests(unittest.TestCase):
+    """The category pager stops at ~1,000 ads, so the crawl partitions by brand."""
+
+    def test_slugify(self):
+        self.assertEqual(slugify("Mercedes Benz"), "mercedes-benz")
+        self.assertEqual(slugify("Vinfast"), "vinfast")
+        self.assertEqual(slugify("Các hãng khác"), "cac-hang-khac")
+        self.assertEqual(slugify("Peugeot"), "peugeot")
+
+    def test_brand_candidates_fall_back_to_the_first_word(self):
+        self.assertEqual(brand_candidates("Mercedes Benz"), ["mercedes-benz", "mercedes"])
+        self.assertEqual(brand_candidates("Honda"), ["honda"])
+        self.assertEqual(brand_candidates("Land Rover"), ["land-rover", "land"])
+
+    def test_facets_read_brand_names_and_fuels(self):
+        html = page({"filterConfig": {"filters": {
+            "52": {"items": [{"id": 420, "name": "Honda"}, {"id": 650, "name": "Kia"}]},
+            "61": {"items": [{"id": 540, "name": "Xăng"}]},
+        }}})
+        brands, fuels = facets(html)
+        self.assertEqual(brands, ["Honda", "Kia"])
+        self.assertEqual([f["id"] for f in fuels], [540])
 
 
 class ParseListPageTests(unittest.TestCase):

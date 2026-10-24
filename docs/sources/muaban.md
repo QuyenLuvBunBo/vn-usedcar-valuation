@@ -98,6 +98,38 @@ Both tables are keyed on `url` (`storage.upsert_rows`), so a re-run never duplic
 detail crawl is resumable: it only fetches ads that have no detail row yet.
 Full crawl cost: 375 listing pages + ~7,500 detail pages at 1.5 s ≈ **3 h**.
 
+## 5b. Why `?page=N` alone cannot reach the whole catalogue
+
+Measured 2026-10-24: the site stops advancing its pager after roughly 50–70 pages, then repeats one
+of the last pages forever.
+
+| query | ads reported | pages that advance |
+|---|---|---|
+| `/o-to?page=N` | 7,584 | ~50 (page 51+ repeat) |
+| `/o-to/ban-o-to?page=N` | 7,554 | ~100 |
+| `/o-to/ban-o-to-toyota?page=N` | 1,768 | ~60 |
+| `/o-to/ban-o-to?car_types=627&vehicle_status_ids=526` | 1,723 | ~80 |
+
+That is why `python -m src.sources.muaban --details` reported *"7600 ads stored"* while only 25 rows
+were new: 378 pages produced ~7,300 duplicate URLs and `storage.upsert_rows` (keyed on `url`) kept
+the same rows. The log now prints **new rows** instead of "stored", and warns when most of the pages
+were repeats.
+
+`--by-brand` fixes it by partitioning the catalogue into brand categories, which each page further:
+
+```powershell
+python -m src.sources.muaban --by-brand --used-only                 # lists: 74 brands, ~15 min
+python -m src.sources.muaban --by-brand --used-only --details       # + ~7,260 detail pages (~3 h)
+python -m src.sources.muaban --by-brand --brands toyota honda       # only a few brands (test)
+```
+- A brand bigger than the cap (~1,200 ads) is split again by `car_fuels` (6 values).
+- Brand slugs are not always `slugify(name)`: `Mercedes Benz` lives at
+  `/o-to/ban-o-to-mercedes` (366 ads) while `/ban-o-to-mercedes-benz` is a 404, so the crawler falls
+  back to the first word and logs brands without a usable URL.
+- Partitions are idempotent (upsert on `url`), so re-running only adds what is missing.
+- Verified 2026-10-24: `--brands honda mazda` → 799 ads seen, **680 new rows**;
+  `--brands mercedes land-rover` → 373 seen, **320 new rows**.
+
 ## 6. Result (2026-10-24, sample)
 
 194 rows exported (200 ads with details, 6 skipped as not for sale), contract **PASS**:

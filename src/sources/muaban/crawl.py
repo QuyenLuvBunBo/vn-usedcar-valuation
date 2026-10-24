@@ -33,6 +33,7 @@ import json
 import logging
 import re
 import sys
+import unicodedata
 from typing import Any, Iterable, Sequence
 
 from tqdm import tqdm
@@ -64,6 +65,16 @@ NEXT_DATA_RE = re.compile(
     r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', re.S
 )
 DETAIL_ID_RE = re.compile(r"-id(\d+)$")
+
+# --- Partitioning -----------------------------------------------------------------------------
+# muaban stops advancing `?page=N` after roughly 50-60 pages (~1,000-1,200 ads), so a single query
+# can never return the ~7,500 ads of the category. Every ad, however, belongs to exactly one brand
+# category (/o-to/ban-o-to-<brand>), which pages further — e.g. /o-to/ban-o-to-toyota holds 1,768 ads —
+# and a brand bigger than the cap is split again by condition and fuel.
+SALE_PATH = f"{BASE_URL}/o-to/ban-o-to"
+USED_STATUS_ID = 526          # filter 'Tình trạng' = Đã qua sử dụng
+PARTITION_CAP = 1200          # stop paging a partition above this many ads (site truncates anyway)
+MAX_PAGES_PER_PARTITION = 70  # hard stop, the site repeats the last page beyond it
 
 log = logging.getLogger("muaban")
 
@@ -173,6 +184,7 @@ def crawl_pages(pages: int | None = None, save_raw: bool = False,
     own_session = session is None
     session = session or ScraperSession()
     page, total, saved = 1, 0, 0
+    before = storage.count_rows(conn, TABLE)
     try:
         while pages is None or page <= pages:
             html_text = session.get_text(f"{START_URL}?page={page}")
@@ -197,10 +209,146 @@ def crawl_pages(pages: int | None = None, save_raw: bool = False,
         if own_session:
             session.close()
 
-    log.info("listing pages done: %s ads stored (%s rows in %s)",
-             saved, storage.count_rows(conn, TABLE), TABLE)
+    after = storage.count_rows(conn, TABLE)
+    log.info("listing pages done: %s ads seen, %s new rows (%s rows in %s)",
+             saved, after - before, after, TABLE)
+    if saved > 2 * max(after - before, 1):
+        log.warning("%s of those were repeats: the site stops advancing its pager after ~1,000 ads. "
+                    "Use --by-brand (optionally --used-only) for full coverage.",
+                    saved - (after - before))
     conn.close()
     return saved
+
+
+# --------------------------------------------------------------- partitioning
+def slugify(name: str) -> str:
+    """'Mercedes Benz' -> 'mercedes-benz' (the site's brand URLs are ASCII slugs)."""
+    text = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def brand_candidates(name: str) -> list[str]:
+    """Slugs to try for a brand: the full one first, then its first word.
+
+    The site is not consistent: 'Mercedes Benz' lives at /ban-o-to-mercedes (366 ads), while
+    /ban-o-to-mercedes-benz is a 404, and 'Land Rover' does live at /ban-o-to-land-rover.
+    """
+    slug = slugify(name)
+    candidates = [slug]
+    first = slug.split("-")[0]
+    if first and first != slug:
+        candidates.append(first)
+    return candidates
+
+
+def facets(html_text: str) -> tuple[list[str], list[dict]]:
+    """Brand names and fuel options from a listing page's filterConfig."""
+    config_block = _page_props(html_text).get("filterConfig") or {}
+    filters = config_block.get("filters") or {}
+    brands = [item.get("name", "") for item in (filters.get("52") or {}).get("items") or []]
+    fuels = (filters.get("61") or {}).get("items") or []
+    return [b for b in brands if b], fuels
+
+
+def _with_params(base: str, params: Sequence[str]) -> str:
+    """Append query params (skipping empties) to a base URL, reusing '?' or '&' as needed."""
+    clean = [p for p in params if p]
+    if not clean:
+        return base
+    separator = "&" if "?" in base else "?"
+    return f"{base}{separator}{'&'.join(clean)}"
+
+
+def crawl_partition(session: ScraperSession, conn, url: str, total_hint: int | None = None,
+                    save_raw: bool = False, tag: str = "") -> tuple[int, int]:
+    """Page one partition until the site repeats a page. Returns (ads seen, ads in the partition)."""
+    page, prev, seen, total = 1, None, 0, total_hint or 0
+    while page <= MAX_PAGES_PER_PARTITION:
+        target = _with_params(url, [f"page={page}"])
+        html_text = session.get_text(target)
+        if html_text is None:
+            break
+        if save_raw:
+            storage.save_raw(html_text, f"muaban_{tag}_{page:03d}")
+        records, total = parse_list_page(html_text)
+        ids = tuple(r["id"] for r in records)
+        if not records or ids == prev:      # the site repeats the last page past its cap
+            break
+        prev = ids
+        storage.upsert_rows(conn, TABLE, records)
+        seen += len(records)
+        if total and page * PER_PAGE >= total:
+            break
+        page += 1
+    return seen, total
+
+
+def crawl_by_brand(used_only: bool = True, brands: Sequence[str] | None = None,
+                   save_raw: bool = False, session: ScraperSession | None = None) -> int:
+    """Crawl brand partitions (optionally split by fuel) so the whole catalogue is reachable."""
+    config.ensure_dirs()
+    conn = storage.open_db()
+    storage.create_table(conn, TABLE, COLUMNS)
+    storage.ensure_columns(conn, TABLE, COLUMNS)
+    before = storage.count_rows(conn, TABLE)
+
+    own_session = session is None
+    session = session or ScraperSession()
+    try:
+        first = session.get_text(SALE_PATH) or ""
+        brand_names, fuels = facets(first)
+        wanted = [b for b in brand_names if not brands or slugify(b) in set(brands)]
+        log.info("partitions: %s brands%s", len(wanted), " (used cars only)" if used_only else "")
+        status = f"&vehicle_status_ids={USED_STATUS_ID}" if used_only else ""
+
+        done = requests = skipped = 0
+        status = [f"vehicle_status_ids={USED_STATUS_ID}"] if used_only else []
+        for name in tqdm(wanted, desc="muaban brands", unit="brand"):
+            # the site's slug is not always slugify(name) — try the first word as a fallback
+            base, total = "", 0
+            for slug in brand_candidates(name):
+                candidate = f"{SALE_PATH}-{slug}"
+                html_text = session.get_text(_with_params(candidate, [*status, "page=1"]))
+                requests += 1
+                _, candidate_total = parse_list_page(html_text or "")
+                if candidate_total:
+                    base, total = candidate, candidate_total
+                    break
+            if not base:
+                skipped += 1
+                log.debug("%s: no brand URL found -> skipped", name)
+                continue
+            splits = [(None, total)]
+            if total > PARTITION_CAP and fuels:
+                splits = []
+                for fuel in fuels:
+                    fuel_id = fuel.get("id")
+                    if not fuel_id:
+                        continue
+                    html_text = session.get_text(
+                        _with_params(base, [*status, f"car_fuels={fuel_id}", "page=1"]))
+                    requests += 1
+                    _, fuel_total = parse_list_page(html_text or "")
+                    if fuel_total:
+                        splits.append((fuel_id, fuel_total))
+            for fuel_id, split_total in splits:
+                params = [*status, f"car_fuels={fuel_id}" if fuel_id else ""]
+                entry = f"{slugify(name)}{'-' + str(fuel_id) if fuel_id else ''}"
+                seen, _ = crawl_partition(session, conn, _with_params(base, params),
+                                          total_hint=split_total, save_raw=save_raw, tag=entry)
+                requests += max(1, (min(split_total, PARTITION_CAP) + PER_PAGE - 1) // PER_PAGE)
+                done += seen
+            log.debug("%s: %s ads seen", name, done)
+        log.info("brands without a usable URL: %s", skipped)
+    finally:
+        if own_session:
+            session.close()
+
+    after = storage.count_rows(conn, TABLE)
+    log.info("partition crawl finished: %s ads seen, %s new rows (%s -> %s in %s)",
+             done, after - before, before, after, TABLE)
+    conn.close()
+    return after - before
 
 
 def pending_detail_urls(conn, refresh: bool = False, limit: int | None = None) -> list[str]:
@@ -260,9 +408,13 @@ def crawl_details(limit: int | None = None, refresh: bool = False, save_raw: boo
 
 
 def crawl(pages: int | None = None, details: bool = False, limit: int | None = None,
-          refresh: bool = False, save_raw: bool = False) -> int:
-    """Crawl listing pages, then (optionally) the detail page of each ad."""
-    stored = crawl_pages(pages=pages, save_raw=save_raw)
+          refresh: bool = False, save_raw: bool = False, by_brand: bool = False,
+          used_only: bool = False, brands: Sequence[str] | None = None) -> int:
+    """Crawl listing pages (or brand partitions), then (optionally) the detail page of each ad."""
+    if by_brand:
+        stored = crawl_by_brand(used_only=used_only, brands=brands, save_raw=save_raw)
+    else:
+        stored = crawl_pages(pages=pages, save_raw=save_raw)
     if details:
         stored += crawl_details(limit=limit, refresh=refresh, save_raw=save_raw)
     return stored
@@ -276,6 +428,13 @@ def build_parser() -> argparse.ArgumentParser:
                         help="how many listing pages to crawl (20 ads each); default: all ~375")
     parser.add_argument("--details", action="store_true",
                         help="also fetch each ad's detail page (resumable)")
+    parser.add_argument("--by-brand", action="store_true",
+                        help="crawl brand partitions: the only way to reach the whole catalogue "
+                             "(the category page stops advancing after ~1,000 ads)")
+    parser.add_argument("--used-only", action="store_true",
+                        help="with --by-brand: only ads the site marks 'Đã qua sử dụng'")
+    parser.add_argument("--brands", nargs="+", default=None, metavar="SLUG",
+                        help="with --by-brand: only these brand slugs (e.g. toyota honda)")
     parser.add_argument("--limit", type=int, default=None, help="cap the number of detail pages")
     parser.add_argument("--refresh", action="store_true", help="re-fetch detail pages already stored")
     parser.add_argument("--save-raw", action="store_true", help="also save the raw HTML of each page")
@@ -287,7 +446,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     crawl(pages=args.pages, details=args.details, limit=args.limit,
-          refresh=args.refresh, save_raw=args.save_raw)
+          refresh=args.refresh, save_raw=args.save_raw, by_brand=args.by_brand,
+          used_only=args.used_only, brands=args.brands)
     print("\nNext: python -m src.sources.muaban.unified   (export the 21-column CSV)")
     return 0
 

@@ -65,6 +65,10 @@ class ScraperSession:
                     log.error("%s for %s -> needs cookie/token, or the request was blocked",
                               resp.status_code, url)
                     return None
+                if resp.status_code == 404:
+                    # a dead URL (e.g. a brand path that does not exist) is not worth retrying
+                    log.warning("404 for %s -> skipping", url)
+                    return None
                 if resp.status_code >= 500:
                     log.warning("Server error %s for %s", resp.status_code, url)
                     time.sleep(2**attempt)
