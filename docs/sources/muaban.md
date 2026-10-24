@@ -127,62 +127,65 @@ python -m src.sources.muaban --by-brand --brands toyota honda       # only a few
   `/o-to/ban-o-to-mercedes` (366 ads) while `/ban-o-to-mercedes-benz` is a 404, so the crawler falls
   back to the first word and logs brands without a usable URL.
 - Partitions are idempotent (upsert on `url`), so re-running only adds what is missing.
+- A brand still above the cap after the fuel split is split again by `car_types` →
+  `car_seat_ids` → `vehicle_origins` (`_crawl_split`), which is what recovered the missing Toyota ads.
 - Verified 2026-10-24: `--brands honda mazda` → 799 ads seen, **680 new rows**;
-  `--brands mercedes land-rover` → 373 seen, **320 new rows**.
+  `--brands mercedes land-rover` → 373 seen, **320 new rows**; `--brands toyota` after the recursive
+  split → **+339 rows** (1,243 → 1,582 of the 1,781 Toyota ads).
 
 ## 6. Result — full crawl (2026-10-24)
 
-`python -m src.sources.muaban --by-brand --used-only --details` → **6,781 ads, every one with a
-detail page**, exported as **6,686 rows** (skips: 13 rental/service, 37 commercial, 45 new cars).
+`python -m src.sources.muaban --by-brand --used-only --details` → **7,120 ads, every one with a
+detail page**, exported as **7,022 rows** (skips: 13 rental/service, 40 commercial, 45 new cars).
 Contract **PASS**.
 
 | column | filled | column | filled |
 |---|---|---|---|
-| manufacture_year / transmission / province / seller_type / price_vnd | 100% | seats | 72.6% |
-| brand | 99.5% | body_type | 63.4% |
-| sub_model_trim | 99.4% | origin | 55.0% |
-| mileage_km | 98.1% | engine_capacity | 24.7% |
+| manufacture_year / transmission / province / seller_type / price_vnd | 100% | seats | 73.7% |
+| brand | 99.5% | body_type | 65.1% |
+| sub_model_trim | 99.4% | origin | 56.3% |
+| mileage_km | 98.2% | engine_capacity | 25.6% |
 | model / fuel_type | 97–98% | | |
 
-Top brands: Toyota 1,243 · Ford 844 · Kia 749 · Hyundai 641 · Mitsubishi 530 · Mazda 447 ·
+Top brands: Toyota 1,582 · Ford 844 · Kia 749 · Hyundai 641 · Mitsubishi 530 · Mazda 447 ·
 Vinfast 439 · Mercedes-Benz 358 · Honda 356 · Chevrolet 255.
 
 ## 7. Comparison with the file from Quang (2026-10-23, 6,657 ads)
 
-Same site, two independent pipelines: **6,686 vs 6,657 rows**, 5,539 ads present in both
-(1,147 ads only in ours, 1,118 only in his).
+Same site, two independent pipelines: **7,022 vs 6,657 rows**, 5,592 ads present in both
+(1,430 ads only in ours, 1,065 only in his).
 
-| field | agreement on the 5,539 shared ads |
+| field | agreement on the 5,592 shared ads |
 |---|---|
 | location_province | 100.0% |
 | price_vnd | 99.7% |
 | brand | 99.4% |
 | manufacture_year | 98.7% |
-| mileage_km | 94.8% |
 | transmission | 94.5% |
+| mileage_km | 93.7% |
 | model | 93.3% |
-| fuel_type | 92.2% |
-| seats | 76.8% |
-| body_type | 66.4% |
+| fuel_type | 92.3% |
+| seats | 76.9% |
+| body_type | 66.7% |
 
-| coverage | Quang (6,657) | This crawler (6,686) |
+| coverage | Quang (6,657) | This crawler (7,022) |
 |---|---|---|
 | sub_model_trim | 40.1% | **99.4%** |
 | transmission | 93.6% | **100%** |
 | seller_type | 91.3% | **100%** |
 | manufacture_year | 98.6% | **100%** |
-| mileage_km | 89.8% | **98.1%** |
+| mileage_km | 89.8% | **98.2%** |
 | fuel_type | 90.8% | **98.0%** |
-| seats | **89.4%** | 72.6% |
-| body_type | **89.8%** | 63.4% |
-| origin | **75.5%** | 55.0% |
-| engine_capacity | **44.2%** | 24.7% |
+| seats | **89.4%** | 73.7% |
+| body_type | **89.8%** | 65.1% |
+| origin | **75.5%** | 56.3% |
+| engine_capacity | **44.2%** | 25.6% |
 
 | data quality | Quang | Ours |
 |---|---|---|
 | placeholder brands | 63 | 34 (all genuinely unknown at the source) |
 | models containing `khác` | 202 | **0** |
-| `mileage_km` < 1,000 | 374 | 295 |
+| `mileage_km` < 1,000 | 374 | 303 |
 | `price_vnd` < 30 M | 51 | 65 (teaser/instalment ads, kept for the week-2 flags) |
 | duplicate `source_url` | 0 | 0 |
 

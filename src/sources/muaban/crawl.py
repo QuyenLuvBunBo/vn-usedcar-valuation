@@ -73,6 +73,10 @@ DETAIL_ID_RE = re.compile(r"-id(\d+)$")
 # and a brand bigger than the cap is split again by condition and fuel.
 SALE_PATH = f"{BASE_URL}/o-to/ban-o-to"
 USED_STATUS_ID = 526          # filter 'Tình trạng' = Đã qua sử dụng
+# The site's facet ids (see docs/sources/muaban.md); used to split a partition that is still
+# bigger than the pager cap.
+SPLIT_FACETS = (("car_fuels", "61"), ("car_types", "59"), ("car_seat_ids", "62"),
+                ("vehicle_origins", "60"))
 PARTITION_CAP = 1200          # stop paging a partition above this many ads (site truncates anyway)
 MAX_PAGES_PER_PARTITION = 70  # hard stop, the site repeats the last page beyond it
 
@@ -283,6 +287,38 @@ def crawl_partition(session: ScraperSession, conn, url: str, total_hint: int | N
     return seen, total
 
 
+def _facet_items(html_text: str) -> dict[str, list[dict]]:
+    """The option lists used for splitting (fuels, car types, seats, origins)."""
+    config_block = _page_props(html_text).get("filterConfig") or {}
+    filters = config_block.get("filters") or {}
+    return {field: (filters.get(key) or {}).get("items") or [] for field, key in SPLIT_FACETS}
+
+
+def _crawl_split(session: ScraperSession, conn, base: str, params: Sequence[str], depth: int,
+                 facet_cache: dict[str, list[dict]], save_raw: bool) -> int:
+    """Crawl one partition, splitting it by the next facet while it stays above the pager cap.
+
+    Toyota holds ~1,780 ads: one query stops at ~1,200, petrol is still ~1,300, so the chain goes
+    brand -> car_fuels -> car_types -> car_seat_ids -> vehicle_origins until every partition fits.
+    """
+    _, total = parse_list_page(session.get_text(_with_params(base, [*params, "page=1"])) or "")
+    if not total:
+        return 0
+    field = SPLIT_FACETS[depth][0] if depth < len(SPLIT_FACETS) else ""
+    items = facet_cache.get(field) or []
+    if total <= PARTITION_CAP or not items:
+        seen, _ = crawl_partition(session, conn, _with_params(base, params), total_hint=total,
+                                  save_raw=save_raw, tag=f"p{depth}")
+        return seen
+    seen = 0
+    for item in items:
+        if not item.get("id"):
+            continue
+        seen += _crawl_split(session, conn, base, [*params, f"{field}={item['id']}"], depth + 1,
+                             facet_cache, save_raw)
+    return seen
+
+
 def crawl_by_brand(used_only: bool = True, brands: Sequence[str] | None = None,
                    save_raw: bool = False, session: ScraperSession | None = None) -> int:
     """Crawl brand partitions (optionally split by fuel) so the whole catalogue is reachable."""
@@ -297,20 +333,19 @@ def crawl_by_brand(used_only: bool = True, brands: Sequence[str] | None = None,
     try:
         first = session.get_text(SALE_PATH) or ""
         brand_names, fuels = facets(first)
+        facet_cache = _facet_items(first)
         wanted = [b for b in brand_names if not brands or slugify(b) in set(brands)]
         log.info("partitions: %s brands%s", len(wanted), " (used cars only)" if used_only else "")
-        status = f"&vehicle_status_ids={USED_STATUS_ID}" if used_only else ""
-
-        done = requests = skipped = 0
         status = [f"vehicle_status_ids={USED_STATUS_ID}"] if used_only else []
+
+        done = skipped = 0
         for name in tqdm(wanted, desc="muaban brands", unit="brand"):
             # the site's slug is not always slugify(name) — try the first word as a fallback
             base, total = "", 0
             for slug in brand_candidates(name):
                 candidate = f"{SALE_PATH}-{slug}"
-                html_text = session.get_text(_with_params(candidate, [*status, "page=1"]))
-                requests += 1
-                _, candidate_total = parse_list_page(html_text or "")
+                _, candidate_total = parse_list_page(
+                    session.get_text(_with_params(candidate, [*status, "page=1"])) or "")
                 if candidate_total:
                     base, total = candidate, candidate_total
                     break
@@ -318,27 +353,9 @@ def crawl_by_brand(used_only: bool = True, brands: Sequence[str] | None = None,
                 skipped += 1
                 log.debug("%s: no brand URL found -> skipped", name)
                 continue
-            splits = [(None, total)]
-            if total > PARTITION_CAP and fuels:
-                splits = []
-                for fuel in fuels:
-                    fuel_id = fuel.get("id")
-                    if not fuel_id:
-                        continue
-                    html_text = session.get_text(
-                        _with_params(base, [*status, f"car_fuels={fuel_id}", "page=1"]))
-                    requests += 1
-                    _, fuel_total = parse_list_page(html_text or "")
-                    if fuel_total:
-                        splits.append((fuel_id, fuel_total))
-            for fuel_id, split_total in splits:
-                params = [*status, f"car_fuels={fuel_id}" if fuel_id else ""]
-                entry = f"{slugify(name)}{'-' + str(fuel_id) if fuel_id else ''}"
-                seen, _ = crawl_partition(session, conn, _with_params(base, params),
-                                          total_hint=split_total, save_raw=save_raw, tag=entry)
-                requests += max(1, (min(split_total, PARTITION_CAP) + PER_PAGE - 1) // PER_PAGE)
-                done += seen
-            log.debug("%s: %s ads seen", name, done)
+            seen = _crawl_split(session, conn, base, status, 0, facet_cache, save_raw)
+            done += seen
+            log.debug("%s: %s ads seen (site reports %s)", name, seen, total)
         log.info("brands without a usable URL: %s", skipped)
     finally:
         if own_session:
