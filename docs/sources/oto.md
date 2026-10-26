@@ -86,6 +86,86 @@ If the archive tier is used: crawl straight from the sitemap URLs (no pagination
 sitemap is **sorted by `lastmod` descending**, so the first N URLs are the N newest listings, and a
 detail page already carries all 21 unified columns.
 
+## Archive tier (optional, extra data beyond the listings)
+
+`sitemap-detail-*.xml` lists ~30,900 URLs but only ~5,000 listings are currently advertised, so the
+rest is an archive of pages the site still serves (renewed under a new id, expired, or sold). These
+pages are normal detail pages and carry all 21 unified columns, but the car is **not currently
+listed**, so they are stored and exported separately.
+
+```powershell
+python -m src.sources.oto.archive --limit 50         # quick sample (~2 min)
+python -m src.sources.oto.archive                    # everything, resumable (~16-18h)
+python -m src.sources.oto.archive --summary          # coverage/price stats of what was crawled
+python -m tools.archive_progress                     # live progress + rate + ETA (one snapshot)
+python -m tools.archive_progress --watch 5           # refresh every 5 s, Ctrl+C to stop
+python -m src.sources.oto.unified --include-archive  # -> data/processed/oto_archive_unified.csv
+python -m src.sources.oto.unified --out oto --include-archive --combine  # -> data/processed/oto.csv (both tiers)
+python -m src.sources.oto.unified --check-derivation # validate brand/model extraction
+python -m tools.compare_tiers                        # live tier vs archive tier, side by side
+```
+
+The crawler keeps its tqdm bar on stderr; redirect it when the log is long
+(`python -m src.sources.oto.archive 2> logs\archive_run.err`), then watch the raw bar with
+`Get-Content logs\archive_run.err -Tail 1` (or `-Wait` for a scrolling log). `tools.archive_progress`
+reads that file by default.
+
+### Result (2026-10-13)
+
+| Tier | Rows | File | Definition |
+|---|---|---|---|
+| Live | 2,713 | `data/processed/oto_unified.csv` | advertised in the listings right now |
+| Archive | 25,715 | `data/processed/oto_archive_unified.csv` | page still served, no longer advertised |
+| **Both** | **28,428** | **`data/processed/oto.csv`** | the two tiers concatenated (a single-file hand-off, not the merge input: `tier` is per file) |
+
+`python -m tools.validate_source_csv data/processed/oto.csv` → **PASS** (21 columns, no duplicate
+`listing_id`/`source_url`, all categorical values inside the contract).
+
+Why two columns stay sparse (the validator's "mostly empty" warning):
+
+- `engine_capacity` 25.3% — oto publishes displacement neither on the listing cards nor in the archive
+  spec table; it is inferred from the trim/title ("1.5", "2.0"), so it is filled only when the seller
+  wrote it. Week 2 uses a make/model/trim/year mapping instead of imputing one global value.
+- `sub_model_trim` 37.9% (archive tier) — private sellers write free-text titles with no grade; the
+  live tier fills this from the site's own `data-tinrao` blob.
+
+Data facts worth a line in the report:
+
+- `price_status = full` for all 28,428 rows: oto always publishes a definite price (no "Thỏa thuận"),
+  so the target needs no negotiation filtering for this source.
+- The archive holds the old/cheap long tail: median asking price 495 M vs 555 M live, median year 2020
+  vs 2021, private sellers 83.5% vs 33% (dealers keep their ads visible by bumping them).
+- 14 of 25,729 crawled pages (0.05%) are unusable and are dropped at export: 7 served without a listing
+  payload (ad deleted at the source) and 7 duplicate a live ad reached through a sitemap URL with an
+  empty slug (`.../mua-ban-xe-<brand>-<city>/-aidxcNNNN`).
+- Outlier review for week 2: 4 implausible asking prices (180 / 162 / 159 / 52 billion VND),
+  5 rows above the report's 25-billion rule, 522 rows with < 100 km on a car older than 2 years,
+  15 rows above 1,000,000 km, 6 rows outside 1995–present. Flag, do not delete.
+- `location_province` is normalized to the **province**: listing cards often print the district first
+  ("Khoái Châu - Hưng Yên", 1,239 rows = 4.4%), which used to split one market into 20+ values and
+  made the dedupe key needlessly fine. Provinces whose real name contains a dash (Bà Rịa - Vũng Tàu)
+  are kept as they are.
+
+How it stays honest:
+
+- Rows live in their own table (`oto_archive`) and carry `in_listing = 0`, `ad_id`, `listing_date`
+  (sitemap `lastmod`) and `sold_marker` (1 when the price-proposal button is still present).
+- URLs already in the listings are skipped, so the two tiers do not overlap. Seven ads still got in
+  through a second sitemap URL whose slug is empty (`.../mua-ban-xe-<brand>-<city>/-aidxcNNNN`); the
+  export drops those, so `oto.csv` and `oto_archive_unified.csv` are disjoint by construction.
+- `--skip-recent-days 30` (default) ignores URLs bumped in the last 30 days: those are probably
+  still in the listings.
+- The archive CSV has the same 21 columns but is **not** part of the week-1 deliverable — merge it
+  into a dataframe only when you want the extra history. The crawler-only `in_listing` flag does not
+  survive the 21-column contract: `build_master` keeps the distinction in the `tier` column
+  (`listed` / `archived`), which is what the split and the report must use.
+
+Because an archive page has no listing card, brand/model come from the title. That extraction was
+validated against the 2,706 crawled listings (whose brand/model the site publishes directly in
+`data-tinrao`): **brand matches 100%**, **model matches 95.6%** (the remainder are titles with extra
+grade words such as "Land Cruiser **V6**", "Alphard **Executive Lounge**"). Run
+`--check-derivation` to reproduce those numbers.
+
 ## Important notes when using the data
 
 1. **47.8% of the listings are "sold"** (the `sold` flag in the raw table). They still have all 16

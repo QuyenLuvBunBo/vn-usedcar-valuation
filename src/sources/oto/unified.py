@@ -18,7 +18,8 @@ import sys
 
 from ...common import config, schema, storage
 from ...common.http_client import ScraperSession
-from ...common.parsing import to_float, to_int
+from ...common.parsing import parse_km_text, parse_year_text, to_float, to_int
+from .crawl import ARCHIVE_TABLE, BRANDS, TABLE, table_exists
 
 SOURCE_PLATFORM = "oto.com.vn"
 LAST_MOD_CACHE = config.DATA_RAW / "sitemap_lastmod.json"
@@ -36,8 +37,8 @@ log = logging.getLogger("unified_schema")
 
 # ------------------------------------------------------------------ helpers
 def _km_from_text(value: str | None) -> float | None:
-    """Convert '140.000 km' -> 140000.0."""
-    km = to_int(value)
+    """Convert a mileage expression such as '140.000 km' -> 140000.0."""
+    km = parse_km_text(value)
     return float(km) if km is not None else None
 
 
@@ -175,6 +176,157 @@ def build_unified(conn: sqlite3.Connection, lastmods: dict[str, str]) -> list[di
 
 
 
+# ------------------------------------------------------------------- archive
+# Trim words that mark where a model name ends in a Vietnamese ad title.
+TRIM_WORDS = {
+    "at", "mt", "cvt", "amt", "dct", "g", "e", "q", "v", "x", "s", "l", "le", "se", "glx",
+    "gx", "ex", "lx", "gt", "rs", "vx", "tx", "tl", "limited", "premium", "luxury", "signature",
+    "base", "sport", "plus", "max", "titanium", "trend", "eco", "hv", "amg", "line", "edition",
+    "standard", "comfort", "style", "deluxe", "gls", "sedan", "hatchback", "suv",
+    # engine / drivetrain / grade words often appended to the model in Vietnamese titles
+    "v4", "v6", "v8", "v10", "v12", "w12", "turbo", "turbodiesel", "xăng", "dầu", "máy", "điện",
+    "hybrid", "executive", "lounge", "quattro", "xdrive", "awd", "4wd", "fwd", "rwd",
+}
+BRAND_NAMES = sorted({*BRANDS.values(), "Mercedes", "Land Rover", "Aston Martin"}, key=len, reverse=True)
+
+
+def brand_from_title(title: str) -> str:
+    """Longest known brand name that the title starts with (works for 'Mercedes-Benz ...')."""
+    low = (title or "").lower()
+    for name in BRAND_NAMES:
+        if low.startswith(name.lower()):
+            return name
+    return ""
+
+
+def split_model_trim(title: str, brand: str) -> tuple[str, str]:
+    """Split 'Toyota Corolla Altis 1.8G CVT 2014' -> ('Corolla Altis', '1.8G CVT').
+
+    The model ends at the first token that starts with a digit or is a known trim word
+    (AT, CVT, G, Premium...). If that leaves nothing, the first token becomes the model
+    (e.g. 'Mazda 3' -> '3').
+    """
+    text = YEAR_RE.sub(" ", title or "").strip()
+    if brand and text.lower().startswith(brand.lower()):
+        text = text[len(brand):].strip()
+    tokens = [t for t in re.split(r"\s+", text) if t]
+    model_tokens: list[str] = []
+    for token in tokens:
+        if re.match(r"^\d", token) or token.strip(",.").lower() in TRIM_WORDS:
+            break
+        model_tokens.append(token)
+    if not model_tokens and tokens:
+        model_tokens = [tokens[0]]
+    model = " ".join(model_tokens).strip(" -,")
+    trim = " ".join(tokens[len(model_tokens):]).strip(" -,")
+    return model, trim
+
+
+def _archive_row(record: dict, lastmods: dict[str, str]) -> dict:
+    """Turn one oto_archive row (detail page only) into the 21 unified columns."""
+    specs: dict[str, str] = {}
+    if record.get("d_specs"):
+        try:
+            specs = json.loads(record["d_specs"])
+        except ValueError:
+            specs = {}
+
+    title = record.get("d_title") or ""
+    brand = brand_from_title(title)
+    model, trim = split_model_trim(title, brand)
+    raw_price = (record.get("d_price_text") or "").strip()
+    price_vnd = to_int(record.get("d_price_vnd"))
+
+    return {
+        "listing_id": f"OTO_{record.get('ad_id') or ''}",
+        "source_platform": SOURCE_PLATFORM,
+        "brand": brand or "Unknown",
+        "model": model or "Unknown",
+        "sub_model_trim": trim,
+        "manufacture_year": to_int(specs.get("Năm SX")) or parse_year_text(title),
+        "mileage_km": _km_from_text(specs.get("Km đã đi")),
+        "transmission": schema.normalize_transmission(specs.get("Hộp số")),
+        "fuel_type": schema.normalize_fuel(specs.get("Nhiên liệu")),
+        "origin": schema.normalize_origin(specs.get("Xuất xứ")),
+        "body_type": schema.normalize_body(specs.get("Kiểu dáng")),
+        "engine_capacity": derive_engine_capacity(trim, title),
+        "seats": to_int(record.get("d_seats")),
+        "location_province": schema.normalize_province(
+            specs.get("Tỉnh thành"), record.get("d_city_code", "")),
+        "seller_type": schema.seller_type_from_subdomain(record.get("d_seller_url")),
+        "price_vnd": price_vnd,
+        "source_url": record.get("url"),
+        "listing_date": record.get("listing_date") or lastmods.get(record.get("url", ""), ""),
+        "scraped_at": record.get("scraped_at"),
+        "raw_price_text": raw_price or None,
+        "price_status": schema.price_status(price_vnd, raw_price),
+    }
+
+
+def build_archive_unified(conn: sqlite3.Connection, lastmods: dict[str, str]) -> list[dict]:
+    """Build unified rows for the archive tier (sitemap URLs no longer in the listings).
+
+    Two kinds of rows are left out so the exported file matches its definition:
+      * pages served without a listing payload (the ad was removed at the source) — no title, no price;
+      * ads already present in the live tier through a second sitemap URL whose slug is empty
+        (e.g. `/mua-ban-xe-honda-cr-v-ha-noi/-aidxc23433857`), which would duplicate live rows.
+    """
+    if not table_exists(conn, ARCHIVE_TABLE):
+        return []
+    listed_ids = {f"OTO_{r.get('id') or ''}" for r in storage.read_rows(conn, TABLE)}
+    rows: list[dict] = []
+    empty_pages = duplicates = 0
+    for record in storage.read_rows(conn, ARCHIVE_TABLE):
+        if not (record.get("d_title") or record.get("d_price_vnd")):
+            empty_pages += 1
+            continue
+        row = _archive_row(record, lastmods)
+        if row["listing_id"] in listed_ids:
+            duplicates += 1
+            continue
+        rows.append(row)
+    if empty_pages or duplicates:
+        log.info("Archive export: %d listings kept, %d pages without data, %d duplicates of the live tier",
+                 len(rows), empty_pages, duplicates)
+    return rows
+
+
+def check_derivation(conn: sqlite3.Connection) -> None:
+    """Validate the title-based brand/model extraction against the crawled listings.
+
+    Those rows carry the brand/model the site publishes in `data-tinrao`, so they are ground truth
+    for the same titles we have to parse on archive pages.
+    """
+    cars = storage.read_rows(conn, TABLE)
+    details = {r["url"]: r for r in storage.read_rows(conn, "oto_car_details")}
+    total = brand_hits = model_hits = 0
+    examples: list[str] = []
+    for car in cars:
+        title = (details.get(car["url"], {}) or {}).get("d_title") or ""
+        if not title:
+            continue
+        total += 1
+        brand = brand_from_title(title)
+        model, _ = split_model_trim(title, brand)
+        if brand.lower() == (car.get("brand") or "").lower():
+            brand_hits += 1
+        if model.lower().replace("-", " ").strip() == (car.get("model") or "").lower().replace("-", " ").strip():
+            model_hits += 1
+        elif len(examples) < 6:
+            examples.append(f"{title!r} -> {brand}|{model}  (site: {car.get('brand')}|{car.get('model')})")
+
+    if not total:
+        print("No data to check (crawl listings + details first).")
+        return
+    print(f"\nTitle-based extraction vs the site's own brand/model ({total} listings with a title):")
+    print(f"  brand agreement: {brand_hits}/{total} = {brand_hits / total * 100:.1f}%")
+    print(f"  model agreement: {model_hits}/{total} = {model_hits / total * 100:.1f}%")
+    if examples:
+        print("  sample mismatches:")
+        for line in examples:
+            print("   ", line)
+
+
 # ------------------------------------------------------------------- audit
 def audit(rows: list[dict]) -> None:
     """Print a coverage/missing-rate audit of every column (a Milestone 1 requirement)."""
@@ -217,6 +369,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", default="oto_unified", help="output CSV/JSONL file name")
     parser.add_argument("--fetch-sitemap", action="store_true",
                         help="refresh listing_date (lastmod) from sitemap-detail")
+    parser.add_argument("--include-archive", action="store_true",
+                        help="also export the archive tier (sitemap URLs no longer listed) to "
+                             "oto_archive_unified.csv")
+    parser.add_argument("--combine", action="store_true",
+                        help="write the main CSV with both tiers (live + archive); use it to hand "
+                             "the whole oto.com.vn source to the week-2 merge step")
+    parser.add_argument("--check-derivation", action="store_true",
+                        help="validate the title-based brand/model extraction against the listings "
+                             "and exit")
     return parser
 
 
@@ -232,13 +393,42 @@ def main(argv: list[str] | None = None) -> int:
     lastmods = load_lastmod_map(fetch=args.fetch_sitemap)
 
     conn = storage.open_db()
+
+    if args.check_derivation:
+        check_derivation(conn)
+        conn.close()
+        return 0
+
     rows = build_unified(conn, lastmods)
+    archive_rows = build_archive_unified(conn, lastmods) if (args.include_archive or args.combine) else []
     conn.close()
+
+    if args.combine:
+        # One file for the merge step: the live snapshot + the long tail of delisted ads.
+        # Rows stay disjoint (the archive export drops ads that are in the live tier), so the
+        # number of records is simply the sum of the two tiers.
+        log.info("Combining tiers: %d live + %d archive", len(rows), len(archive_rows))
+        rows = rows + archive_rows
 
     csv_path = storage.save_csv(rows, args.out, SCHEMA_COLUMNS)
     jsonl_path = storage.save_jsonl(rows, args.out)
     audit(rows)
     print(f"\nCSV   : {csv_path}\nJSONL : {jsonl_path}")
+
+    if args.include_archive:
+        if not archive_rows:
+            print("\nArchive tier: no rows yet — run: python -m src.sources.oto.archive --limit 50")
+        else:
+            archive_csv = storage.save_csv(archive_rows, "oto_archive_unified", SCHEMA_COLUMNS)
+            print(f"\n{'=' * 74}\nARCHIVE TIER — {len(archive_rows)} listings (NOT currently listed)"
+                  f"\n{'=' * 74}")
+            for col in ("brand", "model", "sub_model_trim", "manufacture_year", "mileage_km",
+                        "transmission", "fuel_type", "engine_capacity", "origin", "body_type",
+                        "seats", "location_province", "price_vnd", "listing_date"):
+                filled = sum(1 for r in archive_rows if r.get(col) not in (None, "", "Unknown"))
+                print(f"  {col:18s} {filled:6d} ({filled / len(archive_rows) * 100:5.1f}%)")
+            print(f"\n  CSV: {archive_csv}")
+            print("  NOTE: keep this file separate from the 21-column deliverable (in_listing = 0).")
     return 0
 
 

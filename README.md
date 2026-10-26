@@ -101,10 +101,38 @@ python -m src.sources.oto --detail-only            # also crawl each listing det
 python -m src.sources.oto --detail-missing-price   # back-fill detail pages for price-less ads
 python -m src.sources.oto --from-raw               # parser changed: re-parse saved HTML, no re-crawl
 python -m src.sources.oto.unified                  # export the 21-column unified CSV + audit
+python -m src.sources.oto.archive --limit 50       # archive tier: sitemap URLs no longer listed
+python -m src.sources.oto.archive --summary        # what the archive tier holds so far
+python -m src.sources.oto.unified --include-archive  # + oto_archive_unified.csv (separate file)
+python -m src.sources.oto.unified --out oto --include-archive --combine  # oto.csv = both tiers, 28,428 rows
 ```
 
 Outputs: `data/processed/oto_cars.csv` (parsed listing fields), `data/processed/oto_unified.csv`
-(21 unified columns), tables `oto_cars` + `oto_car_details` in `data/scraped.db`.
+(21 unified columns, live tier), `data/processed/oto_archive_unified.csv` (archive tier only),
+`data/processed/oto.csv` (both tiers concatenated, 28,428 rows — a single-file hand-off for
+exploration; the week-2 merge reads the two per-tier files above, because `tier` is assigned per file),
+tables `oto_cars` + `oto_car_details` + `oto_archive` in `data/scraped.db`.
+
+## Merging into the Master Dataset (week 2)
+
+```bash
+python -m src.merge.build_master                     # every source file that exists yet
+python -m src.merge.build_master --sources oto oto_archive
+```
+
+It reads every `data/processed/<source>.csv` that exists (a missing source is skipped with a warning),
+refuses a file whose header does not match the 21-column contract, then adds three columns:
+
+| Column | Meaning |
+|---|---|
+| `tier` | `listed` (advertised when captured) / `archived` (page still served, no longer advertised) |
+| `duplicate_group_id` | candidate same-vehicle key: brand + model + trim + year + province + ± mileage |
+| `quality_flags` | report §4.3 review reasons (`missing_mileage`, `low_mileage_older_car`, …) |
+
+Nothing is deleted or merged away: a group is a review candidate, so the flags and the group id travel
+with every record to the modelling stage. The run also prints the Milestone 1 numbers — records per
+source, missing rate per source, duplicate rate, flag counts — and writes
+`data/master/master_clean_dataset.csv` (21 columns + the three above).
 
 ## Shared documentation
 
@@ -128,6 +156,8 @@ Outputs: `data/processed/oto_cars.csv` (parsed listing fields), `data/processed/
 | `tools.detail_recon <url>` | inspect a detail page (JSON-LD, spec table, seller block) |
 | `tools.list_brands` | discover and verify oto.com.vn brand slugs |
 | `tools.summarize_oto` | pandas summary + quality checks of a crawled CSV |
+| `tools.archive_progress` | live progress + ETA of the archive crawl (log bar + DB counts) |
+| `tools.compare_tiers` | live tier vs archive tier: size, price, age, mileage, sellers, quality flags |
 | `tools.scan_sitemap` · `tools.lastmod_analysis` | verify source size and listing dates |
 
 ## General technical notes

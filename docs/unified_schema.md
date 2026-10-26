@@ -40,8 +40,20 @@ This file explains each column for the written report.
 
 ## Checks after merging (week 2)
 
-- Zero duplicate `listing_id` / `source_url`.
-- `duplicate_group_id` (week 2) must keep all records of the same vehicle inside the **same**
-  train/val/test partition.
+`python -m src.merge.build_master` adds three columns and prints these checks:
+
+| Column | Meaning |
+|---|---|
+| `tier` | `listed` / `archived` — was the car advertised when we captured it? |
+| `duplicate_group_id` | coarse candidate vehicle key: brand + model + trim + year + province + ± mileage |
+| `quality_flags` | report §4.3 review reasons; flagged, never deleted |
+
+- Zero duplicate `listing_id` / `source_url` after merging.
+- Duplicate rate: candidate groups and the records that share one (the key is coarse on purpose, so the
+  audit also prints the count for a **stricter** signal — same key *and* same asking price, which is
+  what a renewed ad looks like).
+- `duplicate_group_id` must keep all records of the same vehicle inside the **same** train/val/test
+  partition (the split is fitted per group, and all learned statistics stay train-only).
 - The report must state: record count per source, missing rate per column, duplicate rate,
-  and how many records were excluded (with reasons) — Milestone 1 requirements.
+  and how many records were excluded (with reasons) — Milestone 1 requirements. The build prints the
+  first three; exclusions are the flags plus `missing_price` (no definite price → not a regression row).
