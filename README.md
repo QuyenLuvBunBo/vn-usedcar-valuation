@@ -21,8 +21,7 @@ normalize it into one unified schema, then build regression and anomaly-detectio
 | xe.chotot.com | Southern Vietnam | Trịnh Hải Phong |
 | carmudi.vn | Passenger car catalogue | Nguyễn Văn Quyết |
 | carpla.vn | Dealership inventory | Đỗ Tuấn Anh |
-| anycar.vn | **Offline (site down)** — replaced by `muaban.net/o-to` | Nguyễn Huy Quang |
-| muaban.net | Passenger cars for sale (replacement for anycar.vn) | Lê Thế Quyền (scaffold) |
+| muaban.net | Passenger cars for sale (replacement for anycar.vn) | Nguyễn Huy Quang |
 
 Every member delivers: **one crawler script + one clean CSV** matching the unified schema
 (`docs/unified_schema.md`). Merge, deduplication, modelling and the demo happen in weeks 2–4.
