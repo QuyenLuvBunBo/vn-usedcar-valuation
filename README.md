@@ -21,7 +21,8 @@ normalize it into one unified schema, then build regression and anomaly-detectio
 | xe.chotot.com | Southern Vietnam | Trịnh Hải Phong |
 | carmudi.vn | Passenger car catalogue | Nguyễn Văn Quyết |
 | carpla.vn | Dealership inventory | Đỗ Tuấn Anh |
-| anycar.vn | Inspected inventory | Nguyễn Huy Quang |
+| anycar.vn | **Offline (site down)** — replaced by `muaban.net/o-to` | Nguyễn Huy Quang |
+| muaban.net | Passenger cars for sale (replacement for anycar.vn) | Lê Thế Quyền (scaffold) |
 
 Every member delivers: **one crawler script + one clean CSV** matching the unified schema
 (`docs/unified_schema.md`). Merge, deduplication, modelling and the demo happen in weeks 2–4.
@@ -71,7 +72,7 @@ set PYTHONIOENCODING=utf-8            # cmd
 $env:PYTHONIOENCODING='utf-8'         # PowerShell
 ```
 
-## Adding your source (bonbanh, chotot, carmudi, carpla, anycar…)
+## Adding your source (bonbanh, chotot, carmudi, carpla, muaban…)
 
 1. Read `src/sources/_template/README.md` — 4 steps: recon → parse → normalize → validate.
 2. `git checkout -b feat/source-<source>` and copy `src/sources/_template/` to

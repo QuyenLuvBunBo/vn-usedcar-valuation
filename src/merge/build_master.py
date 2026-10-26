@@ -36,6 +36,7 @@ log = logging.getLogger("build_master")
 # source name -> (file stem in data/processed, tier)
 # `tier` says whether the car was advertised when we captured it. oto.com.vn is the only source with
 # both: its live snapshot plus the long tail of pages the site still serves (docs/sources/oto.md).
+# muaban.net replaced anycar.vn, whose site is offline (docs/sources/muaban.md).
 SOURCE_FILES: dict[str, tuple[str, str]] = {
     "oto": ("oto_unified", "listed"),
     "oto_archive": ("oto_archive_unified", "archived"),
@@ -43,7 +44,7 @@ SOURCE_FILES: dict[str, tuple[str, str]] = {
     "chotot": ("chotot", "listed"),
     "carmudi": ("carmudi", "listed"),
     "carpla": ("carpla", "listed"),
-    "anycar": ("anycar", "listed"),
+    "muaban": ("muaban", "listed"),
 }
 
 MASTER_COLUMNS = [*schema.SCHEMA_COLUMNS, "tier", "duplicate_group_id", "quality_flags"]

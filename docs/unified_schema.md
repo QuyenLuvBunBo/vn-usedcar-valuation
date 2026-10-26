@@ -7,8 +7,8 @@ This file explains each column for the written report.
 
 | # | Column | Type | Meaning / allowed values |
 |---|---|---|---|
-| 1 | `listing_id` | string | Unique listing id, prefixed by source (`OTO_23444795`, `BAN_…`) |
-| 2 | `source_platform` | enum | `oto.com.vn`, `bonbanh`, `chotot`, `carmudi`, `carpla`, `anycar` |
+| 1 | `listing_id` | string | Unique listing id, prefixed by source (`OTO_23444795`, `BAN_…`, `MUA_71297868`) |
+| 2 | `source_platform` | enum | `oto.com.vn`, `bonbanh`, `chotot`, `carmudi`, `carpla`, `anycar`, `muaban.net` (anycar.vn is offline; muaban.net replaces it) |
 | 3 | `brand` | string | Manufacturer: `Toyota`, `Hyundai`, `Ford`, … |
 | 4 | `model` | string | Model designation: `Vios`, `Accent`, `CX-5`, … |
 | 5 | `sub_model_trim` | string | Engine trim / grade: `1.8G CVT`, `2.5Q`, `2.7 V 4X2 AT` (empty if the seller omitted it) |
