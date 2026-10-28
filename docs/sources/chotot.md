@@ -1,84 +1,116 @@
-# Chợ Tốt Xe — miền Nam
+# Chotot Xe — Southern Vietnam
 
-Phụ trách: **Trịnh Hải Phong**, Group 14. Bám schema và common trong bản
-repo nhóm tại thời điểm tích hợp. Phần Bắc/Trung không thuộc crawler này.
+This crawler follows the schema and shared utilities in the team repository. Northern and Central Vietnam are outside its scope.
 
-## Recon và giới hạn
+## Reconnaissance and limitations
 
-- Host `https://xe.chotot.com`.
-- Seed `/mua-ban-oto-<province>`; chi tiết `/mua-ban-oto-<location>/<id>.htm`.
-- 19 nhãn địa lý marketplace trong `src/sources/chotot/geography.py`, không
-  được hiểu là danh sách đơn vị hành chính hiện hành.
-- Bản robots đã lưu từ đợt cũ cấm `/*page=`. Crawler tải lại robots mỗi lần
-  chạy, kiểm tra URL trước khi fetch, chỉ theo link phân trang cùng path
-  (số trang hoặc rel=next). Không tự sinh ID/trang.
-- Dữ liệu cũ có 30 tin từ TP.HCM/Bình Dương. Selector đã có fixture và kiểm
-  thử offline; chưa xác nhận HTTP requests hiện tại nhận đủ HTML từ website.
-- Crawler dùng đúng `ScraperSession` của nhóm, delay ≥1.5 s, tăng theo robots;
-  retry/backoff/429 theo common. Khi HTTP bị từ chối hoặc HTML chỉ là shell JS,
-  dừng và xuất dữ liệu đã thu. Không tự chuyển phương thức để vượt từ chối.
+- Host: `https://xe.chotot.com`.
+- Seed pages: `/mua-ban-oto-<province>`; detail pages:
+  `/mua-ban-oto-<location>/<id>.htm`.
+- The 19 marketplace location labels in `src/sources/chotot/geography.py` are
+  legacy labels, not a list of current administrative divisions.
+- The saved robots snapshot disallows `/*page=`. The crawler reloads robots
+  on every run, checks each URL before fetching, and only follows pagination
+  links on the same path (page numbers or `rel=next`). It does not generate
+  listing IDs or page URLs.
+- Collection from 18 to 28 October 2026 (Vietnam time) produced **1,889 unique
+  listings: 1,584 clean and 305 for review**. Exact UTC capture timestamps are
+  recorded in the audit. The requests-based crawler has collected real data;
+  this does not establish complete market coverage.
+- All requests use the team's `ScraperSession`, with a minimum delay of
+  1.5 seconds, increased when required by robots. Retries, backoff and HTTP 429
+  handling use the shared implementation. Access denials or verification
+  screens stop the crawl and export the data collected so far. Index pages
+  without listing links are marked `unparsed` for inspection without stopping
+  the entire queue.
+- `src/sources/chotot/urls_mo_rong.txt` contains 286 district and brand listing
+  links extracted from actual HTML of the 19 provincial index pages. URLs are
+  not constructed or guessed. The crawler checks fresh robots rules before
+  accessing them; inclusion in the file does not guarantee current availability.
 
-## Mapping nguồn → schema
+## Source-to-schema mapping
 
-| Trường | Selector / xử lý |
+| Field | Selector / transformation |
 |---|---|
-| listing_id, source_platform | `CHOTOT_<id số trong URL>`, `chotot` |
+| listing_id, source_platform | `CHOTOT_<numeric ID from URL>`, `chotot` |
 | brand, model, sub_model_trim | `//*[@itemprop="carbrand"]`, `carmodel`, `option` |
-| manufacture_year | `mfdate` → shared parse_year_text |
-| mileage_km | `mileage_v2` → adapter vạn/nghìn → shared parse_km_text |
-| transmission | `gearbox`, alias Tự động→Số tự động; shared normalize_transmission |
-| fuel_type | `fuel`; alias Động cơ hybrid→hybrid; shared normalize_fuel |
-| origin | `carorigin`; Việt Nam→Trong nước, nước xuất xứ→Nhập khẩu; shared normalize_origin |
-| body_type | `cartype` → alias nhãn chuẩn → shared normalize_body |
-| seats | `carseats` → shared to_int sau kiểm tra số nguyên |
-| location_province | `//a[@href]` có text bắt đầu `Ô tô ` và slug tỉnh nhận diện → normalize_province |
-| seller_type | `//*[@itemprop="seller"]//a[contains(@href,"/cua-hang/")]` → Dealership/Salon; còn lại Unknown |
-| price_vnd | `//b` có chuỗi giá đầy đủ → shared parse_vnd_price hoặc to_int cho VND dạng số |
-| raw_price_text | Giữ biểu thức giá đã lấy từ HTML; không đổi thành chuỗi chuẩn hóa |
-| price_status | shared schema.price_status + kiểm tra bằng chứng khoản trả trước của nguồn |
-| source_url, scraped_at | URL HTTPS chuẩn hóa, thời điểm quan sát chuyển UTC ISO 8601 |
-| engine_capacity, listing_date | Chưa lấy được trực tiếp, để trống |
+| manufacture_year | `mfdate` → shared `parse_year_text` |
+| mileage_km | `mileage_v2` → adapter for `vạn` (10,000) / `nghìn` (1,000) → shared `parse_km_text` |
+| transmission | `gearbox`; alias `Tự động` → `Số tự động`; shared `normalize_transmission` |
+| fuel_type | `fuel`; alias `Động cơ hybrid` → `hybrid`; shared `normalize_fuel` |
+| origin | `carorigin`; `Việt Nam` → `Trong nước`, country of origin → `Nhập khẩu`; shared `normalize_origin` |
+| body_type | `cartype` → canonical label aliases → shared `normalize_body` |
+| seats | `carseats` → shared `to_int` after integer validation |
+| location_province | `//a[@href]` with text starting with `Ô tô ` and a recognized province slug → `normalize_province` |
+| seller_type | `//*[@itemprop="seller"]//a[contains(@href,"/cua-hang/")]` → `Dealership/Salon`; otherwise `Unknown` |
+| price_vnd | `//b` containing a complete price expression → shared `parse_vnd_price`, or `to_int` for numeric VND amounts |
+| raw_price_text | Retain the price expression extracted from HTML; do not replace it with a normalized expression |
+| price_status | Shared `schema.price_status` plus source-specific checks for down-payment evidence |
+| source_url, scraped_at | Canonical HTTPS URL; capture timestamp converted to UTC ISO 8601 |
+| engine_capacity, listing_date | Not directly observed; left empty |
 
-Trường phân loại không biết dùng `Unknown`; số thiếu không thay bằng 0.
-Không dùng helper salon-subdomain của oto vì thiếu link cửa hàng Chợ Tốt
-không chứng minh là người bán cá nhân. Bán tự động dùng `Other` theo schema.
-Nhãn gộp `SUV / Cross over` dùng `Other` với cờ `ambiguous_suv_crossover`,
-không đoán SUV hay Crossover. Danh sách enum trong **code schema** được ưu
-tiên khi tài liệu mô tả ngắn hơn (ví dụ Coupe/Convertible vẫn được code cho phép).
+Unknown categorical values use `Unknown`; missing numeric values are not
+replaced with zero. The oto salon-subdomain helper is not used: the absence
+of a Chotot store link does not prove the seller is a private individual.
+Semi-automatic transmission maps to `Other`, as required by the schema.
+The combined label `SUV / Cross over` maps to `Other` with the
+`ambiguous_suv_crossover` flag rather than guessing between SUV and Crossover.
+The enum sets in **schema code** take precedence when documentation lists
+fewer values; for example, the code permits Coupe and Convertible.
 
-Parser giá source kiểm tra toàn bộ biểu thức trước khi gọi shared helper để
-không lấy nhầm số điện thoại/năm. Giá VND dạng `465.000.000 đ` bỏ dấu nhóm
-trước to_int; biểu thức tỷ/triệu chuyển alias rồi gọi parse_vnd_price.
-Chỉ kiểm tra trả trước trong tiêu đề/mô tả của người bán, không dùng widget
-vay tự động của website. Không coi mọi lời mời trả góp là giá trả trước.
+The source price adapter validates the complete expression before calling
+shared helpers to avoid interpreting phone numbers or years as prices.
+For numeric VND prices such as `465.000.000 đ`, grouping separators are
+removed before `to_int`; billion/million expressions have their unit aliases
+adapted before `parse_vnd_price`. Down-payment checks only use the seller's
+title and description, not the platform's automatic loan widget. A financing
+offer alone does not mean the advertised amount is a down payment.
 
-## Storage, offline và cohort
+## Storage, offline parsing and cohorts
 
-Shared `storage.open_db` mặc định dùng `data/scraped.db`. Bảng
-`chotot_south_raw` có khóa URL, cập nhật bằng `storage.upsert_rows`.
-Raw JSON giữ scraped_at gốc; scraped_at ở cấp bảng là thời điểm upsert theo
-common. Queue `chotot_south_queue` riêng, không ảnh hưởng bảng nguồn khác.
-Mặc định refresh URL đã xong; `--resume` chỉ lấy pending. DB cũ được nhập
-một lần theo URL vào bảng mới, không ghi đè các bản đã cập nhật.
+Shared `storage.open_db` uses `data/scraped.db` by default. The
+`chotot_south_raw` table is keyed by URL and updated with `storage.upsert_rows`.
+Raw JSON retains the original `scraped_at`; the table-level `scraped_at` is
+the upsert timestamp assigned by the shared implementation. The separate
+`chotot_south_queue` table does not affect other sources' tables. By default,
+completed URLs are refreshed; `--resume` processes pending URLs only. Legacy
+DB records are imported once per URL into the new table without overwriting
+records that have already been updated.
 
-`storage.save_raw` lưu HTML trong data/raw; metadata JSON giữ URL và thời
-điểm. Parser mạng và `--from-raw` dùng cùng `parse_detail_page`, nhận chuỗi
-UTF-8 đã decode qua lxml, không chạy JS hoặc gọi mạng khi offline.
+The queue prioritizes discovered detail pages before exploring more index
+pages. An index page without detail links receives `status=unparsed`, the
+`empty_index_or_requires_js` error and an `index_unparsed` log event. This
+does not prove that the page has no listings: it may be empty, require
+JavaScript, or use changed selectors. `--resume` does not retry unparsed URLs.
+Their count appears in the audit's `context.queue_status`; inspect the saved
+HTML separately before attempting to process them again.
 
-Clean giữ tin xác nhận đã dùng, thuộc miền Nam, có hãng/model, năm từ 1995
-đến năm quan sát, giá toàn bộ 30 triệu–25 tỷ, km ≤1 triệu; xe >2 tuổi nhưng
-<100 km chuyển review, chỗ ngồi ngoài 2–16 chuyển review nếu có. Đây là
-quyết định lọc của nguồn, tách khỏi gate schema; có thể đổi khi nhóm thống nhất.
-Raw vẫn giữ các tin này; `review_21.csv` và `quality.csv` ghi lý do.
+`storage.save_raw` stores HTML under `data/raw`; accompanying JSON metadata
+retains the URL and capture timestamp. Network parsing and `--from-raw` use
+the same `parse_detail_page` function with decoded UTF-8 strings and lxml.
+Offline parsing does not execute JavaScript or make network requests.
 
-CSV chính ở `data/processed/chotot_mien_nam.csv`. File hỗ trợ nằm riêng trong
-`data/processed/chotot_mien_nam/`: `all_21.csv`, `clean_21.csv` (tương thích),
-`review_21.csv`, `quality.csv`, `audit.json`. Audit có missing rate coi Unknown
-là thiếu, tỷ lệ duplicate, tỉnh, trạng thái giá và lý do loại. Tái xuất từ
-30 raw cũ: 27 clean, 3 review. Chưa có dung tích máy/ngày đăng gốc; chưa được
-coi là bộ dữ liệu đủ độ phủ hoặc đã hoàn thành chỉ tiêu số lượng của nhóm.
+The clean cohort retains listings confirmed as used vehicles, located in
+Southern Vietnam, with a known brand/model, manufacture year from 1995 to
+the capture year, a full asking price of VND 30 million–25 billion, and
+mileage no greater than 1 million km. Vehicles older than two years with
+less than 100 km are sent to review. Seating values outside 2–16 are also
+sent to review when present. These are source-level filtering decisions,
+separate from the schema gate, and may change by team agreement. Raw data
+retains these listings; `review_21.csv` and `quality.csv` record the reasons.
 
-## Gate trước PR
+The main CSV is `data/processed/chotot_mien_nam.csv`. Supporting files are
+kept separately under `data/processed/chotot_mien_nam/`: `all_21.csv`,
+`clean_21.csv` (compatibility copy), `review_21.csv`, `quality.csv` and
+`audit.json`. The audit reports missing rates (counting `Unknown` as missing),
+duplicate rate, province distribution, price statuses and exclusion reasons.
+The latest export contains 1,889 unique listings, 1,584 clean and 305 for
+review. This exceeds the local target of 1,500 clean records but does not
+establish market representativeness. Engine capacity and original publication
+date have not been recovered; `sub_model_trim` is also entirely missing in
+this collection. See `missing_rates` for complete per-column coverage.
+
+## Pre-PR gate
 
 ```powershell
 python -m tools.validate_source_csv data/processed/chotot_mien_nam.csv
@@ -86,10 +118,13 @@ python -m tools.smoke_test
 python -m unittest discover -s src/sources/chotot/tests -v
 ```
 
-Validator/smoke test là các tool sẵn có của repo nhóm; smoke test chính thức
-kiểm parser oto, kiểm thử Chợ Tốt nằm ở lệnh unittest riêng.
+The validator and smoke test are existing team repository tools. The official
+smoke test checks the oto parsers; the separate unittest command checks Chotot.
 
-## Chạy và bàn giao
+## Running and handover
 
-Xem `src/sources/chotot/README.md` để chạy crawler, offline export và kiểm thử.
-CSV được xuất local và gitignore; không thêm raw, DB, CSV thật vào commit.
+See `src/sources/chotot/README.md` for crawling, offline export and testing.
+Team defaults exclude CSV files through gitignore. For this handover, the
+source owner has chosen to commit only the clean CSV using `git add -f`;
+raw data, databases and logs are excluded. Audit, review and quality files
+are updated locally for inspection and separate handover when needed.

@@ -88,7 +88,11 @@ def crawl(args):
                 if collected >= args.max_records:
                     reason = 'record_limit'
                     break
-                item = db.execute(f'SELECT url,kind FROM {QUEUE} WHERE status="pending" ORDER BY rowid LIMIT 1').fetchone()
+                # Process discovered ads before exploring more listing pages.
+                item = db.execute(
+                    f'SELECT url,kind FROM {QUEUE} WHERE status="pending" '
+                    'ORDER BY CASE WHEN kind="detail" THEN 0 ELSE 1 END, rowid LIMIT 1'
+                ).fetchone()
                 if item is None:
                     break
                 url, kind = item
@@ -118,12 +122,21 @@ def crawl(args):
                     collected += 1
                 else:
                     details, pages = parse_list_page(page_html, current)
-                    if not details:
-                        raise StopCrawl('empty_index_or_requires_js')
-                    for detail in details:
-                        enqueue(detail, 'detail')
                     for page in pages:
                         enqueue(page, 'index')
+                    if not details:
+                        # An empty result, JS shell or changed selector is not
+                        # proof the source has no ads. Preserve the uncertainty
+                        # and continue the rest of the queue rather than stall.
+                        db.execute(
+                            f'UPDATE {QUEUE} SET status="unparsed",error="empty_index_or_requires_js" WHERE url=?',
+                            (url,),
+                        )
+                        db.commit()
+                        log('index_unparsed', url=url, reason='empty_index_or_requires_js')
+                        continue
+                    for detail in details:
+                        enqueue(detail, 'detail')
                 db.execute(f'UPDATE {QUEUE} SET status="done",error=NULL WHERE url=?', (url,))
                 db.commit()
             else:

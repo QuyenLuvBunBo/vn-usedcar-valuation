@@ -17,6 +17,9 @@ python -m src.sources.chotot --max-records 500 --max-pages 700 --save-raw
 # Chỉ tiếp tục queue pending; mặc định chạy lại refresh URL đã xong
 python -m src.sources.chotot --resume --save-raw
 
+# Khám phá thêm quận/huyện và hãng; cùng DB để cập nhật/chống trùng
+python -m src.sources.chotot --urls src/sources/chotot/urls_mo_rong.txt --resume --max-records 1500 --max-pages 2500 --save-raw
+
 # Xuất lại JSONL, không truy cập mạng
 python -m src.sources.chotot.unified
 
@@ -47,10 +50,15 @@ Raw cũ chỉ được nhập DB khi `<out>/progress.sqlite` tồn tại; có th
 JSONL cũ trực tiếp bằng `--input` mà không di chuyển DB. Fixture sáu tin nhỏ
 trong tests chỉ phục vụ regression, không đại diện độ phủ nguồn.
 
-Nếu HTTP bị từ chối hoặc HTML cần JS, crawler báo lỗi và xuất phần đã thu.
-Giới hạn tin không bảo đảm số thu được. Chưa xác minh live crawler requests
-trong lần tích hợp này. Không tự suy luận dung tích máy/ngày đăng khi thiếu.
+Crawler ưu tiên thu chi tiết đã tìm được. Trang danh sách không có link tin
+được đánh dấu unparsed và ghi log, rồi tiếp tục queue; không coi đó là bằng
+chứng trang hết tin. Khi HTTP bị từ chối/màn hình xác minh, crawler vẫn dừng.
+Giới hạn tin không bảo đảm số thu được. Đợt mới có 1.889 tin duy nhất,
+1.584 clean và 305 review, thu từ 18/10 đến 28/10/2026 theo giờ Việt Nam.
+Không tự suy luận dung tích máy/ngày đăng khi thiếu. sub_model_trim hiện cũng
+thiếu toàn bộ trong đợt mới; chi tiết trong audit.
 Recon, mapping và quy tắc review: [docs/sources/chotot.md](../../../docs/sources/chotot.md).
 
-Theo CONTRIBUTING, dữ liệu/DB/log được gitignore, gửi CSV qua kênh dữ liệu của
-nhóm. Phần code và tài liệu này có thể commit trên `feat/source-chotot-south`.
+Theo CONTRIBUTING, dữ liệu/DB/log được gitignore. Người phụ trách chọn push
+riêng CSV sạch trong lần bàn giao này: `git add -f data/processed/chotot_mien_nam.csv`.
+Không commit raw/DB/log. Nhánh làm việc hiện tại: `feat/source-chototxe-southern`.

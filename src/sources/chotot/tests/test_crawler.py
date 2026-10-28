@@ -12,6 +12,52 @@ from src.common import config
 
 
 class CrawlerTests(unittest.TestCase):
+    def test_empty_index_does_not_stall_queue_and_ads_have_priority(self):
+        raw = json.loads((Path(__file__).with_name('fixtures')/'raw.jsonl').read_text(encoding='utf-8').splitlines()[0])
+        empty = 'https://xe.chotot.com/mua-ban-oto-huyen-con-dao-ba-ria-vung-tau'
+        seed = 'https://xe.chotot.com/mua-ban-oto-tp-ho-chi-minh'
+        later = 'https://xe.chotot.com/mua-ban-oto-can-tho'
+        calls = []
+
+        class FakeSession:
+            def __init__(self, delay):
+                self.delay = delay
+                self.session = SimpleNamespace(headers={'User-Agent': 'TestCrawler'})
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                pass
+            def get(self, url):
+                calls.append(url)
+                if url.endswith('/robots.txt'):
+                    text = 'User-agent: *\nAllow: /\n'
+                elif url in (empty, later):
+                    text = '<html><h1>Listings</h1><p>No listing links in this response</p></html>'
+                elif url == seed:
+                    text = f'<a href="{raw["source_url"]}">Car</a>'
+                else:
+                    text = fixture_html(raw)
+                return SimpleNamespace(text=text, encoding='utf-8', url=url)
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            urls = root/'urls.txt'
+            urls.write_text('\n'.join((empty, seed, later)), encoding='utf-8')
+            args = SimpleNamespace(out=root/'raw', processed_out=root/'processed', db=root/'scraped.db',
+                                   urls=urls, refresh=False, delay=1.5, max_pages=10, max_records=10, save_raw=False)
+            with patch('src.sources.chotot.crawl.ScraperSession', FakeSession):
+                self.assertEqual(crawl(args), 0)
+            # A detail discovered on the second index must run before the third index.
+            self.assertLess(calls.index(raw['source_url']), calls.index(later))
+            audit = json.loads((root/'processed/chotot_mien_nam/audit.json').read_text(encoding='utf-8'))
+            self.assertEqual(audit['unique_records'], 1)
+            self.assertEqual(audit['context']['queue_status']['unparsed'], 2)
+            # A resume must not loop forever on the same empty listing pages.
+            before = len(calls)
+            with patch('src.sources.chotot.crawl.ScraperSession', FakeSession):
+                self.assertEqual(crawl(args), 0)
+            self.assertEqual(calls[before:], ['https://xe.chotot.com/robots.txt'])
+
     def test_collect_refresh_and_robots_with_shared_apis(self):
         raw = json.loads((Path(__file__).with_name('fixtures')/'raw.jsonl').read_text(encoding='utf-8').splitlines()[0])
         seed = 'https://xe.chotot.com/mua-ban-oto-tp-ho-chi-minh'
