@@ -1,7 +1,7 @@
 """THE TEAM'S DATA CONTRACT: the unified schema of 16 attributes + 5 metadata columns.
 
-Every source (oto.com.vn, bonbanh, chotot, carmudi, carpla, anycar) MUST export exactly these
-21 columns, with these names and these normalized value spellings:
+Every source (oto.com.vn, bonbanh, chotot, carmudi, carpla, muaban.net, tinbanxe.vn, vucar.vn) MUST
+export exactly these 21 columns, with these names and these normalized value spellings:
 
     - transmission : Automatic / Manual / Other
     - fuel_type    : Gasoline / Diesel / Hybrid / Electric / Unknown
