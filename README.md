@@ -22,9 +22,14 @@ normalize it into one unified schema, then build regression and anomaly-detectio
 | carmudi.vn | Passenger car catalogue | Nguyễn Văn Quyết |
 | carpla.vn | Dealership inventory | Đỗ Tuấn Anh |
 | muaban.net | Passenger cars for sale (replacement for anycar.vn) | Nguyễn Huy Quang |
+| tinbanxe.vn | Additional marketplace (added to the merge in week 2) | — |
+| vucar.vn | Additional marketplace (added to the merge in week 2) | — |
 
 Every member delivers: **one crawler script + one clean CSV** matching the unified schema
 (`docs/unified_schema.md`). Merge, deduplication, modelling and the demo happen in weeks 2–4.
+
+**[docs/crawl_gap.md](docs/crawl_gap.md)** records, per source, the site's real catalogue size against
+what we collected (measured 2026-10-29) — it is the evidence behind the Milestone 1 coverage numbers.
 
 ## Repository layout
 
@@ -33,6 +38,7 @@ Every member delivers: **one crawler script + one clean CSV** matching the unifi
 ├─ README.md · CONTRIBUTING.md · requirements.txt · .env.example · .gitattributes
 ├─ docs/
 │  ├─ unified_schema.md        # THE DATA CONTRACT: 21 shared columns
+│  ├─ crawl_gap.md             # per-source catalogue size vs. what we collected
 │  └─ sources/<source>.md      # per-source recon notes and field mapping
 ├─ src/
 │  ├─ common/                  # shared code — changes require a reviewed PR
@@ -87,6 +93,22 @@ python -m tools.smoke_test
 
 Workflow rules (branches, commit messages, file ownership): see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
+## Topping up a source that is short of its catalogue
+
+`bonbanh` and `carpla` have a crawler in this repository, so their gap can be closed without waiting for
+the owner. Both write `data/processed/<source>_extra.csv` with only the ids we do not have yet.
+
+```bash
+python -m src.sources.bonbanh --pages 3     # bonbanh: 20 ads/request; full catalogue ≈ 1,462 pages
+python -m src.sources.bonbanh
+python -m src.sources.bonbanh --details     # + body_type / seller_type / listing_date (1 request/ad, ~8.5 h)
+python tools/bonbanh_progress.py            # progress + ETA of the detail step
+python -m src.sources.carpla --limit 5      # carpla: one request per car, driven by sitemap_product.xml
+python -m src.sources.carpla
+```
+
+Numbers, evidence and what is still missing: **[docs/crawl_gap.md](docs/crawl_gap.md)**.
+
 ## Reference implementation: oto.com.vn
 
 The `oto` source is complete and serves as the worked example for everyone else.
@@ -108,16 +130,16 @@ python -m src.sources.oto.unified --out oto --include-archive --combine  # oto.c
 ```
 
 Outputs: `data/processed/oto_cars.csv` (parsed listing fields), `data/processed/oto_unified.csv`
-(21 unified columns, live tier), `data/processed/oto_archive_unified.csv` (archive tier only),
-`data/processed/oto.csv` (both tiers concatenated, 28,428 rows — a single-file hand-off for
-exploration; the week-2 merge reads the two per-tier files above, because `tier` is assigned per file),
-tables `oto_cars` + `oto_car_details` + `oto_archive` in `data/scraped.db`.
+(21 unified columns, live tier, 5,237 rows), `data/processed/oto_archive_unified.csv` (archive tier
+only, 24,326 rows), `data/processed/oto.csv` (both tiers concatenated, 29,563 rows — a single-file
+hand-off for exploration; the week-2 merge reads the two per-tier files above, because `tier` is
+assigned per file), tables `oto_cars` + `oto_car_details` + `oto_archive` in `data/scraped.db`.
 
 ## Merging into the Master Dataset (week 2)
 
 ```bash
 python -m src.merge.build_master                     # every source file that exists yet
-python -m src.merge.build_master --sources oto oto_archive
+python -m src.merge.build_master --sources oto oto_archive   # subset -> master_partial_oto_oto_archive.csv
 ```
 
 It reads every `data/processed/<source>.csv` that exists (a missing source is skipped with a warning),
@@ -129,6 +151,11 @@ refuses a file whose header does not match the 21-column contract, then adds thr
 | `duplicate_group_id` | candidate same-vehicle key: brand + model + trim + year + province + ± mileage |
 | `quality_flags` | report §4.3 review reasons (`missing_mileage`, `low_mileage_older_car`, …) |
 
+`SOURCE_FILES` maps an internal key to **one file per key**, so a source that two members crawled gets two
+keys sharing one platform (`bonbanh_new` + `bonbanh_old` → `bonbanh`, `chotot_nam` → `chotot`). The
+platform written to `source_platform` is always the contract enum, never the internal key
+(`canonical_platform()`), so `tinbanxe.csv` (which writes `tinbanxe`) still lands as `tinbanxe.vn`.
+
 Nothing is deleted or merged away: a group is a review candidate, so the flags and the group id travel
 with every record to the modelling stage. The run also prints the Milestone 1 numbers — records per
 source, missing rate per source, duplicate rate, flag counts — and writes
@@ -139,6 +166,7 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 | Document | Contents |
 |---|---|
 | [docs/unified_schema.md](docs/unified_schema.md) | the 21 columns, allowed values, normalization rules |
+| [docs/crawl_gap.md](docs/crawl_gap.md) | per-source catalogue size vs. collected, and how to reach the rest |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | branches, commits, file ownership, PR checklist |
 | [docs/sources/oto.md](docs/sources/oto.md) | oto.com.vn recon, field mapping, coverage audit, verified source size |
 | [src/sources/_template/README.md](src/sources/_template/README.md) | step-by-step guide for a new source |
@@ -157,6 +185,7 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 | `tools.list_brands` | discover and verify oto.com.vn brand slugs |
 | `tools.summarize_oto` | pandas summary + quality checks of a crawled CSV |
 | `tools.archive_progress` | live progress + ETA of the archive crawl (log bar + DB counts) |
+| `tools.bonbanh_progress` | live progress, coverage and ETA of the bonbanh detail crawl |
 | `tools.compare_tiers` | live tier vs archive tier: size, price, age, mileage, sellers, quality flags |
 | `tools.scan_sitemap` · `tools.lastmod_analysis` | verify source size and listing dates |
 
@@ -174,10 +203,10 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 
 ## Roadmap
 
-| Week | Focus | Deliverable |
-|---|---|---|
-| 1 | Collect and normalize from 6 sources | one crawler script + one clean CSV per member |
-| 2 | Merge, deduplicate, quality audit, EDA | `data/master/master_clean_dataset.csv`, train/val/test split, EDA notebook |
-| 3 | Feature engineering, regression, anomaly detection | model files, benchmark table, anomaly labelling |
-| 4 | Pipeline packaging, web demo, report and slides | Streamlit demo, final report, slides |
+| Week | Focus | Deliverable | Status |
+|---|---|---|---|
+| 1 | Collect and normalize from the sources | one crawler script + one clean CSV per member | done; coverage per source in [docs/crawl_gap.md](docs/crawl_gap.md) |
+| 2 | Merge, deduplicate, quality audit, EDA | `data/master/master_clean_dataset.csv` (62,189 records, 8 platforms), train/val/test split, EDA notebook | master done; **split + EDA still open** |
+| 3 | Feature engineering, regression, anomaly detection | model files, benchmark table, anomaly labelling | — |
+| 4 | Pipeline packaging, web demo, report and slides | Streamlit demo, final report, slides | — |
 

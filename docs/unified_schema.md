@@ -8,7 +8,7 @@ This file explains each column for the written report.
 | # | Column | Type | Meaning / allowed values |
 |---|---|---|---|
 | 1 | `listing_id` | string | Unique listing id, prefixed by source (`OTO_23444795`, `BAN_…`, `MUA_71297868`) |
-| 2 | `source_platform` | enum | `oto.com.vn`, `bonbanh`, `chotot`, `carmudi`, `carpla`, `anycar`, `muaban.net` (anycar.vn is offline; muaban.net replaces it) |
+| 2 | `source_platform` | enum | `oto.com.vn`, `bonbanh`, `chotot`, `carmudi`, `carpla`, `muaban.net`, `tinbanxe.vn`, `vucar.vn` (anycar.vn is offline; muaban.net replaces it) |
 | 3 | `brand` | string | Manufacturer: `Toyota`, `Hyundai`, `Ford`, … |
 | 4 | `model` | string | Model designation: `Vios`, `Accent`, `CX-5`, … |
 | 5 | `sub_model_trim` | string | Engine trim / grade: `1.8G CVT`, `2.5Q`, `2.7 V 4X2 AT` (empty if the seller omitted it) |
@@ -47,6 +47,22 @@ This file explains each column for the written report.
 | `tier` | `listed` / `archived` — was the car advertised when we captured it? |
 | `duplicate_group_id` | coarse candidate vehicle key: brand + model + trim + year + province + ± mileage |
 | `quality_flags` | report §4.3 review reasons; flagged, never deleted |
+
+`quality_flags` values (report §4.3 domain rules — provisional scope rules, not proof of an error):
+
+| Flag | Rule | Cutoff |
+|---|---|---|
+| `missing_price` | no definite asking price → not a regression row | — |
+| `implausible_price_low` | review candidate | `< 30 million VND` |
+| `luxury_segment` | separate market segment, review | `> 25 billion VND` |
+| `implausible_price_high` | unit error on the seller's side, not a segment | `≥ 100 billion VND` |
+| `missing_mileage` | odometer absent | — |
+| `implausible_mileage_high` | inspection | `> 1,000,000 km` |
+| `low_mileage_older_car` | inspection | `< 100 km` on a car older than 2 years |
+| `missing_year` / `year_out_of_scope` | collection scope | outside `1995 … capture year` |
+
+The build prints a **sensitivity table** for the price ceilings (25 / 50 / 100 / 200 billion), because
+§4.3 requires the report to justify the cutoff it uses instead of asserting it.
 
 - Zero duplicate `listing_id` / `source_url` after merging.
 - Duplicate rate: candidate groups and the records that share one (the key is coarse on purpose, so the
