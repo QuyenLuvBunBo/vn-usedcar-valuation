@@ -41,6 +41,9 @@ BRANDS: dict[str, str] = {
     "jeep": "Jeep",
     "lamborghini": "Lamborghini",
     "landrover": "Land Rover",
+    # oto.com.vn exposes two slugs for the same make; the database already holds 3 ads reached through
+    # this one (the other 47 use "landrover"), so both are crawled and both normalize to "Land Rover".
+    "land-rover": "Land Rover",
     "lexus": "Lexus",
     "lincoln": "Lincoln",
     "lynk-co": "Lynk & Co",
