@@ -176,6 +176,7 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 | Tool | Purpose |
 |---|---|
 | `tools.validate_source_csv` | **PR gate**: does a source CSV match the 21-column schema? |
+| `tools.audit_master` | **gate before the split**: types, enums and keys of the merged dataset |
 | `tools.repair_price_status` | recompute the derived `price_status` column of a contract CSV |
 | `tools.smoke_test` | offline regression tests for the parsers |
 | `tools.validate_parser` | parser vs. previously saved raw HTML (offline) |
