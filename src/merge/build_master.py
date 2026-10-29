@@ -265,7 +265,7 @@ def build(sources: list[str] | None = None) -> tuple[list[dict], dict[str, dict]
 def audit_and_flag(rows: list[dict]) -> dict[str, int]:
     """Deduplicate, flag, and print the merged audit (the Milestone 1 numbers)."""
     capture_year = _capture_year(rows)
-    rows = dedupe.duplicate_groups(rows, capture_year=capture_year)
+    rows = dedupe.duplicate_groups(rows, capture_year=capture_year, fuzzy=True)
     for row in rows:
         row["quality_flags"] = quality_flags(row, capture_year)
 
@@ -283,6 +283,9 @@ def audit_and_flag(rows: list[dict]) -> dict[str, int]:
     print(f"  groups {stats['groups']:,} | with >1 record {stats['groups_over_one']:,} | "
           f"records sharing a group {stats['duplicate_rows']:,} "
           f"({stats['duplicate_rows'] / total * 100:.1f}%) | largest group {stats['largest_group']}")
+    fuzzy = dedupe.fuzzy_groups(rows, capture_year=capture_year)
+    print(f"  fuzzy pass: {fuzzy['exact_groups']:,} exact-key groups -> {fuzzy['groups']:,} after merging "
+          f"{fuzzy['merged_groups']:,} near-duplicates ({fuzzy['pairs_compared']:,} pairs compared)")
     for count, label in dedupe.top_groups(rows):
         print(f"    {count:3d} x {label}")
     print(f"  ignoring trim+mileage (brand+model+year+province): {loose_groups:,} groups "
