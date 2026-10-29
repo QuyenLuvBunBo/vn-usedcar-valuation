@@ -45,8 +45,20 @@ This file explains each column for the written report.
 | Column | Meaning |
 |---|---|
 | `tier` | `listed` / `archived` — was the car advertised when we captured it? |
-| `duplicate_group_id` | coarse candidate vehicle key: brand + model + trim + year + province + ± mileage |
+| `duplicate_group_id` | candidate same-vehicle key: brand + model + trim + year + province + ± mileage |
 | `quality_flags` | report §4.3 review reasons; flagged, never deleted |
+
+`duplicate_group_id` is built in two passes, as report §4.2 asks ("Composite Hashing + Fuzzy match"):
+
+1. **Composite hashing** — one key per brand + model + grade + year + province + odometer bucket. Two ads
+   land in one group only when every part agrees.
+2. **Fuzzy match** — inside one brand + model + year + province block, neighbouring groups are merged when
+   the grade is the same bar punctuation, the odometer moved less than the age-dependent tolerance and the
+   asking price stayed within 5%. This is what catches a repost whose odometer was corrected: the odometer
+   bucket changes, so the exact key alone would split one car into two groups and the split could then put
+   it in both train and test.
+
+Both passes only ever *join* groups: nothing is deleted, so a group is still a review candidate, not proof.
 
 `quality_flags` values (report §4.3 domain rules — provisional scope rules, not proof of an error):
 
