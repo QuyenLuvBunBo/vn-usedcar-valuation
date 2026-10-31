@@ -181,6 +181,21 @@ def seller_type(name: str | None) -> str:
     return "Dealership/Salon" if name and SALON_RE.search(name) else "Unknown"
 
 
+# `Kiểu dáng` on carmudi is a seller dropdown whose template default is `Coupe`: 528 of the 546 rows
+# collected in week 1 carried it, a 2010 Toyota Yaris included (docs/sources/carmudi.md already calls
+# the column unreliable). Emitting it teaches the model that a whole marketplace sells only coupes, so
+# the value is written as Unknown here — and `src/data_prep/normalize.py` keeps the same repair for
+# files collected before this change.
+TEMPLATE_BODY_DEFAULT = "Coupe"
+
+
+def body_type_of(car: dict, detail: dict) -> str:
+    """The body type the site reports, unless it is the dropdown default."""
+    value = safe_enum(schema.normalize_body(car.get("body") or detail.get("d_body")),
+                      schema.BODY_VALUES)
+    return "Unknown" if value == TEMPLATE_BODY_DEFAULT else value
+
+
 def build_unified(cars: list[dict], details: dict[str, dict]) -> tuple[list[dict], dict]:
     rows, dropped = [], {"new_car": 0, "no_price_or_year": 0, "dup": 0}
     now = config.now_iso()
@@ -213,7 +228,7 @@ def build_unified(cars: list[dict], details: dict[str, dict]) -> tuple[list[dict
             "transmission": pick_transmission(title, desc, car.get("gearbox") or d.get("d_gearbox", "")),
             "fuel_type": pick_fuel(title, desc, car.get("fuel") or d.get("d_fuel", "")),
             "origin": safe_enum(schema.normalize_origin(d.get("d_origin")), schema.ORIGIN_VALUES),
-            "body_type": safe_enum(schema.normalize_body(car.get("body") or d.get("d_body")), schema.BODY_VALUES),
+            "body_type": body_type_of(car, d),
             "engine_capacity": engine_from(trim, title),
             "seats": to_int(d.get("d_seats")),
             "location_province": schema.normalize_province(car.get("province") or d.get("d_location")),

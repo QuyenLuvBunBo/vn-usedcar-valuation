@@ -28,6 +28,7 @@ res += [check("new 2026 dropped", dropped["new_car"], 1), check("kept", len(rows
         check("Everest 2024 w/o km kept (year<2025)", "CAR_543366" in by, True),
         check("card gearbox 'Tự động' -> Automatic (validator bug)", by["CAR_543366"]["transmission"], "Automatic"),
         check("province normalized", by["CAR_543366"]["location_province"], "TP. Hồ Chí Minh"),
+        check("template default 'Coupe' -> Unknown (Yaris is not a coupe)", by["CAR_543369"]["body_type"], "Unknown"),
         check("is_used 2026 no km", is_used(2026, None, "Xe mới"), False)]
 # JSON API: only id / name / slug / brandName are verified keys; the rest must not crash when absent
 api = {"success": True, "data": {"data": {"data": [{"id": 543338, "name": "Kia Sedona 2.2 DAT 2018", "slug": "ban-xe-oto-kia-sedona-543338/", "brandName": "KIA", "mileage": 27000.0, "price": {"name": "800 triệu"}}, {"id": 1, "name": "x"}], "meta": {"current_page": 2, "last_page": 41}}}}

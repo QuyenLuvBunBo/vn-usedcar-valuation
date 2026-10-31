@@ -54,6 +54,9 @@ SOURCE_FILES: dict[str, tuple[str, str]] = {
     # `chotot_full` comes first so the fuller export wins when both carry the same listing_id.
     "chotot_full": ("chotot_mua_ban_oto", "listed"),
     "chotot_nam": ("chotot_mien_nam", "listed"),
+    # top-up file (2026-10-30): `src/sources/chotot/topup.py` writes only the listing ids the two
+    # exports above do not contain, from the website index pages and from the JSON-gateway route.
+    "chotot_extra": ("chotot_extra", "listed"),
     "carmudi": ("carmudi", "listed"),
     "carpla": ("carpla", "listed"),
     "carpla_extra": ("carpla_extra", "listed"),
@@ -71,7 +74,7 @@ MASTER_COLUMNS = [*schema.SCHEMA_COLUMNS, "tier", "duplicate_group_id", "quality
 SOURCE_PLATFORMS = {
     "oto": "oto.com.vn", "oto_archive": "oto.com.vn",
     "bonbanh_new": "bonbanh", "bonbanh_old": "bonbanh", "bonbanh_extra": "bonbanh",
-    "chotot_full": "chotot", "chotot_nam": "chotot",
+    "chotot_full": "chotot", "chotot_nam": "chotot", "chotot_extra": "chotot",
     "carmudi": "carmudi", "carpla": "carpla", "carpla_extra": "carpla",
     "muaban": "muaban.net",
     "tinbanxe": "tinbanxe.vn", "vucar": "vucar.vn",
