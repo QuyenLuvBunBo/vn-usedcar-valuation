@@ -12,6 +12,8 @@
 *.zip  binary
 *.xlsx binary
 *.xls  binary
+*.docx binary
+*.doc  binary
 *.parquet binary
 *.db   binary
 *.sqlite binary

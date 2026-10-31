@@ -33,6 +33,15 @@ logs/*
 *.log
 .ckpt.json
 
+# Mô hình đã huấn luyện (tuần 3): nhị phân, sinh lại được bằng lệnh, chia sẻ qua Drive
+models/
+*.joblib
+*.pkl
+*.cbm
+
+# Node (chỉ dùng cho công cụ sinh tài liệu)
+node_modules/
+
 # Editor / OS
 .vscode/
 .idea/
