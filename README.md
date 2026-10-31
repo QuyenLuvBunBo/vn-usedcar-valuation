@@ -208,7 +208,7 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 | Week | Focus | Deliverable | Status |
 |---|---|---|---|
 | 1 | Collect and normalize from the sources | one crawler script + one clean CSV per member | done; coverage per source in [docs/crawl_gap.md](docs/crawl_gap.md) |
-| 2 | Merge, deduplicate, quality audit, EDA | `data/master/master_clean_dataset.csv` (62,189 records, 8 platforms), train/val/test split, EDA notebook | master done; **split + EDA still open** |
-| 3 | Feature engineering, regression, anomaly detection | model files, benchmark table, anomaly labelling | — |
+| 2 | Merge, deduplicate, quality audit, EDA | `data/master/master_clean_dataset.csv` (100,887 records, 8 platforms), train/val/test split, EDA notebook | **done** — see [docs/week2_status.md](docs/week2_status.md) |
+| 3 | Feature engineering, regression, anomaly detection | model files, benchmark table, anomaly labelling | planned — assignments in [docs/week3_plan.md](docs/week3_plan.md) |
 | 4 | Pipeline packaging, web demo, report and slides | Streamlit demo, final report, slides | — |
 

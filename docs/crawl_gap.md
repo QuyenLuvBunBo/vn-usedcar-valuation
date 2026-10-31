@@ -11,11 +11,11 @@ real catalogue?**
 
 | Source | Site catalogue | We have | Missing | Reachable how |
 |---|---|---|---|---|
-| xe.chotot.com | **29,693** cars | 13,542 | +16,151 | region pages + `sitemap-oto-model-*.xml` (79,040 URLs) |
+| xe.chotot.com | **29,693** cars | 19,426 | +10,267 (site counter; the live API universe is ~18,4k) | JSON gateway API (`limit`+`o`) sliced by price × year |
 | bonbanh.com | **29,241** ads | 30,371 | 0 | `/oto/page,N` — 20 ads/page, **1,462 pages** |
 | carpla.vn | **4,181** | 4,181 | 0 | `sitemap_product.xml` (plain `<loc>` list) |
 | carmudi.vn | **779** | 546 | +233 | `sitemap/model/sitemap-index-models.xml` + per-model pages |
-| **Total** | **63,894** | 48,640 | **+16,384** | |
+| **Total** | **63,894** | 54,524 | **+10,500** | |
 
 Two of the four gaps are now closed: bonbanh was topped up to its full catalogue and carpla was crawled
 to the end of its sitemap. What is left is chotot (the national catalogue is bigger than any one region
@@ -32,14 +32,19 @@ Two exports now exist, and the second one covers the whole country:
 | `chotot_mien_nam.csv` (Phong) | 1,584 | 19 | southern half only |
 | `chotot_mua_ban_oto.csv` (Bảo) | 12,986 | **63** | nationwide |
 
-They overlap on 1,028 ids, which `build_master` now drops by `listing_id`, so the platform contributes
-**13,542** unique ads: Hà Nội 2,240 · Đà Nẵng 589 · Hải Phòng 142 · Thanh Hóa 90 · Nghệ An 83 — the
-northern and central half is no longer missing, so region-level analysis is no longer biased.
+They overlap on 1,028 ids, which `build_master` now drops by `listing_id`, so the two member exports
+contribute **13,542** unique ads: Hà Nội 2,240 · Đà Nẵng 589 · Hải Phòng 142 · Thanh Hóa 90 · Nghệ An 83
+— the northern and central half is no longer missing, so region-level analysis is no longer biased.
+The 2026-10-30 top-up (below) adds **5,884** more, so the platform now contributes **19,426** records.
 
-What remains is volume: the site prints **29,693** cars nationally, so ~16,151 are still uncollected.
+What remains is a counter mismatch rather than a crawl gap: the site prints **29,693** cars, while its
+own price-sliced API totals **18,413** live ads; the difference is expired and other-status listings.
+Saturation is visible in the last enumeration pass: of 12,896 ids it added, **12,602 were already
+collected** and only 294 still needed a detail page.
 
-- Enumeration: `https://xe.chotot.com/sitemap-index.xml` → 9 sitemaps → `sitemap-xe-oto.xml` →
-  `sitemap-oto-model-1.xml` (**50,000** URLs) + `sitemap-oto-model-2.xml` (**29,040** URLs)
+- Enumeration: the website sitemaps (`sitemap-oto-model-1.xml` 50,000 + `-2.xml` 29,040 URLs) are
+  published but client-rendered, so they are not usable; the route that works is the JSON gateway
+  described in the update below.
 
 **robots.txt is safe for us.** `Disallow: /` appears only under `User-agent: ImagesiftBot`; the wildcard
 block is `Allow: /` plus a `Sitemap:` line. Two rules still constrain the crawler:
@@ -54,6 +59,67 @@ block is `Allow: /` plus a `Sitemap:` line. Two rules still constrain the crawle
 written as `Unknown` for 12,983 rows. `price_status` is a derived column, so `build_master` recomputes it
 from `price_vnd` (`full` when a price exists, `invalid` when it does not) — but the exporter should emit
 it directly, otherwise the file keeps failing `tools.validate_source_csv`.
+
+#### Update 2026-10-30 — three routes, measured, and the one that actually scales
+
+An earlier revision of this note concluded that the gap could not be closed. That was wrong, and the
+reason is worth recording: the website and the API are different hosts with different rules.
+
+| Route | Evidence (measured today) | Verdict |
+|---|---|---|
+| website pagination `?page=N` | live `xe.chotot.com/robots.txt`: `Allow: /` **and `Disallow: /*page=`** | unusable on the website |
+| website sitemaps `sitemap-oto-model-1/2.xml` (79,040) + `sitemap-xe-oto-brand.xml` (5,824) | two sampled pages: 200 OK, **0 parsable listing links**, `__NEXT_DATA__` present with empty `pageProps` (client-rendered) | not an enumeration route for requests |
+| **JSON gateway API** `gateway.chotot.com/v1/public/ad-listing?cg=2010&st=s,k&limit=20&o=<offset>` | `gateway.chotot.com/robots.txt` → **404, no rules published**: the website's `/*page=` rule does not apply to this host. `src/sources/chotot/chotot_scraper.py` uses it (`limit`+`o`, slices by price/year to beat the 10,000-result window). Preflight OK today; enumeration 5,199 ids in ~1 min; details 2.7/s | **the route the two member exports came from, and the one to use** |
+
+Both routes are wired now:
+
+```
+# A. API route (fast, whole catalogue, resumable) — the one for a real top-up
+python src/sources/chotot/chotot_scraper.py ids --output-dir data/raw/chotot_api   # deep enumeration
+python -m src.sources.chotot.topup --filter-ids data/raw/chotot_api                # drop the ids we have
+python src/sources/chotot/chotot_scraper.py details --output-dir data/raw/chotot_api
+python src/sources/chotot/chotot_scraper.py export  --output-dir data/raw/chotot_api
+python -m src.sources.chotot.topup --import-csv data/raw/chotot_api/chotot_cars.csv
+
+# B. website route (slower, breadth of index pages only)
+python -m src.sources.chotot.topup --max-requests 300
+```
+
+The overlap measurement is the important one: of **13,469 ids** the API enumeration returned,
+**7,858 were already in a member file**. The API answers newest-first and the two exports are the
+newest ads, so the gap is reached by going **deeper into the offsets/slices**, not by changing route.
+That also means `--filter-ids` is not optional: without it a detail run spends its budget re-fetching
+listings we already own.
+
+Result of the run (2026-10-30), both enumeration passes:
+
+| Step | Measured |
+|---|---|
+| pass 1 — `chotot_scraper.py ids` (price slices) | 13,469 unique ids in ~11 min (27 leaf slices, sum of leaf totals 18,413) |
+| pass 2 — `topup --seed-api` (price × year, 270 cells) | **+12,896 ids** in 1,090 requests (~18 min); paging a live list had duplicated 4,944 ads in pass 1 |
+| `--filter-ids` | 18,507 queued → **5,905 the team did not have** (12,602 already collected) |
+| details | 5,652 fetched at 2.7/s across the two passes, **all HTTP 200**, 0 errors |
+| export + import | **5,884 rows** in `data/processed/chotot_extra.csv` |
+| schema gate | `validate_source_csv` PASS, 21 columns, 0 ids shared with either member file |
+| master | 95,003 → **100,887 records**, chotot 13,542 → **19,426** |
+
+One trap worth recording, because it cost a run: the listing API returns two identifiers per ad, and
+`ad_id` is **not** the one the detail endpoint accepts (it answers 404). `topup.seed_api` stores
+`list_id`; the regression test in `src/sources/chotot/tests/test_topup.py` pins that.
+
+`data/processed/chotot_extra/audit.json` records which route produced which rows; the crawl itself is
+resumable (`data/raw/chotot_api/{listings,listings_full,details}.jsonl`).
+
+The remaining ~10,500 is the site counter's expired/other-status inventory, not a crawl frontier: the
+API's own live universe (18,413 price-listed ads) is fully covered, and the last pass added 12,896 ids
+of which 12,602 were duplicates of ads already held. Re-running the loop would mostly re-confirm that.
+
+The website route (B) stays for the one thing the API cannot give: server-rendered links from index
+pages the API does not index. It is much slower (0.36 req/s measured, ~25 links per page, ~13 already
+collected) and it is budgeted with `--max-requests`, so it is a supplement, not the main crawler.
+
+`chotot_extra` is wired into the master (`SOURCE_FILES["chotot_extra"] = ("chotot_extra", "listed")`)
+and the week-2 dataset was rebuilt with it: see `docs/week2_status.md`.
 
 ### bonbanh.com — closed
 
