@@ -87,6 +87,21 @@ python -m src.data_prep.pipeline    # normalize -> impute -> EDA (one command, i
 `pipeline` writes `*_cohort.csv`, `*_cohort_imputed.csv` (the file week 3 trains on),
 `normalize_report.json`, `missing_report.json` and `data/master/eda/eda_summary.md` + 6 figures.
 
+## Week 3 — features, models, anomaly
+
+```powershell
+python -m src.features.build_features --features full   # {train,val,test}_features_full.csv + feature_stats.json
+python -m src.features.build_features --features minimal # raw columns only, for the baseline
+python -m tools.model_gate                               # leakage gate: must print PASS
+python -m tools.baseline_smoke                            # canary: median vs untuned LightGBM on val
+```
+
+`model_gate` fails on a forbidden column (price text, dates, URL, review flags), on a numeric feature
+that is a copy of the target, on partitions whose columns drifted, and on a `duplicate_group_id` that
+appears in two partitions. `baseline_smoke` writes `data/master/baseline_smoke.json` — it is a canary,
+not the benchmark; the benchmark table is the modelling sub-team's `model_results.json`.
+
+
 
 ## Quick start
 
@@ -209,6 +224,8 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 | `tools.validate_source_csv` | **PR gate**: does a source CSV match the 21-column schema? |
 | `tools.audit_master` | **gate before the split**: types, enums and keys of the merged dataset |
 | `tools.repair_price_status` | recompute the derived `price_status` column of a contract CSV |
+| `tools.model_gate` | **gate before training**: forbidden columns, target copies, partition drift, group leakage |
+| `tools.baseline_smoke` | canary: does training run here, and what must a model beat (median vs untuned LightGBM) |
 | `tools.smoke_test` | offline regression tests for the parsers |
 | `tools.validate_parser` | parser vs. previously saved raw HTML (offline) |
 | `tools.recon <url>` | robots.txt, page fetch, hidden API/JSON discovery |

@@ -30,10 +30,16 @@ Two rules make the extra scope safe, and they are not negotiable:
 | Already done | Proof / command |
 |---|---|
 | master, split, cohort, imputation, EDA | `python -m src.data_prep.pipeline` → `docs/week2_status.md` has every number |
-| the data gates | `python -m tools.audit_master`, `python -m tools.validate_source_csv <csv>`, `python -m unittest discover -s tests` (115 tests) |
+| **feature tables** (`minimal`, `full`) + the train-fitted statistics | `python -m src.features.build_features --features full` → `data/master/{train,val,test}_features_full.csv`, `feature_stats.json`, `features_manifest.json` |
+| **leakage gate** | `python -m tools.model_gate` → `RESULT: PASS` (forbidden columns, target copies, partition drift, group crossing) |
+| **canary: does training work here, and what must a model beat** | `python -m tools.baseline_smoke` → median R²(log) **0.877** vs untuned LightGBM **0.946**, MAPE 18.8 % → 11.6 % |
+| the data gates | `python -m tools.audit_master`, `python -m tools.validate_source_csv <csv>`, `python -m unittest discover -s tests` (124 tests) |
 | the ML stack | `pip install -r requirements.txt` (sklearn, lightgbm, catboost, xgboost, joblib) |
 | notebook conventions | `notebooks/README.md` — one folder per member, strip outputs before committing |
-| **what this week adds** | `src/features/`, `src/models/`, `models/*.joblib`, `docs/benchmark.md`, the report |
+| **still to build this week** | `src/features/pipeline.py` (encoders fitted in-fold), `src/models/train.py`, `benchmark.py`, `anomaly.py`, `models/*.joblib`, `docs/benchmark.md`, the report |
+
+The canary number is the floor, not the target: every model in §5 has to beat **R²(log) 0.946 / MAPE
+11.6 %** to justify its complexity.
 
 
 ## 1. Day-1 blocker — Tue 3/11, first hour
@@ -54,7 +60,7 @@ Wheels for CPython 3.14 were confirmed available (`scikit-learn 1.9.1`, `lightgb
 
 | Artefact | Owner | Path | Consumer |
 |---|---|---|---|
-| Feature tables (v1) | Quyền | `data/master/{train,val,test}_features.csv` | TB2, TB3 |
+| Feature tables (`minimal`, `full`) + manifest | Quyền | `data/master/{train,val,test}_features_<variant>.csv` + `features_manifest.json` | TB2, TB3 |
 | Fitted preprocessor | Phương | `models/preprocess.joblib` | TB2, TB3 |
 | Benchmark table | Bảo | `data/master/model_results.json`, `docs/benchmark.md` | report §5 |
 | Test predictions + intervals | Hiếu | `data/master/predictions_test.csv` (incl. `p10_vnd`, `p90_vnd`) | TB3 |
@@ -87,9 +93,11 @@ because it is the model whose native handling matches our weakest feature block 
 for the hand-rolled K-fold target encoding that a tree on one-hot `model` would otherwise need.
 XGBoost is the third row; it is the one that drops first.
 
-Consequence for the feature table: it carries **both** variants — `v1` (encoded, for linear/k-NN) and
-`v1_raw` (raw categoricals, for LightGBM/CatBoost native handling). Feeding an already
-target-encoded column to CatBoost throws away its advantage, so the model decides which table to read.
+Consequence for the feature table, and it is already implemented: `build_features.py` keeps the **raw
+categoricals** (`minimal` = raw columns only, `full` = raw + derived and train-fitted features) and
+leaves encoding to `pipeline.py`, which must fit it inside the training fold. An encoded CSV would
+leak the validation set into the features, and feeding an already target-encoded column to CatBoost
+would throw away the very advantage it was chosen for.
 
 Each cell is one deliverable; **P** = primary, **S** = second. §6 says which of these are cut first.
 
@@ -105,7 +113,7 @@ Each cell is one deliverable; **P** = primary, **S** = second. §6 says which of
 
 | Who | P — primary | S — second |
 |---|---|---|
-| **Hiếu** (lead) | `src/models/train.py --model … --features minimal|v1|full --seed …`: every metric in log space and VND, one row appended to `model_results.json`, model saved as `models/<model>_<features>.joblib` | **Quantile LightGBM** (P10/P50/P90) → `p10_vnd`, `p90_vnd` in `predictions_test.csv` (TB3 turns these into interval labels) + a **learning curve** at 10/25/50/100 % of train (one figure for §5) |
+| **Hiếu** (lead) | `src/models/train.py --model … --features minimal|full --seed …`: every metric in log space and VND, one row appended to `model_results.json`, model saved as `models/<model>_<features>.joblib` | **Quantile LightGBM** (P10/P50/P90) → `p10_vnd`, `p90_vnd` in `predictions_test.csv` (TB3 turns these into interval labels) + a **learning curve** at 10/25/50/100 % of train (one figure for §5) |
 | **Bảo** | Baselines + linear family: median by `brand|model|year`, Ridge, Lasso, ElasticNet, k-NN (k=25, scaled features) | `src/models/benchmark.py` → `docs/benchmark.md` (feature set, tuning budget, one test column filled at the freeze) + **Wilcoxon signed-rank** on absolute errors vs the best model, so §5 can say whether the gain is significant |
 | **Duy** | Boosters: **LightGBM** (workhorse), **CatBoost** (required row — best native handling of the 3,212-level `brand|model`), XGBoost, Random Forest; tuning time-boxed 90 min per model (RandomizedSearchCV ≤60 fits or Optuna ≤80 trials), search space written down; CatBoost capped at `iterations=3000, od_type="Iter", od_wait=100` so it fits the box | **Seed stability** (3 seeds → mean ± sd of R²) + **permutation importance** + **partial dependence** for the top-3 features → one table and one figure for §5 |
 
@@ -150,7 +158,7 @@ Two discipline points that the compressed calendar makes critical:
 
 | Date | What must exist by the end of the day |
 |---|---|
-| **Tue 3/11** | Libraries installed; branches open; TB1 features v1 (+schema published); TB2 baseline + Ridge on `minimal`; TB3 Δ on the baseline. **M0 20:00**: `*_features.csv` v1 + 2 rows in `model_results.json` |
+| **Tue 3/11** | Libraries installed; branches open; TB1 publishes the column list (tables already built: `minimal` + `full`); TB2 baseline + Ridge on `minimal`; TB3 Δ on the baseline. **M0 20:00**: 2 rows in `model_results.json` |
 | **Wed 4/11** | `preprocess.joblib` v1 + leakage test; RF and LightGBM v1; TB3 first `anomaly_labels.csv`. **M1 20:00: ≥ 4 benchmark rows, R² on val posted in the chat** |
 | **Thu 5/11** | Tuning (time-boxed); full feature set; `--ablate` table; `docs/features.md`. **TB2 shortlist frozen 20:00** |
 | **Fri 6/11** | Benchmark v1 (≥ 5 models × 2 feature sets) + Wilcoxon test; quantile intervals; error taxonomy; EDA refresh + figures |
@@ -173,7 +181,7 @@ nobody has to renegotiate scope at 23:00 on 9/11:
 7. Cardinality study (Quyết)
 8. Third case study + error taxonomy narrowed to the worst 10 (Tuấn Anh)
 
-**Never cut**: features v1/v1_raw + `preprocess.joblib`, the benchmark with median/Ridge/RF/LightGBM/
+**Never cut**: the feature tables (`minimal` + `full`) + `preprocess.joblib`, the benchmark with median/Ridge/RF/LightGBM/
 **CatBoost**, the single test evaluation, Δ labels + one case study, the EDA refresh, the report.
 
 ## 7. Definition of done
