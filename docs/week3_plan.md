@@ -57,6 +57,29 @@ residual, abs_pct_error`. TB3 does not refit a model.
 
 ## 3. Workload per person
 
+### 3.0 Why LightGBM is the workhorse and CatBoost is a required row
+
+Measured on 2026-11-02 (Python 3.14.8, Windows): `lightgbm 4.7.0` (`py3-none-win_amd64`),
+`xgboost 3.4.1` (`py3-none-win_amd64`) and `catboost 1.2.10` (`cp314-cp314-win_amd64`) all have
+wheels, so **none of them is ruled out by installation**. The choice is about cost per experiment:
+
+| | LightGBM | CatBoost | XGBoost |
+|---|---|---|---|
+| Speed per fit on 70 k × ~60 features | fastest (histogram + leaf-wise) | slowest (ordered boosting) | middle (`tree_method=hist`) |
+| High-cardinality categoricals (`brand|model` = 3,212 levels) | native, needs `categorical_feature` | **best: ordered target statistics, leakage-safe by design** | weakest (needs `enable_categorical`) |
+| Defaults good enough without tuning | mostly | **yes** | no, needs tuning |
+| Quantile objective (P10/P90) | `objective="quantile"` | `loss_function="Quantile:alpha=…"` | `reg:quantileerror` |
+
+So: **LightGBM is the row that is always there** because it is the cheapest to iterate with (many
+models × 2 feature sets × tuning inside a 5-day modelling window), and **CatBoost is a required row**
+because it is the model whose native handling matches our weakest feature block — it removes the need
+for the hand-rolled K-fold target encoding that a tree on one-hot `model` would otherwise need.
+XGBoost is the third row; it is the one that drops first.
+
+Consequence for the feature table: it carries **both** variants — `v1` (encoded, for linear/k-NN) and
+`v1_raw` (raw categoricals, for LightGBM/CatBoost native handling). Feeding an already
+target-encoded column to CatBoost throws away its advantage, so the model decides which table to read.
+
 Each cell is one deliverable; **P** = primary, **S** = second. §6 says which of these are cut first.
 
 ### 3.1 Sub-team 1 — features and preprocessing (Quyền, Phương, Quyết)
@@ -73,7 +96,7 @@ Each cell is one deliverable; **P** = primary, **S** = second. §6 says which of
 |---|---|---|
 | **Hiếu** (lead) | `src/models/train.py --model … --features minimal|v1|full --seed …`: every metric in log space and VND, one row appended to `model_results.json`, model saved as `models/<model>_<features>.joblib` | **Quantile LightGBM** (P10/P50/P90) → `p10_vnd`, `p90_vnd` in `predictions_test.csv` (TB3 turns these into interval labels) + a **learning curve** at 10/25/50/100 % of train (one figure for §5) |
 | **Bảo** | Baselines + linear family: median by `brand|model|year`, Ridge, Lasso, ElasticNet, k-NN (k=25, scaled features) | `src/models/benchmark.py` → `docs/benchmark.md` (feature set, tuning budget, one test column filled at the freeze) + **Wilcoxon signed-rank** on absolute errors vs the best model, so §5 can say whether the gain is significant |
-| **Duy** | Boosters: Random Forest, LightGBM, XGBoost, CatBoost (whatever installs); **tuning time-boxed 90 min per model** (RandomizedSearchCV ≤60 fits or Optuna ≤80 trials), search space written down | **Seed stability** (3 seeds → mean ± sd of R²) + **permutation importance** + **partial dependence** for the top-3 features → one table and one figure for §5 |
+| **Duy** | Boosters: **LightGBM** (workhorse), **CatBoost** (required row — best native handling of the 3,212-level `brand|model`), XGBoost, Random Forest; tuning time-boxed 90 min per model (RandomizedSearchCV ≤60 fits or Optuna ≤80 trials), search space written down; CatBoost capped at `iterations=3000, od_type="Iter", od_wait=100` so it fits the box | **Seed stability** (3 seeds → mean ± sd of R²) + **permutation importance** + **partial dependence** for the top-3 features → one table and one figure for §5 |
 
 ### 3.3 Sub-team 3 — anomaly detection and tagging (Phong, Tuấn Anh, Quang)
 
@@ -130,7 +153,7 @@ Two discipline points that the compressed calendar makes critical:
 In this order (the last item is the first to drop). This list is the answer to "we are behind", so
 nobody has to renegotiate scope at 23:00 on 9/11:
 
-1. CatBoost / XGBoost (fallback: `HistGradientBoostingRegressor`)
+1. XGBoost (fallback: LightGBM + CatBoost stay — CatBoost is *not* on this list)
 2. Partial dependence + seed stability (Duy)
 3. Learning curve (Hiếu)
 4. k-NN + ElasticNet (Bảo)
@@ -139,8 +162,8 @@ nobody has to renegotiate scope at 23:00 on 9/11:
 7. Cardinality study (Quyết)
 8. Third case study + error taxonomy narrowed to the worst 10 (Tuấn Anh)
 
-**Never cut**: features v1 + `preprocess.joblib`, the benchmark with median/Ridge/RF/LightGBM, the
-single test evaluation, Δ labels + one case study, the EDA refresh, the report.
+**Never cut**: features v1/v1_raw + `preprocess.joblib`, the benchmark with median/Ridge/RF/LightGBM/
+**CatBoost**, the single test evaluation, Δ labels + one case study, the EDA refresh, the report.
 
 ## 7. Definition of done
 
@@ -172,7 +195,7 @@ Drafting starts as soon as a section's numbers exist (Fri 6/11 for §2–§4), n
 
 | Risk | Fallback |
 |---|---|
-| A library will not build on Windows | `HistGradientBoostingRegressor`; the substitution is stated in §5 |
+| A library will not build on a teammate's machine | wheels were verified for CPython 3.14 (`lightgbm 4.7`, `xgboost 3.4`, `catboost 1.2.10`); if one still fails, `HistGradientBoostingRegressor` covers the tree row and the substitution is stated in §5 |
 | R² below the 0.88 target | report the real number, explain what is missing (trim 56 % empty, engine 61 % imputed), and show the ablation that proves the features were tried |
 | Tuning eats a day | the 90-minute time box per model is a rule, not a suggestion; the untuned model stays as its own row |
 | A sub-team loses a day | §6 cut list, applied in order, no discussion |

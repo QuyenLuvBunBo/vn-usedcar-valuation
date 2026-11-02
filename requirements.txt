@@ -7,19 +7,19 @@ pandas>=3.0               # tools/*, src/data_prep/eda.py
 matplotlib>=3.9           # figures written by src/data_prep/eda.py
 
 # --- Machine learning (week 3) ---
-scikit-learn>=1.5         # pipelines, encoders, HistGradientBoostingRegressor
-lightgbm>=4.5             # gradient boosting, the main valuation model
+scikit-learn>=1.5         # pipelines, encoders, IsolationForest, metrics, model selection
+lightgbm>=4.5             # the workhorse booster: fastest to iterate on (many fits per day)
+catboost>=1.2             # required benchmark row: ordered target statistics for brand|model
+xgboost>=3.1              # third booster row (drops first if a machine cannot install it)
 joblib>=1.4               # persist the fitted preprocessor and the models
 
 # --- Optional: install only when you need them ---
+# optuna>=4.1             # hyper-parameter search (RandomizedSearchCV is enough for the baseline)
+# shap>=0.46              # feature attribution for the report
 # openpyxl>=3.1           # Excel export
 # playwright>=1.62        # pages rendered by JavaScript (SPA)
 # cssselect>=1.2          # lxml's html.cssselect()
 # beautifulsoup4>=4.13    # soup-style HTML parsing (easier, slower than lxml)
 # httpx>=0.28             # HTTP client with async support
 # pyarrow>=21.0           # Parquet export
-# xgboost>=2.1            # alternative booster for the benchmark
-# catboost>=1.2           # alternative booster (slow to install on Windows)
-# optuna>=4.1             # hyper-parameter search
-# shap>=0.46              # feature attribution for the report
 
