@@ -39,9 +39,6 @@ models/
 *.pkl
 *.cbm
 
-# Node (chỉ dùng cho công cụ sinh tài liệu)
-node_modules/
-
 # Editor / OS
 .vscode/
 .idea/
