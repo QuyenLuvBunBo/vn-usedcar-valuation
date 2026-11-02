@@ -3,7 +3,13 @@ requests>=2.34            # HTTP client
 lxml>=6.1                 # fast HTML/XML parsing (XPath support)
 python-dotenv>=1.2        # read configuration from .env
 tqdm>=4.68                # progress bars for long crawls
-pandas>=3.0               # used by tools/summarize_oto.py
+pandas>=3.0               # tools/*, src/data_prep/eda.py
+matplotlib>=3.9           # figures written by src/data_prep/eda.py
+
+# --- Machine learning (week 3) ---
+scikit-learn>=1.5         # pipelines, encoders, HistGradientBoostingRegressor
+lightgbm>=4.5             # gradient boosting, the main valuation model
+joblib>=1.4               # persist the fitted preprocessor and the models
 
 # --- Optional: install only when you need them ---
 # openpyxl>=3.1           # Excel export
@@ -12,4 +18,8 @@ pandas>=3.0               # used by tools/summarize_oto.py
 # beautifulsoup4>=4.13    # soup-style HTML parsing (easier, slower than lxml)
 # httpx>=0.28             # HTTP client with async support
 # pyarrow>=21.0           # Parquet export
+# xgboost>=2.1            # alternative booster for the benchmark
+# catboost>=1.2           # alternative booster (slow to install on Windows)
+# optuna>=4.1             # hyper-parameter search
+# shap>=0.46              # feature attribution for the report
 
