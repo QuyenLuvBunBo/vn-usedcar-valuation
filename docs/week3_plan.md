@@ -225,5 +225,20 @@ Drafting starts as soon as a section's numbers exist (Fri 6/11 for §2–§4), n
 - [ ] file format, page count, file name and submitter confirmed against the teacher's form
 - [ ] submitted before 12:00 on Tue 10/11
 
+## 11. After the submission (week 4, not graded by this deadline)
+
+The teacher's deadline is the report. What is left for the following week, in this order, and it needs
+an owner assigned on Tue 10/11 — not before:
+
+1. `src/models/predict.py` — one function `predict(vehicle_specs) -> price + label`, loading
+   `models/preprocess.joblib` and the frozen model, so the pipeline is reproducible without a notebook.
+2. Slides: 8–10 slides, one figure per claim, the benchmark table on one slide.
+3. The web demo (Streamlit) — **optional**: only if 1 and 2 are finished; it is expensive to build and
+   the report does not depend on it.
+4. Data improvements that were deliberately deferred: chotot's remaining inventory, carmudi's 233 ads,
+   and any new source. Each one requires the full rebuild: `build_master → split → pipeline`, then every
+   number in the report regenerated.
+
+
 
 
