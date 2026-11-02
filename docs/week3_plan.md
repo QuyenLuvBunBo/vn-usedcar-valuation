@@ -1,7 +1,7 @@
 # Week 3 plan — features, valuation models, anomaly screening (31 Oct – 6 Nov 2026)
 
-> Bản Word để gửi nhóm và giảng viên: **`docs/ke_hoach_tuan3.docx`** (nội dung tiếng Việt, sinh lại
-> bằng `python tools/build_plan_docx.py`). Trang này là bản kỹ thuật tiếng Anh trong repo.
+> Bản Word gửi nhóm/giảng viên được giữ **ngoài repo** (nhóm lưu trên Drive) để kho mã không chứa file
+> nhị phân; nội dung kỹ thuật đầy đủ và luôn mới nhất nằm ở trang này.
 
 This is the week the teacher's request depends on: **"Initial Results on Applying ML Models"**, due
 **10/11/2026**. Week 3 produces the numbers and the model files; 7–10 November is the report, the
@@ -97,6 +97,36 @@ Goal: from the best model's residuals, a defensible label per listing plus the e
 
 Warning to keep in the text: a low asking price alone is **not** proof of a bargain, and a high
 residual is **not** proof of fraud. Labels are a review queue.
+
+## 5b. How the three tracks run: in parallel, with two hard hand-offs
+
+The work is **not** sequential (TB1 → TB2 → TB3). The three tracks only depend on each other through
+two artefacts, and both have a stand-in that lets the consumer start on day 1:
+
+```
+TB1 features ──(1)──► TB2 models ──(2)──► TB3 anomaly labels
+      ▲                   │                      │
+      └── stand-in: the cohort file itself, whose raw columns already support a baseline
+                          └── stand-in: the median/Ridge predictions from M1
+```
+
+| Hand-off | Date | Consumer starts earlier with |
+|---|---|---|
+| (1) feature tables + `preprocess.joblib` v1 | **Sun 1/11, end of day** | the raw cohort columns (`manufacture_year`, `mileage_km`, `engine_capacity`, `seats`, `brand`, `model`, `body_type`) — that is the `minimal` feature set |
+| (2) test predictions from a chosen model | **Tue 2/11 (M1), refreshed on Thu 4/11** | the median-by-group baseline, which needs no fitted pipeline at all |
+
+Why not plain sequential: the calendar gives six working days, and 2 (features) + 3 (models) + 2
+(anomaly) = seven. A single slip anywhere then lands on the report date, and the report is what is
+graded. In parallel, a slip costs one team a day, not the deadline.
+
+Why not fully parallel either: without §5's fixed artefact names and the two hand-off dates, three
+tracks produce three incompatible tables and the merge at the freeze is a rewrite. So the rule is
+**parallel execution, sequential interfaces** — the interface is fixed on day 1, the work is not.
+
+Escalation rule: if a hand-off slips by more than one day, the consumer does not wait — it keeps using
+its stand-in and the owner delivers the artefact by the next milestone, even if incomplete (missing
+columns are better than a stopped track). Anyone who is blocked says so in the group chat the same day.
+
 
 ## 6. Day by day
 
