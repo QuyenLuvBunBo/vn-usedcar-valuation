@@ -11,19 +11,20 @@ real catalogue?**
 
 | Source | Site catalogue | We have | Missing | Reachable how |
 |---|---|---|---|---|
-| xe.chotot.com | **29,693** cars | 19,426 | +10,267 (site counter; the live API universe is ~18,4k) | JSON gateway API (`limit`+`o`) sliced by price × year |
+| xe.chotot.com | **29,693** cars | 19,426 | +10,267 (site counter; the live API universe is 18,413) | JSON gateway API (`limit`+`o`) sliced by price × year |
 | bonbanh.com | **29,241** ads | 30,371 | 0 | `/oto/page,N` — 20 ads/page, **1,462 pages** |
 | carpla.vn | **4,181** | 4,181 | 0 | `sitemap_product.xml` (plain `<loc>` list) |
 | carmudi.vn | **779** | 546 | +233 | `sitemap/model/sitemap-index-models.xml` + per-model pages |
 | **Total** | **63,894** | 54,524 | **+10,500** | |
 
-Two of the four gaps are now closed: bonbanh was topped up to its full catalogue and carpla was crawled
-to the end of its sitemap. What is left is chotot (the national catalogue is bigger than any one region
-export) and carmudi (233 ads).
+Three of the four sources now reach their own catalogue: bonbanh (30,371 rows against 29,241 printed),
+carpla (4,181 of 4,181) and chotot (19,426 against a live API universe of 18,413). What remains is
+carmudi's 233 missing ads, which is a template problem (`Kiểu dáng` defaults to `Coupe`) rather than a
+volume one, and the difference between chotot's site counter (29,693) and its live inventory.
 
 ## Per source
 
-### xe.chotot.com — the regional gap is closed, the volume gap is not
+### xe.chotot.com — both gaps closed (volume + region)
 
 Two exports now exist, and the second one covers the whole country:
 

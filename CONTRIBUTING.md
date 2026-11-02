@@ -1,6 +1,6 @@
 # Team Git workflow — `vn-usedcar-valuation`
 
-Goal: nine members, six data sources, merging each other's work **without conflicts**.
+Goal: nine members, eight data sources, merging each other's work **without conflicts**.
 
 ## 1. Branches
 
@@ -35,6 +35,22 @@ git push -u origin feat/source-bonbanh-new
 | `docs/sources/<your-source>.md` | `docs/unified_schema.md`, `README.md`, `CONTRIBUTING.md`, `requirements.txt` |
 
 **Never edit another source's code.** If you find a bug in `src/common/`, open an issue or a dedicated PR.
+
+Team-wide files that are nobody's package still need a reviewer from another sub-team:
+`src/data_prep/**` (split, normalize, missing, eda, pipeline), `src/merge/**`, `tests/**`,
+`docs/week*.md` and `docs/crawl_gap.md`.
+
+## 3b. Data is frozen between milestones
+
+`data/master/*` is a snapshot: `train.csv`, `val.csv`, `test.csv` and `*_cohort_imputed.csv` are what
+every number in the report refers to. While a milestone is open:
+
+- **do not re-crawl and do not re-run `split`** — a new crawl changes `duplicate_group_id`, so the
+  report's numbers stop matching the data;
+- improvements to a source go to `data/processed/<source>_extra.csv`, which `build_master` picks up on
+  its next run, and the rebuild happens once, on purpose, with everyone told;
+- if a rebuild happens, every table in the report is regenerated in the same commit range.
+
 
 ## 4. Data contract (mandatory)
 

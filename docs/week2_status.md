@@ -1,9 +1,13 @@
-# Week 2 status — what is done, what is left, and who owns it
+# Data status — week 2 deliverables, kept current
 
-The week-2 plan (`logs/docx_kehoach.txt`) splits the work into three sub-teams. This page is the
-checklist: every row names the deliverable, the code that produces it, the command that reproduces
-it, and the state it is in today (**2026-10-30**). Regenerate any number with the command in the row —
-nothing here is hand-copied.
+> **This page is the current state of the dataset, not only a week-2 log.** Last updated
+> **2026-11-02**, after the chotot top-up brought the master to 100,887 records. It names, for every
+> row, the code that produces it, the command that reproduces it, and its state — regenerate a number
+> with the command instead of trusting this page.
+
+The week-2 plan (`logs/docx_kehoach.txt`) splits the work into three sub-teams; the tables below follow
+that split.
+
 
 ## Where the data stands
 
@@ -85,6 +89,6 @@ itself (`train.csv`, `val.csv`, `test.csv`) is never overwritten — the derived
 
 ## Next
 
-Week 3 (features, valuation models, anomaly screening) is assigned per person in
-[week3_plan.md](week3_plan.md); the input is `data/master/train_cohort_imputed.csv`
-(70,244 rows).
+Week 3 runs **3–10 November** (features, valuation models, anomaly screening, then the report), assigned
+per person in [week3_plan.md](week3_plan.md). The input is `data/master/train_cohort_imputed.csv`
+(70,244 rows) — frozen; see `CONTRIBUTING.md` §3b.

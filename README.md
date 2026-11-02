@@ -4,8 +4,22 @@ Multi-source web-scraping pipeline and data-science project for used-car price e
 and listing anomaly detection in Vietnam.
 
 *Introduction to Data Science — Group 14.*
-This is a **shared team repository**: nine members collect data from six marketplaces,
-normalize it into one unified schema, then build regression and anomaly-detection models.
+This is a **shared team repository**: nine members collected data from eight marketplaces,
+normalized it into one unified schema, and now build regression and anomaly-detection models.
+
+## Status (2026-11-02)
+
+| | |
+|---|---|
+| Dataset | `data/master/master_clean_dataset.csv` — **100,887 records**, 8 platforms, 21 contract columns |
+| Split | train 70,707 / val 15,063 / test 15,098, grouped by `duplicate_group_id` |
+| Modelling cohort | 70,244 / 14,964 / 14,980 rows — `data/master/*_cohort_imputed.csv` |
+| Gates | `tools.audit_master` → 0 problems, `tools.validate_source_csv` → PASS, 115 unit tests green |
+| Data status | [docs/week2_status.md](docs/week2_status.md) |
+| Current work | week 3 (features → models → anomaly, 3–10 Nov): [docs/week3_plan.md](docs/week3_plan.md) |
+| Coverage per source | [docs/crawl_gap.md](docs/crawl_gap.md) |
+
+Data files are **not** committed (see `CONTRIBUTING.md` §6): run the commands below to rebuild them.
 
 ---
 
@@ -39,6 +53,8 @@ what we collected (measured 2026-10-29) — it is the evidence behind the Milest
 ├─ docs/
 │  ├─ unified_schema.md        # THE DATA CONTRACT: 21 shared columns
 │  ├─ crawl_gap.md             # per-source catalogue size vs. what we collected
+│  ├─ week2_status.md          # the current dataset: build steps, numbers, open items
+│  ├─ week3_plan.md            # features → models → anomaly → report (3–10 Nov)
 │  └─ sources/<source>.md      # per-source recon notes and field mapping
 ├─ src/
 │  ├─ common/                  # shared code — changes require a reviewed PR
@@ -49,13 +65,28 @@ what we collected (measured 2026-10-29) — it is the evidence behind the Milest
 │  │  └─ schema.py             # the 21 columns + normalization maps (data contract)
 │  ├─ sources/                 # one package per source; never edit another member's package
 │  │  ├─ _template/            # ⭐ copy this folder to start a new source
+│  │  ├─ chotot/               # crawl.py (pages) · topup.py (API + index top-up) · chotot_scraper.py
 │  │  └─ oto/                  # crawl.py · unified.py · brands_asia.py · brands_other.py
-│  ├─ merge/                   # week 2: build_master.py · dedupe.py
-│  └─ data_prep/               # week 2: missing.py (missing-value audit and imputation)
-├─ tools/                      # recon, diagnostics and validation helpers
-├─ notebooks/<member>/         # week 2 EDA — one folder per member
+│  ├─ merge/                   # build_master.py · dedupe.py
+│  └─ data_prep/               # split.py · normalize.py · missing.py · eda.py · pipeline.py
+├─ tests/                      # unit tests: split integrity, dedupe, flags, normalize, EDA
+├─ tools/                      # recon, diagnostics, validation gates
+├─ notebooks/<member>/         # EDA and experiments — one folder per member
 └─ data/  raw/ · processed/ · master/     # data is NOT committed (see CONTRIBUTING.md)
 ```
+
+## Rebuilding the dataset (week 2 in four commands)
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'
+python -m src.merge.build_master    # every data/processed/*.csv -> master_clean_dataset.csv
+python -m src.data_prep.split       # grouped, price-stratified train/val/test
+python -m src.data_prep.pipeline    # normalize -> impute -> EDA (one command, in that order)
+```
+
+`pipeline` writes `*_cohort.csv`, `*_cohort_imputed.csv` (the file week 3 trains on),
+`normalize_report.json`, `missing_report.json` and `data/master/eda/eda_summary.md` + 6 figures.
+
 
 ## Quick start
 
@@ -209,6 +240,6 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 |---|---|---|---|
 | 1 | Collect and normalize from the sources | one crawler script + one clean CSV per member | done; coverage per source in [docs/crawl_gap.md](docs/crawl_gap.md) |
 | 2 | Merge, deduplicate, quality audit, EDA | `data/master/master_clean_dataset.csv` (100,887 records, 8 platforms), train/val/test split, EDA notebook | **done** — see [docs/week2_status.md](docs/week2_status.md) |
-| 3 | Feature engineering, regression, anomaly detection | model files, benchmark table, anomaly labelling | planned — assignments in [docs/week3_plan.md](docs/week3_plan.md) |
-| 4 | Pipeline packaging, web demo, report and slides | Streamlit demo, final report, slides | — |
+| 3 | Feature engineering, regression, anomaly detection | model files, benchmark table, anomaly labelling | **in progress 3–10 Nov** — assignments, hand-offs and the cut list in [docs/week3_plan.md](docs/week3_plan.md) |
+| 4 | Packaging the pipeline, report and slides | `predict()` wrapper, report PDF, slides (the web demo only if time allows) | — |
 
