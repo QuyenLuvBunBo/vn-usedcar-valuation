@@ -1,6 +1,7 @@
 """vucar.vn: read the catalogue from the site's public Next.js data action.
 
-This module is the notebook `vucar_scraper.py.ipynb` turned into a package: the logic (request pacing,
+This module is that notebook turned into a package (the notebook itself was removed on 2026-11-02 and is
+in git history): the logic (request pacing,
 robots.txt check, action-ID discovery, page parsing, save-after-every-page) is the author's, unchanged.
 Two deliberate additions:
 

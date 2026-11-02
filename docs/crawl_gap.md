@@ -153,8 +153,8 @@ and the week-2 dataset was rebuilt with it: see `docs/week2_status.md`.
 
 ## What this means for the deliverables
 
-1. **Nothing blocks the week-2 deliverables.** 62,189 records are enough for merge, dedupe, the
-   train/val/test split and EDA. A top-up crawl is an improvement, not a prerequisite.
+1. **Nothing blocks the deliverables.** The 100,887-record master is enough for merge, dedupe, the
+   train/val/test split, EDA and the models. A top-up crawl is an improvement, not a prerequisite.
 2. **Chợ Tốt is the only gap that changes a conclusion**, because it is regional: the master currently
    under-represents the north and centre. Any "price by province" or "price by region" finding must be
    stated with that caveat until the northern/central half is crawled.
