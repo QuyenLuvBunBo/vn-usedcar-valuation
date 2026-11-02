@@ -1,6 +1,23 @@
 # Chotot Xe — Southern Vietnam
 
+## Status update 2026-11-02 (read this first)
+
+The platform now contributes **19,426 records** to the master, not the 1,889 described below. Two
+routes were used, both in this repository:
+
+| Route | Command | Result |
+|---|---|---|
+| page crawler (this package) | `python -m src.sources.chotot` | the 1,889 records described below, exported to `chotot_mien_nam.csv` |
+| JSON gateway + website top-up | `src/sources/chotot/topup.py` + `chotot_scraper.py` | **5,884 new records** in `data/processed/chotot_extra.csv` (ids nobody had), now merged by `build_master` |
+
+The gateway route (`gateway.chotot.com/v1/public/ad-listing`, `limit` + `o`) is the one that scales; the
+website's `Disallow: /*page=` blocks pagination on `xe.chotot.com` only. Evidence, counts and the
+`ad_id` vs `list_id` trap are recorded in `docs/crawl_gap.md`.
+
+The text below is the original week-1 reconnaissance and remains accurate about the page crawler.
+
 This crawler follows the schema and shared utilities in the team repository. Northern and Central Vietnam are outside its scope.
+
 
 ## Reconnaissance and limitations
 

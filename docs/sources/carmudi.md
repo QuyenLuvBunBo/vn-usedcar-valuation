@@ -22,7 +22,7 @@ fallback source `tinbanxe.vn` (leader's decision) — see `docs/sources/tinbanxe
 | Unfilled ads default to `Xe mới` / `Xăng` / `Số sàn`, year `No data` | Toyota Yaris 2010 tagged "Xe mới"; its description says "165.000km" and "số tự động" | year from the **title**; transmission: title token > description > field; mileage: card > detail > description |
 | "Xe mới" cannot be trusted as the new/used flag | same ad | **used** = real mileage > 0, or year < current_year−1. Recent-year ad with no real mileage ⇒ new ⇒ dropped |
 | Absurd mileage | `10,000,000 km` on a 2024 Everest | > 1,000,000 km ⇒ null |
-| `Kiểu dáng` is a seller dropdown | Yaris tagged `Coupe` | kept as given; low reliability |
+| `Kiểu dáng` is a seller dropdown whose template default is `Coupe` | Yaris tagged `Coupe`; 528 of 546 rows carried it | since 2026-10-30 `body_type_of()` writes `Unknown` for that default, and `src/data_prep/normalize.py` repairs files collected earlier |
 
 ## Mapping
 | Column | Source | Note |

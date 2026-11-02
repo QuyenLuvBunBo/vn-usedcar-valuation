@@ -25,6 +25,17 @@ Two rules make the extra scope safe, and they are not negotiable:
 `raw_price_text`, `price_status`, `listing_date`, `scraped_at`, `source_url`, `listing_id`,
 `quality_flags`. Model `log1p(price_vnd)`; report metrics in log space **and** VND.
 
+### 0.1 What already exists — build on it, do not rebuild it
+
+| Already done | Proof / command |
+|---|---|
+| master, split, cohort, imputation, EDA | `python -m src.data_prep.pipeline` → `docs/week2_status.md` has every number |
+| the data gates | `python -m tools.audit_master`, `python -m tools.validate_source_csv <csv>`, `python -m unittest discover -s tests` (115 tests) |
+| the ML stack | `pip install -r requirements.txt` (sklearn, lightgbm, catboost, xgboost, joblib) |
+| notebook conventions | `notebooks/README.md` — one folder per member, strip outputs before committing |
+| **what this week adds** | `src/features/`, `src/models/`, `models/*.joblib`, `docs/benchmark.md`, the report |
+
+
 ## 1. Day-1 blocker — Tue 3/11, first hour
 
 `requirements.txt` already lists the stack; the first person to hit a problem reports it in the chat
