@@ -5,6 +5,30 @@ snapshot: everyone who trains a model must be reading the *same bytes*.
 
 Sizes below are the real ones on 2026-11-03.
 
+## 0. Which file answers which question
+
+`data/master` holds 19 CSVs because each layer answers a different question. Pick the file by the
+question, not by the name that looks newest.
+
+| Question | File | Rows × columns |
+|---|---|---|
+| What came out of the merge, before any filter? (**the raw master**) | `master_clean_dataset.csv` | 100,887 × 24 |
+| What went into train / val / test? (grouped split, before the cohort rules) | `{train,val,test}.csv` | 70,707 / 15,063 / 15,098 × 24 |
+| What is the **modelling cohort**? (implausible records removed, brands repaired, pre-imputation) | `{split}_cohort.csv` | 70,244 / 14,964 / 14,980 × 24 |
+| What do we **train on**? (missing values filled, `model_group` added) | `{split}_cohort_imputed.csv` | same rows × 26 |
+| What goes **into a model**? (derived + train-fitted features) | `{split}_features_{minimal,full}.csv` | same rows × 17 / 26 |
+
+Rules that follow from the layers:
+
+- **Fit on train only.** `master_clean_dataset.csv` and `{split}.csv` contain the val/test rows, so
+  they are for *reading* (inspecting a source, checking a repair, writing the report) — never for
+  fitting an encoder, a scaler or a target encoding.
+- Prefer `{split}_cohort.csv` when you need the values **as published** (the `imputed` column does not
+  exist yet); prefer `{split}_cohort_imputed.csv` when you need the table a model sees.
+- `bonbanh_final.csv` in `data/master` is a leftover from the removed Ollama title-filler — delete it,
+  nothing reads it.
+
+
 ## 1. What to upload
 
 ### Folder `01_week3_mandatory/` — 30.3 MB, everyone downloads this
