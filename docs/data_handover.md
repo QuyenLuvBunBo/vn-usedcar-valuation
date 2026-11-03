@@ -7,7 +7,7 @@ Sizes below are the real ones on 2026-11-03.
 
 ## 0. Which file answers which question
 
-`data/master` holds 19 CSVs because each layer answers a different question. Pick the file by the
+`data/master` holds 17 CSVs because each layer answers a different question. Pick the file by the
 question, not by the name that looks newest.
 
 | Question | File | Rows × columns |
@@ -25,15 +25,14 @@ Rules that follow from the layers:
   fitting an encoder, a scaler or a target encoding.
 - Prefer `{split}_cohort.csv` when you need the values **as published** (the `imputed` column does not
   exist yet); prefer `{split}_cohort_imputed.csv` when you need the table a model sees.
-- `bonbanh_final.csv` in `data/master` is a leftover from the removed Ollama title-filler — delete it,
-  nothing reads it.
 
 
 ## 1. What to upload
 
-### Folder `01_week3_mandatory/` — 30.3 MB, everyone downloads this
+### Folder `01_week3_mandatory/` — 30.6 MB, everyone downloads this
 
-Only these are needed to run week 3. Nothing else.
+Only these are needed to run week 3. Nothing else. The folder also carries `README_drive.md` (what to do
+on download) and `SHA256SUMS.txt` (one line per file, `eda/` included) — see §3.
 
 | File (from `data/master/`) | Size | Needed by |
 |---|---|---|
@@ -90,7 +89,7 @@ python -c "import pandas as pd; [print(f, len(pd.read_csv('data/master/'+f, low_
 
 # 3. the gates must still pass
 python -m tools.audit_master          # PROBLEMS: 0
-python -m unittest discover -s tests  # 115 tests, OK
+python -m unittest discover -s tests  # 130 tests, OK
 ```
 
 Expected row counts: **70,244 / 14,964 / 14,980**, 26 columns. If a number differs, the file is stale —
