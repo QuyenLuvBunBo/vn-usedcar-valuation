@@ -1,0 +1,4 @@
+# Exact versions used to create the included joblib artifact.
+numpy==2.3.5
+scipy==1.17.0
+joblib==1.5.3
