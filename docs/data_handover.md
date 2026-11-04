@@ -60,7 +60,8 @@ diff file) unless someone asks.
 ### Do **not** upload
 
 `data/scraped.db` (93 MB, rebuildable by crawling), `data/raw/**` (raw HTML/JSON), `data/handover/`,
-`bonbanh_final.csv` (a leftover of the Ollama title-filler, no longer produced), `logs/**`.
+`bonbanh_final.csv` (a leftover of the Ollama title-filler, no longer produced), `logs/**`, and anything
+from `models/` or `data/master/*.npz` (derived, and §5 explains why they are rebuilt instead of shipped).
 
 ## 2. Where it goes after downloading
 
@@ -101,4 +102,50 @@ Any new crawl or a changed cohort rule means a new snapshot: bump the Drive fold
 (`01_week3_mandatory__2026-11-05`), regenerate `SHA256SUMS.txt`, and tell the group. Never overwrite a
 folder people are already using — two people would then be reporting numbers from two different
 datasets, which is exactly what `CONTRIBUTING.md` §3b exists to prevent.
+
+## 5. Artifacts that git ignores — rebuild and compare the hash, do not ship the binary
+
+`.gitignore` ignores `models/`, `*.joblib` and everything under `data/master/`. They are derived: a joblib
+is a pickle of custom classes, and an encoded matrix is data, not code. So the fitted preprocessor that T2
+loads **cannot travel through git** — and the answer is not `git add -f`.
+
+The rebuild is deterministic, so the artifact does not have to travel at all. Measured on 2026-11-04 with
+Python 3.14.8 / scikit-learn 1.9.1 / pandas 3.0.3 / numpy 2.4.6 / scipy 1.17.1 / joblib 1.6.0: two
+independent runs produced byte-identical files.
+
+```powershell
+python -m src.features.pipeline --features full `
+  --cohort data/master/train_cohort_imputed.csv --require-imputed --describe
+```
+
+| Output | Size | SHA256 |
+|---|---|---|
+| `models/preprocess.joblib` | 121.6 KB | `BE7B2C61B31F5C375675E58D9BA75E372932F12AD0EEC88D8BFD544843412BC3` |
+| `data/master/X_train_full_oof.npz` | 2.4 MB | `FA88F71A9AE33FA9EA6912FCB1EF4B50E5245897CC29122E200528B77D85E89B` |
+| `data/master/train_full_oof_rows.csv` | 3.8 MB | `CB694701A1F04A66F112161C52942A7F5F92177EB0A6E3C05BF417B71EDE3A62` |
+
+It must run against exactly these two inputs (their hashes are also written into
+`preprocess_metadata.json`, which the pipeline records by itself):
+
+| Input | SHA256 |
+|---|---|
+| `data/master/train_features_full.csv` | `62BF8AA4082A6D338337434524EEA22CBE7E9E596CB3F5690ABDB8C868920450` |
+| `data/master/train_cohort_imputed.csv` | `8C6138495676C4DCF308B09BAC30F34C807FD8011B02EEFC1BBFC0AC0DD07427` |
+
+Rules that follow:
+
+- **Default: rebuild.** One command, ~20 s. Compare the hash instead of trusting the file — matching
+  hashes prove the same code *and* the same data, while shipping a binary proves only the first.
+- **When the exact bytes are needed** (another OS or Python, or someone reproducing a number months
+  later): Drive folder `04_models/<date>/` with its own `SHA256SUMS.txt`, same rules as §4. Never put it
+  inside the data snapshot — a stale `.joblib` next to fresh CSVs is worse than no `.joblib`.
+- **Never `git add -f` a `.joblib`.** Not a size argument (122 KB): a pickle of custom classes breaks
+  silently when scikit-learn moves, it cannot be reviewed in a diff, and two people re-fitting it produce
+  unmergeable conflicts. The `--describe` output (`docs/features.md`) *is* text — review that instead.
+- `train_full_oof_rows.csv` carries `price_vnd` and `y_log`, i.e. the **target**. It is data: Drive only,
+  and never concatenated into a model matrix.
+- The three hashes above are only valid for the code that produced them. They were measured on
+  `origin/preprocess` @ `183ebae` **before** that branch was merged, so regenerate and update this table
+  once it lands — an outdated hash table is worse than none, because nobody re-checks it.
+
 
