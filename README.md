@@ -92,6 +92,7 @@ python -m src.data_prep.pipeline    # normalize -> impute -> EDA (one command, i
 ```powershell
 python -m src.features.build_features --features full   # {train,val,test}_features_full.csv + feature_stats.json
 python -m src.features.build_features --features minimal # raw columns only, for the baseline
+python -m src.features.build_features --ablate           # drop one feature group at a time → ΔR² table
 python -m tools.model_gate                               # leakage gate: must print PASS
 python -m tools.baseline_smoke                            # canary: median vs untuned LightGBM on val
 ```
@@ -100,6 +101,13 @@ python -m tools.baseline_smoke                            # canary: median vs un
 that is a copy of the target, on partitions whose columns drifted, and on a `duplicate_group_id` that
 appears in two partitions. `baseline_smoke` writes `data/master/baseline_smoke.json` — it is a canary,
 not the benchmark; the benchmark table is the modelling sub-team's `model_results.json`.
+
+`--ablate` answers "which feature group earns its place": it drops one group of `ABLATION_GROUPS` at a
+time and reports `ΔR² = baseline − without`, fitting a fixed small LightGBM on **all** train rows and
+writing `data/master/feature_ablation.json`. It is a **relative** diagnostic for report §4, not a
+benchmark number to quote — the parameters are fixed on purpose so the comparison is fair. Keep it on
+all rows: `--ablate-rows 20000` makes the run 3× faster but the small groups' ΔR² (~0.0005) then sit
+inside the sampling noise, and three groups even changed sign between 20 k and 70 k rows.
 
 
 

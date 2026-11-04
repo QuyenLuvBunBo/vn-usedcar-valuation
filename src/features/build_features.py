@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import time
 from pathlib import Path
 
 import numpy as np
@@ -188,6 +189,134 @@ VARIANT_COLUMNS = {
     },
 }
 
+# Which group each feature belongs to, for the drop-one ablation study (report §4). Sorted by the
+# question each group answers: does the model need the car's identity, its specs, its age, or the
+# market aggregates derived from train?
+ABLATION_GROUPS = {
+    "cat_identity": ("brand", "model", "model_group"),
+    "cat_spec": ("transmission", "fuel_type", "origin", "body_type", "seller_type",
+                 "source_platform"),
+    "raw_numeric": ("manufacture_year", "mileage_km", "engine_capacity", "seats"),
+    "derived_age": ("vehicle_age", "km_per_year", "age_band"),
+    "derived_engine_per_seat": ("engine_per_seat",),
+    "derived_missing": ("n_imputed",),
+    "derived_luxury": ("is_luxury_segment",),
+    "derived_brand_age": ("brand_age_band",),
+    "derived_geo": ("province_group", "province_price_index"),
+    "derived_retention": ("brand_retention_rate",),
+}
+
+
+def as_features(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    """Select `columns` and give the text ones the `category` dtype LightGBM expects."""
+    x = frame[columns].copy()
+    for column in x.columns:
+        if not pd.api.types.is_numeric_dtype(x[column]):
+            x[column] = x[column].astype("category")
+    return x
+
+
+def score_r2(train: pd.DataFrame, val: pd.DataFrame, columns: list[str], seed: int = 42,
+             n_estimators: int = 200) -> float:
+    """R² in log space from one small LightGBM fit.
+
+    A **relative** diagnostic, not a benchmark: the parameters are fixed and small on purpose, so the
+    comparison between "with" and "without" a feature group is fair while the absolute number is not
+    quotable as a result.
+    """
+    import lightgbm as lgb
+
+    x_train = as_features(train, columns)
+    x_val = as_features(val, columns)
+    for column in x_train.columns:            # a level only val has must not break the fit
+        if isinstance(x_train[column].dtype, pd.CategoricalDtype):
+            x_val[column] = x_val[column].astype("category").cat.set_categories(
+                x_train[column].cat.categories)
+
+    y_train = np.log(train[TARGET].to_numpy(dtype=float))
+    y_val = np.log(val[TARGET].to_numpy(dtype=float))
+    model = lgb.LGBMRegressor(n_estimators=n_estimators, learning_rate=0.08, num_leaves=31,
+                              min_child_samples=20, subsample=0.9, subsample_freq=1,
+                              colsample_bytree=0.9, random_state=seed, n_jobs=-1, verbose=-1)
+    model.fit(x_train, y_train,
+              categorical_feature=[c for c in x_train.columns
+                                   if isinstance(x_train[c].dtype, pd.CategoricalDtype)])
+    predicted = model.predict(x_val)
+    ss_res = float(((y_val - predicted) ** 2).sum())
+    ss_tot = float(((y_val - y_val.mean()) ** 2).sum())
+    return 1 - ss_res / ss_tot if ss_tot else float("nan")
+
+
+def ablate_tables(train: pd.DataFrame, val: pd.DataFrame, variant: str = "full",
+                  groups: dict[str, tuple[str, ...]] | None = None,
+                  rows: int = 0, seed: int = 42) -> dict:
+    """Drop one feature group at a time and report what R² it was worth.
+
+    `delta_r2 = baseline − without_group`, so a **positive** number means the group earns its place and
+    a number near zero means the model already has that information from another column (which is what
+    `brand_age_band` vs `brand` is there to reveal). The fits use a fixed small booster: this is a
+    diagnostic for report §4, not the benchmark table.
+
+    `rows=0` (the default) fits on all train rows on purpose. The deltas of the small groups are ~0.0005
+    while a single fit at 20 k rows moves ±0.0015, and at 20 k three groups even came out negative and
+    flipped positive once every row was used — sampling is only for a quick look, never for the number
+    that goes into the report.
+    """
+    groups = ABLATION_GROUPS if groups is None else groups
+    columns = [*VARIANT_COLUMNS[variant]["categorical"], *VARIANT_COLUMNS[variant]["numeric"]]
+    if rows and len(train) > rows:
+        train = train.sample(n=rows, random_state=seed)
+
+    started = time.monotonic()
+    baseline = score_r2(train, val, columns, seed)
+    results: list[dict] = []
+    for name, members in groups.items():
+        kept = [column for column in columns if column not in members]
+        if not kept:
+            results.append({"group": name, "dropped": list(members), "r2": None, "delta_r2": None})
+            continue
+        score = score_r2(train, val, kept, seed)
+        results.append({"group": name, "dropped": list(members), "r2": round(score, 4),
+                        "delta_r2": round(baseline - score, 4)})
+    results.sort(key=lambda row: (row["delta_r2"] is None, -(row["delta_r2"] or 0)))
+    return {
+        "variant": variant,
+        "train_rows": int(len(train)),
+        "val_rows": int(len(val)),
+        "n_features": len(columns),
+        "baseline_r2": round(baseline, 4),
+        "seconds": round(time.monotonic() - started, 1),
+        "note": "drop-one at a time with a fixed small LightGBM — relative value, not the benchmark",
+        "groups": results,
+    }
+
+
+def ablate(variant: str = "full", rows: int = 0, out: Path | None = None) -> dict:
+    """Load the cohort, build the features, run the study, write `feature_ablation.json`."""
+    train, val = load("train"), load("val")
+    reference = capture_year(train)
+    stats = fit_stats(train, reference)
+    train = apply_stats(add_stateless(train, reference), stats)
+    val = apply_stats(add_stateless(val, reference), stats)
+
+    report = ablate_tables(train, val, variant, rows=rows)
+    path = out or (config.DATA_MASTER / "feature_ablation.json")
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    print(f"ABLATION ({variant}): baseline R²(log) {report['baseline_r2']:.4f} on "
+          f"{report['train_rows']:,} train rows / {report['val_rows']:,} val rows "
+          f"({report['seconds']} s)")
+    print(f"  {'dropped group':26s} {'R² without':>11s} {'ΔR²':>8s}  columns")
+    for row in report["groups"]:
+        delta = "  n/a" if row["delta_r2"] is None else f"{row['delta_r2']:+.4f}"
+        score = "n/a" if row["r2"] is None else f"{row['r2']:.4f}"
+        print(f"  {row['group']:26s} {score:>11s} {delta:>8s}  {', '.join(row['dropped'])}")
+    print(f"\n  wrote {path}")
+    print("  ΔR² > 0: the group earns its place · ΔR² ≈ 0: the model already has that information")
+    return report
+
+
+
 
 def build(variant: str, splits: tuple[str, ...] = SPLITS) -> dict:
     """Build the feature table(s); the statistics are always fitted on `train`."""
@@ -241,9 +370,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--features", choices=sorted(VARIANT_COLUMNS), default="full",
                         help="minimal = raw columns only; full = raw + derived and fitted features")
     parser.add_argument("--split", choices=(*SPLITS, "all"), default="all")
+    parser.add_argument("--ablate", action="store_true",
+                        help="drop one feature group at a time and report ΔR² (needs lightgbm)")
+    parser.add_argument("--ablate-rows", type=int, default=0,
+                        help="train rows for the ablation fits (default 0 = every row; a sample is only "
+                             "for a quick look — the small groups' deltas are inside the sampling noise)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    if args.ablate:
+        ablate(args.features, rows=args.ablate_rows)
+        return 0
     splits = SPLITS if args.split == "all" else ("train",) if args.split == "train" \
         else ("train", args.split)
     splits = tuple(dict.fromkeys(splits))          # the stats come from train, always
