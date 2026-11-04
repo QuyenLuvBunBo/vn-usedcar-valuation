@@ -22,4 +22,6 @@ joblib>=1.4               # persist the fitted preprocessor and the models
 # beautifulsoup4>=4.13    # soup-style HTML parsing (easier, slower than lxml)
 # httpx>=0.28             # HTTP client with async support
 # pyarrow>=21.0           # Parquet export
+numpy==2.3.5
+scipy==1.17.0
 
