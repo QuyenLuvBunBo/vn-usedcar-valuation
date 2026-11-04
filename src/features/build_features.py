@@ -249,13 +249,18 @@ def score_r2(train: pd.DataFrame, val: pd.DataFrame, columns: list[str], seed: i
 
 def ablate_tables(train: pd.DataFrame, val: pd.DataFrame, variant: str = "full",
                   groups: dict[str, tuple[str, ...]] | None = None,
-                  rows: int = 20_000, seed: int = 42) -> dict:
+                  rows: int = 0, seed: int = 42) -> dict:
     """Drop one feature group at a time and report what R² it was worth.
 
     `delta_r2 = baseline − without_group`, so a **positive** number means the group earns its place and
     a number near zero means the model already has that information from another column (which is what
-    `brand_age_band` vs `brand` is there to reveal). The fits use a sample of the train rows and a fixed
-    small booster: this is a diagnostic for report §4, not the benchmark table.
+    `brand_age_band` vs `brand` is there to reveal). The fits use a fixed small booster: this is a
+    diagnostic for report §4, not the benchmark table.
+
+    `rows=0` (the default) fits on all train rows on purpose. The deltas of the small groups are ~0.0005
+    while a single fit at 20 k rows moves ±0.0015, and at 20 k three groups even came out negative and
+    flipped positive once every row was used — sampling is only for a quick look, never for the number
+    that goes into the report.
     """
     groups = ABLATION_GROUPS if groups is None else groups
     columns = [*VARIANT_COLUMNS[variant]["categorical"], *VARIANT_COLUMNS[variant]["numeric"]]
@@ -286,7 +291,7 @@ def ablate_tables(train: pd.DataFrame, val: pd.DataFrame, variant: str = "full",
     }
 
 
-def ablate(variant: str = "full", rows: int = 20_000, out: Path | None = None) -> dict:
+def ablate(variant: str = "full", rows: int = 0, out: Path | None = None) -> dict:
     """Load the cohort, build the features, run the study, write `feature_ablation.json`."""
     train, val = load("train"), load("val")
     reference = capture_year(train)
@@ -367,8 +372,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--split", choices=(*SPLITS, "all"), default="all")
     parser.add_argument("--ablate", action="store_true",
                         help="drop one feature group at a time and report ΔR² (needs lightgbm)")
-    parser.add_argument("--ablate-rows", type=int, default=20_000,
-                        help="train rows sampled for the ablation fits (0 = all rows)")
+    parser.add_argument("--ablate-rows", type=int, default=0,
+                        help="train rows for the ablation fits (default 0 = every row; a sample is only "
+                             "for a quick look — the small groups' deltas are inside the sampling noise)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
