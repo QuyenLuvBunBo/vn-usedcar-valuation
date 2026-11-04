@@ -120,9 +120,27 @@ python -m src.features.pipeline --features full `
 
 | Output | Size | SHA256 |
 |---|---|---|
-| `models/preprocess.joblib` | 121.6 KB | `BE7B2C61B31F5C375675E58D9BA75E372932F12AD0EEC88D8BFD544843412BC3` |
 | `data/master/X_train_full_oof.npz` | 2.4 MB | `FA88F71A9AE33FA9EA6912FCB1EF4B50E5245897CC29122E200528B77D85E89B` |
 | `data/master/train_full_oof_rows.csv` | 3.8 MB | `CB694701A1F04A66F112161C52942A7F5F92177EB0A6E3C05BF417B71EDE3A62` |
+| `models/preprocess.joblib` | 121.6 KB | `3F344CC16D0E5BC4414A1105685BD8E7CAD17B9509EE1EFCD808F70DE91CE4E0` — caveat below |
+
+The two data files are path-independent: rebuild them in any folder and the hash holds. **The joblib is
+not**, because `build_metadata_` stores the paths it was fitted from
+(`training_source: data\master\train_features_full.csv`), so the same command run with absolute paths
+produces a different file with identical content — measured, and the reason that row changed between two
+runs. Compare it by loading it instead of hashing it:
+
+```python
+import joblib
+
+p = joblib.load("models/preprocess.joblib")
+assert len(p.get_feature_names_out()) == 67
+assert p.build_metadata_["training_sha256"].startswith("62bf8aa4")   # train_features_full.csv
+assert len(p.target_encoder_.fold_audit_) == 5                       # and group_overlap == 0 in each
+```
+
+Follow-up owed on `pipeline.py`: store the input *name* plus the hash in the metadata instead of the full
+path, and the artifact becomes machine-independent too.
 
 It must run against exactly these two inputs (their hashes are also written into
 `preprocess_metadata.json`, which the pipeline records by itself):
@@ -134,8 +152,9 @@ It must run against exactly these two inputs (their hashes are also written into
 
 Rules that follow:
 
-- **Default: rebuild.** One command, ~20 s. Compare the hash instead of trusting the file — matching
-  hashes prove the same code *and* the same data, while shipping a binary proves only the first.
+- **Default: rebuild.** One command, ~20 s. Compare the hash instead of trusting the file — a matching hash
+  proves the same code *and* the same data, while shipping a binary proves only the first. (For the joblib,
+  compare content as shown above, not the hash.)
 - **When the exact bytes are needed** (another OS or Python, or someone reproducing a number months
   later): Drive folder `04_models/<date>/` with its own `SHA256SUMS.txt`, same rules as §4. Never put it
   inside the data snapshot — a stale `.joblib` next to fresh CSVs is worse than no `.joblib`.
@@ -144,8 +163,9 @@ Rules that follow:
   unmergeable conflicts. The `--describe` output (`docs/features.md`) *is* text — review that instead.
 - `train_full_oof_rows.csv` carries `price_vnd` and `y_log`, i.e. the **target**. It is data: Drive only,
   and never concatenated into a model matrix.
-- The three hashes above are only valid for the code that produced them. They were measured on
-  `origin/preprocess` @ `183ebae` **before** that branch was merged, so regenerate and update this table
-  once it lands — an outdated hash table is worse than none, because nobody re-checks it.
+- The hashes above are only valid for the code that produced them. They were re-measured on `main`
+  `dd7f50c` (the merge of #7; `pipeline.py` there is byte-identical to `183ebae`), so they are current as of
+  2026-11-04 — regenerate this table whenever `pipeline.py` changes, because a stale hash nobody re-checks
+  is worse than none.
 
 
