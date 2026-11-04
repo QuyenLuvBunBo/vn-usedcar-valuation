@@ -55,10 +55,18 @@ def save_jsonl(records: Iterable[dict], name: str, append: bool = False) -> Path
     return path
 
 
-def save_csv(records: Sequence[dict], name: str, fieldnames: Sequence[str] | None = None) -> Path:
-    """Write CSV as UTF-8 with BOM so Excel opens Vietnamese text correctly."""
-    config.ensure_dirs()
-    path = config.DATA_PROCESSED / f"{name}.csv"
+def save_csv(records: Sequence[dict], name: str, fieldnames: Sequence[str] | None = None,
+             directory: Path | None = None) -> Path:
+    """Write CSV as UTF-8 with BOM so Excel opens Vietnamese text correctly.
+
+    Pass `directory` to write outside data/processed (the week-2 Master Dataset lives in data/master).
+    """
+    if directory is None:
+        config.ensure_dirs()
+        directory = config.DATA_PROCESSED
+    else:
+        directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{name}.csv"
     if not records:
         path.write_text("", encoding="utf-8-sig")
         return path

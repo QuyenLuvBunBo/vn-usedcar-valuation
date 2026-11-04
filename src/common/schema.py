@@ -1,7 +1,7 @@
 """THE TEAM'S DATA CONTRACT: the unified schema of 16 attributes + 5 metadata columns.
 
-Every source (oto.com.vn, bonbanh, chotot, carmudi, carpla, anycar) MUST export exactly these
-21 columns, with these names and these normalized value spellings:
+Every source (oto.com.vn, bonbanh, chotot, carmudi, carpla, muaban.net, tinbanxe.vn, vucar.vn) MUST
+export exactly these 21 columns, with these names and these normalized value spellings:
 
     - transmission : Automatic / Manual / Other
     - fuel_type    : Gasoline / Diesel / Hybrid / Electric / Unknown
@@ -31,12 +31,15 @@ SCHEMA_COLUMNS = ATTRIBUTE_COLUMNS + METADATA_COLUMNS
 NUMERIC_COLUMNS = ("manufacture_year", "mileage_km", "price_vnd", "engine_capacity", "seats")
 
 # Vietnamese source labels -> normalized English labels
-TRANSMISSION_MAP = {"số tự động": "Automatic", "số sàn": "Manual", "số hỗn hợp": "Other"}
+TRANSMISSION_MAP = {"số tự động": "Automatic", "số sàn": "Manual", "số hỗn hợp": "Other",
+                    "bán tự động": "Other", "số bán tự động": "Other"}
 TRANSMISSION_VALUES = {"Automatic", "Manual", "Other", "Unknown"}
 
 FUEL_MAP = {
     "máy xăng": "Gasoline", "xăng": "Gasoline", "máy dầu": "Diesel", "dầu": "Diesel",
     "hybrid": "Hybrid", "máy điện": "Electric", "điện": "Electric",
+    # the site's own "other" label (a few archive pages) carries no fuel information
+    "loại khác": "Unknown", "khác": "Unknown", "other": "Unknown",
 }
 FUEL_VALUES = {"Gasoline", "Diesel", "Hybrid", "Electric", "Unknown"}
 
@@ -65,6 +68,8 @@ BIG_CITY_NEEDLES = (
     ("sài gòn", "TP. Hồ Chí Minh"), ("hà nội", "Hà Nội"), ("đà nẵng", "Đà Nẵng"),
     ("hải phòng", "Hải Phòng"), ("cần thơ", "Cần Thơ"),
 )
+# Official province names that contain a dash: the "district - province" rule below must skip them.
+DASH_PROVINCES = {"bà rịa - vũng tàu", "bà rịa-vũng tàu", "thừa thiên - huế", "thừa thiên-huế"}
 
 NEGOTIABLE = ("thỏa thuận", "thương lượng", "liên hệ", "tl")
 INSTALMENT = ("trả góp", "góp", "/tháng", "mỗi tháng")
@@ -119,6 +124,14 @@ def normalize_province(raw: str | None, city_code: str = "") -> str:
     for needle, name in BIG_CITY_NEEDLES:
         if needle in key:
             return name
+    # Listing cards print the district first ("Khoái Châu - Hưng Yên", "Đồng Xoài - Bình Phước").
+    # This column is the province: keeping the district splits one market into 20+ values and makes the
+    # dedupe key needlessly fine. Provinces whose real name has a dash are excluded above.
+    if " - " in key and key not in DASH_PROVINCES:
+        # take the tail from the raw value so the province keeps its original casing ("Hưng Yên")
+        tail = re.split(r"\s+-\s+", str(raw).strip())[-1]
+        if tail and _norm(tail) != key:
+            return normalize_province(tail, city_code)
     if raw and raw.strip():
         return raw.strip()
     return CITY_CODE_MAP.get((city_code or "").upper(), "Unknown")
