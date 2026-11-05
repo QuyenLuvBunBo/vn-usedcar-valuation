@@ -33,11 +33,20 @@ logs/*
 *.log
 .ckpt.json
 
-# Mô hình đã huấn luyện (tuần 3): nhị phân, sinh lại được bằng lệnh, chia sẻ qua Drive
+# Mô hình & artifact dẫn xuất của preprocessing (tuần 3):
+# nhị phân, sinh lại được bằng một lệnh, chia sẻ qua Drive — repo đang PUBLIC nên
+# mọi thứ commit vào đây là công khai vĩnh viễn trong lịch sử git.
 models/
 *.joblib
 *.pkl
 *.cbm
+
+# Ma trận OOF và bảng dòng kèm target: `train_*_oof_rows.csv` chứa price_vnd/y_log
+# (target) + listing_id, nên tuyệt đối không commit. Xem docs/data_handover.md §5.
+encoded/
+*.npz
+*_oof_rows.csv
+
 
 # Editor / OS
 .vscode/

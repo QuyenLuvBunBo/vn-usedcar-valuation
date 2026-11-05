@@ -11,6 +11,7 @@ Goal: nine members, eight data sources, merging each other's work **without conf
 | `feat/week2-merge`, `feat/week3-model`, `feat/week4-app` | sub-teams | later weeks |
 
 Rules: branch off an up-to-date `main`; keep pull requests small (1–3 days); never let a branch live for weeks.
+Never reuse the name of a branch that has already been merged: one pull request, one new branch (`gh pr merge --delete-branch`), otherwise `git log <branch>` stops describing a single change.
 
 ```bash
 git checkout main
@@ -26,6 +27,15 @@ git push -u origin feat/source-bonbanh-new
 - Short subject with a prefix: `feat:`, `fix:`, `data:`, `docs:`, `refactor:`, `test:`
 - Examples: `feat: bonbanh crawler (cars 2019-2026)`, `fix: parse price '1 tỷ 250 tr'`
 - Do not commit large data files or `.env`.
+- **Never commit derived data or fitted artifacts.** `data/master/**`, `encoded/**`, `models/**`,
+  `*.npz`, `*.joblib`, `*_oof_rows.csv` are rebuilt by one command (`docs/data_handover.md` §5) and
+  `train_*_oof_rows.csv` also carries the target (`price_vnd`, `y_log`). The repository is **public**:
+  a committed dataset stays in history forever, even after a later `git rm`. Share artifacts through
+  the Drive folder `04_models/<date>/`, and commit only the text evidence (`features.md`,
+  `artifact_verification.json`, `artifact_reproducibility.json`, test logs).
+- Evidence must name a commit that exists on GitHub. If a tool records `git rev-parse HEAD`, commit
+  first and run it on that commit, or the recorded hash is unverifiable for everyone else.
+
 
 ## 3. File ownership — how we avoid conflicts
 
