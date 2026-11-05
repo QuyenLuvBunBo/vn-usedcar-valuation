@@ -1,6 +1,7 @@
 {
   "python_version": "3.12.14",
   "source_commit": "20f94cca5b165a8c17cafa668890f28382f097eb",
+  "source_commit_note": "Local commit that was never published. This file records the measured environment; it is not provenance for the current tree - see docs/data_handover.md section 5.",
   "requirements": {
     "requests": {
       "installed": "2.34.2",
