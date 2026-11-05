@@ -90,7 +90,7 @@ python -c "import pandas as pd; [print(f, len(pd.read_csv('data/master/'+f, low_
 
 # 3. the gates must still pass
 python -m tools.audit_master          # PROBLEMS: 0
-python -m unittest discover -s tests  # 130 tests, OK
+python -m unittest discover -s tests  # require the full run to finish with OK
 ```
 
 Expected row counts: **70,244 / 14,964 / 14,980**, 26 columns. If a number differs, the file is stale —
@@ -105,67 +105,102 @@ datasets, which is exactly what `CONTRIBUTING.md` §3b exists to prevent.
 
 ## 5. Artifacts that git ignores — rebuild and compare the hash, do not ship the binary
 
-`.gitignore` ignores `models/`, `*.joblib` and everything under `data/master/`. They are derived: a joblib
-is a pickle of custom classes, and an encoded matrix is data, not code. So the fitted preprocessor that T2
-loads **cannot travel through git** — and the answer is not `git add -f`.
+`models/`, `*.joblib`, and generated files under `data/master/` are ignored by git.
+Rebuild derived artifacts from the frozen inputs; never force-add the binaries.
 
-The rebuild is deterministic, so the artifact does not have to travel at all. Measured on 2026-11-04 with
-Python 3.14.8 / scikit-learn 1.9.1 / pandas 3.0.3 / numpy 2.4.6 / scipy 1.17.1 / joblib 1.6.0: two
-independent runs produced byte-identical files.
+### Current verification status (2026-11-05)
 
-```powershell
-python -m src.features.pipeline --features full `
+PR #9 changed both source metadata fields to basenames. The joblib is now
+**independent of input directory paths** when input bytes and filenames,
+configuration, code, Python, and dependency versions match. This does not imply
+byte-identical serialization across operating systems or different runtimes.
+
+The stale pre-PR-9 67-feature output hashes have been removed. **The final
+67-feature real-data hashes are pending:** the original training cohort was not
+available for this correction. The currently verified configuration is
+**59 features / aggregate_only**, without the cohort. It is not the final handoff.
+
+Two fresh-process builds of the available 70,244-row frozen feature CSV, in
+separate temporary directories with relative versus absolute input paths and
+different Python hash seeds, produced identical bytes for all five output files.
+The independent verifier checked every OOF target encoding in both runs.
+
+Measured source: commit `2aa4af7cd23ca40a6ba055ec69e3d6d015d6bf13` (correction based on
+`52a6da6`). Documentation edits were uncommitted during measurement; the pipeline
+and checker code were committed. Pipeline SHA256:
+`186550702F237EAEAF61D5FEC017C3EEA369535C1E98999B3C0A4FD02CD8C2FA`.
+
+Runtime: Python 3.12.14 / scikit-learn 1.8.0 / pandas 2.2.3 / NumPy 2.3.5 /
+SciPy 1.17.0 / joblib 1.5.3. Full machine-readable evidence, including metadata
+and feature-name hashes: [artifact_reproducibility.json](artifact_reproducibility.json).
+
+The following hashes apply **only to the 59-feature aggregate_only build**.
+The checker writes matrices to temporary `encoded/` directories; names below
+use the ordinary pipeline output layout.
+
+| Output | Size (bytes) | SHA256 |
+| --- | ---: | --- |
+| `models/preprocess.joblib` | 124780 | `EF58DF467BCAB7BE7E04E03C2486BF017D3D408F5ECE162D0CBA2E9F926B2D4D` |
+| `data/master/X_train_full_oof.npz` | 2379676 | `A32E0F7E84B1231CC1C71B0BD0F5BC36B4E1CC23F41E605E73FF22C29A907041` |
+| `data/master/train_full_oof_rows.csv` | 3866796 | `05E1F9F2BE7B27AE8BDE6DC2C62117D7530217BB1D1033733282FB64DC876DB5` |
+
+### Finish the 67-feature reference build
+
+Use exactly these frozen input files. The feature hash was rechecked locally;
+the cohort hash remains the team's existing reference, not a new measurement.
+
+| Input | SHA256 |
+| --- | --- |
+| `data/master/train_features_full.csv` | `62BF8AA4082A6D338337434524EEA22CBE7E9E596CB3F5690ABDB8C868920450` |
+| `data/master/train_cohort_imputed.csv` | `8C6138495676C4DCF308B09BAC30F34C807FD8011B02EEFC1BBFC0AC0DD07427` |
+
+With both files present, run from the repository root:
+
+```bash
+python -m src.features.pipeline --features full \
   --cohort data/master/train_cohort_imputed.csv --require-imputed --describe
+python -m tools.verify_phuong --cohort data/master/train_cohort_imputed.csv
+python -m tools.check_preprocess_reproducibility \
+  --cohort data/master/train_cohort_imputed.csv --expected-features 67
 ```
 
-| Output | Size | SHA256 |
-|---|---|---|
-| `data/master/X_train_full_oof.npz` | 2.4 MB | `FA88F71A9AE33FA9EA6912FCB1EF4B50E5245897CC29122E200528B77D85E89B` |
-| `data/master/train_full_oof_rows.csv` | 3.8 MB | `CB694701A1F04A66F112161C52942A7F5F92177EB0A6E3C05BF417B71EDE3A62` |
-| `models/preprocess.joblib` | 121.6 KB | `3F344CC16D0E5BC4414A1105685BD8E7CAD17B9509EE1EFCD808F70DE91CE4E0` — caveat below |
+The checker copies frozen inputs into two temporary directories, uses separate
+Python processes, checks OOF values independently, and fails if any output hash
+differs. It writes a success report only after both builds match; a failed run
+does not refresh any earlier report. It never writes to `data/master/`.
+After success, replace the table above with the **67-feature** hashes and record
+the new source commit, date, and all runtime versions. Commit the regenerated
+feature documentation, independent verification, and reproducibility report.
 
-The two data files are path-independent: rebuild them in any folder and the hash holds. **The joblib is
-not**, because `build_metadata_` stores the paths it was fitted from
-(`training_source: data\master\train_features_full.csv`), so the same command run with absolute paths
-produces a different file with identical content — measured, and the reason that row changed between two
-runs. Compare it by loading it instead of hashing it:
+### Compare artifacts correctly
+
+With the same environment, compare hashes for the same feature configuration.
+When OS/Python/dependency versions differ, hash differences alone do not establish
+a bug. Rebuild in the target environment and compare loaded metadata, feature
+names, folds, and numerical outputs. Do not assume cross-version joblib loading
+is supported; use the recorded build environment to inspect an older artifact.
+
+For the **final 67-feature handoff**, retain these sanity checks (they do not by
+themselves prove complete artifact equivalence):
 
 ```python
 import joblib
 
 p = joblib.load("models/preprocess.joblib")
 assert len(p.get_feature_names_out()) == 67
-assert p.build_metadata_["training_sha256"].startswith("62bf8aa4")   # train_features_full.csv
-assert len(p.target_encoder_.fold_audit_) == 5                       # and group_overlap == 0 in each
+assert p.build_metadata_["training_sha256"].startswith("62bf8aa4")
+assert len(p.target_encoder_.fold_audit_) == 5
+assert all(f["group_overlap"] == 0 for f in p.target_encoder_.fold_audit_)
+assert p.build_metadata_["training_source"] == "train_features_full.csv"
+assert p.build_metadata_["cohort_source"] == "train_cohort_imputed.csv"
 ```
 
-Follow-up owed on `pipeline.py`: store the input *name* plus the hash in the metadata instead of the full
-path, and the artifact becomes machine-independent too.
-
-It must run against exactly these two inputs (their hashes are also written into
-`preprocess_metadata.json`, which the pipeline records by itself):
-
-| Input | SHA256 |
-|---|---|
-| `data/master/train_features_full.csv` | `62BF8AA4082A6D338337434524EEA22CBE7E9E596CB3F5690ABDB8C868920450` |
-| `data/master/train_cohort_imputed.csv` | `8C6138495676C4DCF308B09BAC30F34C807FD8011B02EEFC1BBFC0AC0DD07427` |
-
-Rules that follow:
-
-- **Default: rebuild.** One command, ~20 s. Compare the hash instead of trusting the file — a matching hash
-  proves the same code *and* the same data, while shipping a binary proves only the first. (For the joblib,
-  compare content as shown above, not the hash.)
-- **When the exact bytes are needed** (another OS or Python, or someone reproducing a number months
-  later): Drive folder `04_models/<date>/` with its own `SHA256SUMS.txt`, same rules as §4. Never put it
-  inside the data snapshot — a stale `.joblib` next to fresh CSVs is worse than no `.joblib`.
-- **Never `git add -f` a `.joblib`.** Not a size argument (122 KB): a pickle of custom classes breaks
-  silently when scikit-learn moves, it cannot be reviewed in a diff, and two people re-fitting it produce
-  unmergeable conflicts. The `--describe` output (`docs/features.md`) *is* text — review that instead.
-- `train_full_oof_rows.csv` carries `price_vnd` and `y_log`, i.e. the **target**. It is data: Drive only,
-  and never concatenated into a model matrix.
-- The hashes above are only valid for the code that produced them. They were re-measured on `main`
-  `dd7f50c` (the merge of #7; `pipeline.py` there is byte-identical to `183ebae`), so they are current as of
-  2026-11-04 — regenerate this table whenever `pipeline.py` changes, because a stale hash nobody re-checks
-  is worse than none.
-
-
+- Rebuild by default. Matching output hashes establish matching bytes, not proof
+  of source-code or data provenance; keep input hashes and the source commit too.
+- If exact artifacts must be archived, use `04_models/<date>/` on Drive with a
+  separate `SHA256SUMS.txt` and recorded runtime. Never mix them into the frozen
+  input snapshot or commit them with `git add -f`.
+- `train_full_oof_rows.csv` contains targets and identifiers; never concatenate
+  it into the model feature matrix.
+- This section is the single documentation source for reference hashes. Other
+  documents link here. Remeasure after code, inputs, settings, or runtime change.

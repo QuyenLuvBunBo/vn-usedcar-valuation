@@ -347,10 +347,21 @@ class CarPreprocessor(TransformerMixin, BaseEstimator):
             "the assignment. Use --cohort data/master/train_cohort_imputed.csv "
             "--require-imputed to rebuild the complete artifact."
         )
+        rebuild = f"python -m src.features.pipeline --features {self.variant}"
+        if self.missing_mode_ == "per_column":
+            rebuild += " --cohort data/master/train_cohort_imputed.csv --require-imputed"
+        if self.include_frozen_price_stats:
+            rebuild += " --include-frozen-price-stats"
+        rebuild += " --describe"
         lines = [
             "# Feature preprocessing", "",
             f"Variant: **{self.variant}**. Fitted on **{self.training_rows_:,} training rows**; "
             f"output: **{len(self.feature_names_out_)} features**, SciPy CSR matrix.", "",
+            f"Configuration: **{self.missing_mode_}**; optional price statistics: "
+            f"**{'included' if self.include_frozen_price_stats else 'excluded'}**. "
+            "For the frozen default full dataset, aggregate_only gives 59 = 67 minus "
+            "eight per-column imputation flags. The final 67-feature handoff requires "
+            "the original cohort; see [Feature count](../README_preprocess.md#feature-count-67-or-69).", "",
             "## Inputs and transformations", "",
             "Inputs are the engineered feature tables from build_features.py, not raw listings. "
             "price_vnd and identifiers are never emitted as model features. duplicate_group_id "
@@ -411,7 +422,7 @@ class CarPreprocessor(TransformerMixin, BaseEstimator):
             "upstream steps inside each outer fold. Encoder tests establish this module's boundary, "
             "not a blanket proof that all upstream features are leakage-free.", "",
             "## Reproducibility and handoff", "",
-            f"Run `python -m src.features.pipeline --features {self.variant} --describe`. "
+            f"Run `{rebuild}`. "
             "The CLI saves models/preprocess.joblib, models/preprocess_metadata.json, "
             f"models/feature_names.json, data/master/X_train_{self.variant}_oof.npz, and aligned "
             f"data/master/train_{self.variant}_oof_rows.csv. The row file includes the target, IDs, and fold "

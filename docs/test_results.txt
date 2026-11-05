@@ -1,22 +1,41 @@
-test_age_order_and_unknown (test_features.FeatureTests.test_age_order_and_unknown) ... ok
-test_all_missing_numeric_rejected (test_features.FeatureTests.test_all_missing_numeric_rejected) ... ok
-test_current_missingness_independent_from_imputed_history (test_features.FeatureTests.test_current_missingness_independent_from_imputed_history) ... ok
-test_description_reports_actual_mode_and_fold_audit (test_features.FeatureTests.test_description_reports_actual_mode_and_fold_audit) ... ok
-test_duplicate_group_never_crosses_fold (test_features.FeatureTests.test_duplicate_group_never_crosses_fold) ... ok
-test_encoder_rejects_absent_or_blank_groups (test_features.FeatureTests.test_encoder_rejects_absent_or_blank_groups) ... ok
-test_flags_do_not_invent_history_from_count (test_features.FeatureTests.test_flags_do_not_invent_history_from_count) ... ok
-test_heldout_targets_cannot_change_their_own_encodings (test_features.FeatureTests.test_heldout_targets_cannot_change_their_own_encodings) ... ok
-test_integer_group_optimization_preserves_fold_assignments (test_features.FeatureTests.test_integer_group_optimization_preserves_fold_assignments) ... ok
-test_internal_unknown_uses_fold_mean_not_full_mean (test_features.FeatureTests.test_internal_unknown_uses_fold_mean_not_full_mean) ... ok
-test_joblib_roundtrip (test_features.FeatureTests.test_joblib_roundtrip) ... ok
-test_join_rejects_duplicate_or_missing_listing (test_features.FeatureTests.test_join_rejects_duplicate_or_missing_listing) ... ok
-test_join_uses_listing_id_not_position (test_features.FeatureTests.test_join_uses_listing_id_not_position) ... ok
-test_minimal_variant (test_features.FeatureTests.test_minimal_variant) ... ok
-test_missing_required_column_and_infinity_rejected (test_features.FeatureTests.test_missing_required_column_and_infinity_rejected) ... ok
-test_onehot_cutoff_40_vs_41 (test_features.FeatureTests.test_onehot_cutoff_40_vs_41) ... ok
-test_pair_keys_do_not_collide_on_separator (test_features.FeatureTests.test_pair_keys_do_not_collide_on_separator) ... ok
-test_per_column_flags_and_count_validation (test_features.FeatureTests.test_per_column_flags_and_count_validation) ... ok
-test_price_stats_excluded_by_default (test_features.FeatureTests.test_price_stats_excluded_by_default) ... ok
-test_price_stats_explicit_opt_in (test_features.FeatureTests.test_price_stats_explicit_opt_in) ... ok
-test_series_target_alignment_enforced (test_features.FeatureTests.test_series_target_alignment_enforced) ... ok
-test_sklearn_clone_and_model_pipeline (test_features.FeatureTests.test_sklearn_clone_and_model_pipeline) ... 
+Run date (UTC): 2026-11-05T05:28:06.028423+00:00
+Source commit: 2aa4af7cd23ca40a6ba055ec69e3d6d015d6bf13
+Python: 3.12.14
+Dependencies: sklearn=1.8.0, numpy=2.3.5, pandas=2.2.3, scipy=1.17.0, joblib=1.5.3
+Command: python -m unittest tests.test_features -v
+Scope: synthetic regression fixtures; not a frozen-cohort artifact verification.
+
+test_age_order_and_unknown (tests.test_features.FeatureTests.test_age_order_and_unknown) ... ok
+test_all_missing_numeric_rejected (tests.test_features.FeatureTests.test_all_missing_numeric_rejected) ... ok
+test_current_missingness_independent_from_imputed_history (tests.test_features.FeatureTests.test_current_missingness_independent_from_imputed_history) ... ok
+test_description_reports_actual_mode_and_fold_audit (tests.test_features.FeatureTests.test_description_reports_actual_mode_and_fold_audit) ... ok
+test_duplicate_group_never_crosses_fold (tests.test_features.FeatureTests.test_duplicate_group_never_crosses_fold) ... ok
+test_encoder_rejects_absent_or_blank_groups (tests.test_features.FeatureTests.test_encoder_rejects_absent_or_blank_groups) ... ok
+test_flags_do_not_invent_history_from_count (tests.test_features.FeatureTests.test_flags_do_not_invent_history_from_count) ... ok
+test_heldout_targets_cannot_change_their_own_encodings (tests.test_features.FeatureTests.test_heldout_targets_cannot_change_their_own_encodings) ... ok
+test_integer_group_optimization_preserves_fold_assignments (tests.test_features.FeatureTests.test_integer_group_optimization_preserves_fold_assignments) ... ok
+test_internal_unknown_uses_fold_mean_not_full_mean (tests.test_features.FeatureTests.test_internal_unknown_uses_fold_mean_not_full_mean) ... ok
+test_joblib_roundtrip (tests.test_features.FeatureTests.test_joblib_roundtrip) ... ok
+test_join_rejects_duplicate_or_missing_listing (tests.test_features.FeatureTests.test_join_rejects_duplicate_or_missing_listing) ... ok
+test_join_uses_listing_id_not_position (tests.test_features.FeatureTests.test_join_uses_listing_id_not_position) ... ok
+test_metadata_records_basename_not_path (tests.test_features.FeatureTests.test_metadata_records_basename_not_path) ... ok
+test_minimal_variant (tests.test_features.FeatureTests.test_minimal_variant) ... ok
+test_missing_required_column_and_infinity_rejected (tests.test_features.FeatureTests.test_missing_required_column_and_infinity_rejected) ... ok
+test_onehot_cutoff_40_vs_41 (tests.test_features.FeatureTests.test_onehot_cutoff_40_vs_41) ... ok
+test_pair_keys_do_not_collide_on_separator (tests.test_features.FeatureTests.test_pair_keys_do_not_collide_on_separator) ... ok
+test_per_column_flags_and_count_validation (tests.test_features.FeatureTests.test_per_column_flags_and_count_validation) ... ok
+test_price_stats_excluded_by_default (tests.test_features.FeatureTests.test_price_stats_excluded_by_default) ... ok
+test_price_stats_explicit_opt_in (tests.test_features.FeatureTests.test_price_stats_explicit_opt_in) ... ok
+test_price_stats_opt_in_drops_missing_indicators (tests.test_features.FeatureTests.test_price_stats_opt_in_drops_missing_indicators) ... ok
+test_series_target_alignment_enforced (tests.test_features.FeatureTests.test_series_target_alignment_enforced) ... ok
+test_sklearn_clone_and_model_pipeline (tests.test_features.FeatureTests.test_sklearn_clone_and_model_pipeline) ... ok
+test_smoothing_formula (tests.test_features.FeatureTests.test_smoothing_formula) ... ok
+test_target_and_ids_are_not_features (tests.test_features.FeatureTests.test_target_and_ids_are_not_features) ... ok
+test_transform_does_not_learn_validation_categories_or_stats (tests.test_features.FeatureTests.test_transform_does_not_learn_validation_categories_or_stats) ... ok
+test_unknown_onehot_zero_and_frequency_zero (tests.test_features.FeatureTests.test_unknown_onehot_zero_and_frequency_zero) ... ok
+test_unseen_pair_gets_global_training_mean (tests.test_features.FeatureTests.test_unseen_pair_gets_global_training_mean) ... ok
+
+----------------------------------------------------------------------
+Ran 29 tests in 2.951s
+
+OK

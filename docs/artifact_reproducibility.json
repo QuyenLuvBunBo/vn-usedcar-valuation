@@ -1,0 +1,48 @@
+{
+  "measured_at_utc": "2026-11-05T05:27:10.061331+00:00",
+  "source_commit": "2aa4af7cd23ca40a6ba055ec69e3d6d015d6bf13",
+  "working_tree_dirty": true,
+  "pipeline_sha256": "186550702F237EAEAF61D5FEC017C3EEA369535C1E98999B3C0A4FD02CD8C2FA",
+  "python_version": "3.12.14",
+  "versions": {
+    "scikit-learn": "1.8.0",
+    "numpy": "2.3.5",
+    "pandas": "2.2.3",
+    "scipy": "1.17.0",
+    "joblib": "1.5.3"
+  },
+  "input_files": {
+    "train_features_full.csv": {
+      "size_bytes": 14489727,
+      "sha256": "62BF8AA4082A6D338337434524EEA22CBE7E9E596CB3F5690ABDB8C868920450"
+    }
+  },
+  "missing_mode": "aggregate_only",
+  "output_features": 59,
+  "independent_runs": 2,
+  "relative_and_absolute_input_paths": true,
+  "all_output_hashes_match": true,
+  "independent_oof_verification_passed_each_run": true,
+  "outputs": {
+    "models/preprocess.joblib": {
+      "size_bytes": 124780,
+      "sha256": "EF58DF467BCAB7BE7E04E03C2486BF017D3D408F5ECE162D0CBA2E9F926B2D4D"
+    },
+    "models/preprocess_metadata.json": {
+      "size_bytes": 1813,
+      "sha256": "345302FFD95B1449ED26400652294EDCE48A17B1BB2F627F830C030FB602404D"
+    },
+    "models/feature_names.json": {
+      "size_bytes": 1813,
+      "sha256": "362627CCFE839670B42DE46753AC17A03EC910913832406C94BBD31849972BFD"
+    },
+    "encoded/X_train_full_oof.npz": {
+      "size_bytes": 2379676,
+      "sha256": "A32E0F7E84B1231CC1C71B0BD0F5BC36B4E1CC23F41E605E73FF22C29A907041"
+    },
+    "encoded/train_full_oof_rows.csv": {
+      "size_bytes": 3866796,
+      "sha256": "05E1F9F2BE7B27AE8BDE6DC2C62117D7530217BB1D1033733282FB64DC876DB5"
+    }
+  }
+}

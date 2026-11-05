@@ -5,12 +5,13 @@ The preprocessing implementation from PR #7 is retained. Use
 
 ## Runtime and dependencies
 
-The reviewer reports 27 passing original tests on Python 3.14.8 and scikit-learn
-1.9.1, with NumPy 2.4.6 and SciPy 1.17.1. The original package was built on Python
-3.12.14 and scikit-learn 1.8.0; that describes its build environment, not a project
-Python requirement. Use the same scikit-learn version for building and loading
-an artifact. This is necessary but not a guarantee of compatibility with every
-other dependency; full versions are recorded in preprocess_metadata.json.
+The current regression run passes **29 tests** (27 original tests plus two
+regression tests for price-statistic indicators and path-independent metadata).
+See [the complete dated test log](docs/test_results.txt) for the measured runtime.
+Building and loading should use the same Python and dependency versions; the
+full environment is recorded in `preprocess_metadata.json`. The pipeline uses
+`GroupKFold(shuffle=True)`, which requires scikit-learn 1.6 or newer, even though
+the repository's broad requirements currently allow 1.5.
 
 Use the repository's existing `requirements.txt`. This update does not change
 dependencies or require an additional requirements file.
@@ -77,16 +78,25 @@ field. Moving identical input files, with the same filenames, between directorie
 therefore does not change the embedded metadata. Use the same data, settings,
 Python and dependency versions when comparing complete artifact hashes.
 
-After the final default build, print the three full SHA256 hashes:
+Artifact hashes and their verification status have one documentation source:
+[data handover §5](docs/data_handover.md#5-artifacts-that-git-ignores--rebuild-and-compare-the-hash-do-not-ship-the-binary).
+The checked-in feature description and independent verification currently cover
+**59 features / aggregate_only**. The original cohort is still needed to measure
+the final **67-feature** artifact; the stale pre-PR-9 hashes have been removed.
+
+With both frozen inputs present, verify two independent builds without changing
+`data/master/` or your existing model artifacts:
 
 ```bash
-python -c "from pathlib import Path; import hashlib; paths=['models/preprocess.joblib','data/master/X_train_full_oof.npz','data/master/train_full_oof_rows.csv']; print('\n'.join(p+'  '+hashlib.sha256(Path(p).read_bytes()).hexdigest().upper() for p in paths))"
+python -m tools.check_preprocess_reproducibility \
+    --cohort data/master/train_cohort_imputed.csv --expected-features 67
 ```
 
-Paste that output here after rebuilding in the repository environment. The
-supplied reference fingerprints are NPZ `FA88F71A...5E89B` and rows
-`CB694701...ED6A`; full reference hashes were not supplied. No final hashes are
-claimed here because the original training cohort was not available for this update.
+The check uses separate temporary directories and fresh Python processes, varies
+relative/absolute input paths, independently verifies OOF values in both builds,
+and writes `docs/artifact_reproducibility.json` only after all hashes match.
+Copy the resulting hashes and environment into data handover §5, then regenerate
+`docs/features.md` and `docs/artifact_verification.json` with the final build.
 
 ## Inference requires the imputation history
 
