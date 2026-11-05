@@ -1,0 +1,20 @@
+{
+  "training_rows": 70244,
+  "duplicate_groups": 52417,
+  "output_features": 59,
+  "stored_matrix_finite": true,
+  "row_order_matches_input": true,
+  "data_hash_matches": true,
+  "all_folds_group_disjoint": true,
+  "oof_values_independently_verified_rows": 70244,
+  "max_absolute_oof_error": 6.039613253960852e-14,
+  "fresh_process_joblib_load": true,
+  "importable_class_module": "src.features.pipeline",
+  "unknown_pair_fallback": "training global log-target mean",
+  "transform_does_not_mutate_fitted_state": true,
+  "empty_input_supported": true,
+  "validation_evaluated": false,
+  "test_evaluated": false,
+  "missing_flags_mode": "aggregate_only",
+  "remaining_input": "original listing_id,imputed from training cohort"
+}

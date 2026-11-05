@@ -287,7 +287,7 @@ class CarPreprocessor(TransformerMixin, BaseEstimator):
 
     def _names(self):
         names = [f"numeric__{c}" for c in self.numeric_]
-        names += [f"missing_now__{c}" for c in self.numeric_]
+        names += [f"missing_now__{c}" for c in self.numeric_ if c not in PRICE_STATS]
         if self.onehot_ is not None:
             names += [f"onehot__{c}" for c in self.onehot_.get_feature_names_out()]
         names += [f"frequency__{c}" for c in self.frequency_columns_]
@@ -306,7 +306,8 @@ class CarPreprocessor(TransformerMixin, BaseEstimator):
             return sparse.csr_matrix((0, len(self.feature_names_out_)))
         numbers, cats = self._numeric(X), self._cats(X)
         blocks = [sparse.csr_matrix(self.scaler_.transform(self.imputer_.transform(numbers))),
-                  sparse.csr_matrix(numbers.isna().to_numpy(dtype=float))]
+                  sparse.csr_matrix(numbers[[c for c in self.numeric_ if c not in PRICE_STATS]]
+                                    .isna().to_numpy(dtype=float))]
         if self.onehot_ is not None:
             blocks.append(self.onehot_.transform(cats[self.onehot_columns_]))
         if self.frequency_columns_:
@@ -356,7 +357,7 @@ class CarPreprocessor(TransformerMixin, BaseEstimator):
             "is used only to construct internal folds. Extra columns are ignored by a whitelist.", "",
             "Numeric columns: " + ", ".join(f"`{c}`" for c in self.numeric_) + ". "
             "Remaining missing values use train medians, followed by StandardScaler. "
-            "A fixed current-missingness indicator is emitted for every numeric column. "
+            "Current-missingness indicators cover numeric columns except the two optional price statistics. "
             "Entirely missing training numeric columns cause an error instead of a zero fill.", "",
             f"One-hot routing uses training cardinality only, including the missing token, "
             f"with cutoff <= {self.max_onehot}. Higher-cardinality fields use train-relative "
@@ -365,6 +366,19 @@ class CarPreprocessor(TransformerMixin, BaseEstimator):
             "| Column | Training cardinality | Encoding |", "| --- | ---: | --- |", *rows, "",
             "Age order: 0-2 = 0, 3-5 = 1, 6-9 = 2, 10-14 = 3, 15+ = 4; unknown/missing = -1. "
             "Unknown one-hot categories produce an all-zero block.", "",
+            "## Frozen feature configurations", "",
+            "For the frozen full dataset with all eight imputation-history flags, the default "
+            "configuration has **67 features**, excluding brand_retention_rate and province_price_index. "
+            "Pass --include-frozen-price-stats to retain both numeric statistics for **69 features**. "
+            "They add two scaled values without extra missingness indicators. These counts apply to "
+            "the frozen dataset; categorical cardinality changes can change the output width.", "",
+            "Report section 5 must identify 67/default or 69/with-price-stats for every experiment. "
+            "Do not combine --ablate or model_gate results from the 69-feature setting with "
+            "67-feature model results without labelling the difference.", "",
+            "## Inference", "",
+            "Before inference, call attach_imputed(val, val_cohort_imputed) before transform. "
+            "A per-column artifact intentionally rejects feature tables that omit imputed. "
+            "Keep all eight flags; do not rebuild with aggregate_only to bypass this error.", "",
             "## Grouped target encoding", "",
             f"Target is log1p(price_vnd). For each brand/model pair, encoding = "
             f"(sum of y_log + {self.smoothing:g} * training mean y_log) / "
@@ -453,7 +467,7 @@ def main(argv=None):
     y_log = np.log1p(price)
     X_oof = preprocess.fit_transform(train, y_log)
     metadata = {
-        "training_source": str(source), "training_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "training_source": Path(source).name, "training_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "training_rows": len(train), "variant": args.features, "output_features": X_oof.shape[1],
         "target": "log1p(price_vnd)", "missing_mode": preprocess.missing_mode_,
         "per_column_imputation_requirement_complete": preprocess.missing_mode_ == "per_column",
@@ -461,7 +475,7 @@ def main(argv=None):
         "seed": args.seed, "folds": preprocess.target_encoder_.fold_audit_,
         "versions": preprocess.versions_, "validation_evaluated": False, "test_evaluated": False,
         "python_version": platform.python_version(),
-        "cohort_source": str(args.cohort) if args.cohort else None,
+        "cohort_source": Path(args.cohort).name if args.cohort else None,
         "cohort_sha256": hashlib.sha256(args.cohort.read_bytes()).hexdigest() if args.cohort else None,
     }
     preprocess.build_metadata_ = metadata
