@@ -1,5 +1,10 @@
 """Run: python -m unittest discover -s tests -p 'test_features.py' -v."""
 import tempfile
+import hashlib
+import json
+import os
+import subprocess
+import sys
 import unittest
 import warnings
 from pathlib import Path
@@ -13,7 +18,7 @@ from sklearn.model_selection import GroupKFold
 from sklearn.pipeline import Pipeline
 
 from src.features.pipeline import (
-    AGE_ORDER, FULL_CAT, FULL_NUM, CarPreprocessor, GroupTargetEncoder, attach_imputed,
+    AGE_ORDER, FULL_CAT, FULL_NUM, PRICE_STATS, CarPreprocessor, GroupTargetEncoder, attach_imputed,
 )
 
 
@@ -153,6 +158,80 @@ class FeatureTests(unittest.TestCase):
         self.assertIn("brand_retention_rate", p.numeric_)
         self.assertIn("province_price_index", p.numeric_)
 
+    def test_price_stats_opt_in_drops_missing_indicators(self):
+        # Match the frozen dataset's encoding routes without using private data.
+        X = self.X.assign(imputed="")
+        cardinalities = {"brand": 41, "model": 41, "model_group": 41,
+                         "transmission": 3, "fuel_type": 4, "origin": 2,
+                         "body_type": 14, "seller_type": 2, "source_platform": 8,
+                         "province_group": 41, "brand_age_band": 41,
+                         "is_luxury_segment": 2}
+        for column, count in cardinalities.items():
+            X[column] = [f"{column}-{i % count}" for i in range(len(X))]
+        for per_column, expected in [(False, 59), (True, 67)]:
+            with self.subTest(per_column=per_column):
+                frame = X if per_column else X.drop(columns="imputed")
+                default = CarPreprocessor().fit(frame, self.y)
+                opted_in = CarPreprocessor(include_frozen_price_stats=True).fit(frame, self.y)
+                names = opted_in.get_feature_names_out().tolist()
+                self.assertEqual(len(default.get_feature_names_out()), expected)
+                self.assertEqual(len(names), expected + 2)
+                for column in PRICE_STATS:
+                    self.assertIn(f"numeric__{column}", names)
+                    self.assertNotIn(f"missing_now__{column}", names)
+                probe = frame.copy()
+                probe.loc[0, PRICE_STATS] = np.nan
+                matrix = opted_in.transform(probe)
+                self.assertEqual(matrix.shape, (len(frame), len(names)))
+                self.assertTrue(np.isfinite(matrix.data).all())
+
+    def test_metadata_records_basename_not_path(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            builds = []
+            for index in range(2):
+                root = Path(folder) / f"checkout-{index}"
+                inputs = root / "inputs"
+                inputs.mkdir(parents=True)
+                train = inputs / "train_features_full.csv"
+                cohort = inputs / "train_cohort_imputed.csv"
+                self.X.to_csv(train, index=False)
+                self.X[["listing_id"]].assign(imputed="").to_csv(cohort, index=False)
+                # Exercise relative and absolute CLI paths in fresh processes.
+                source_paths = [p.relative_to(root) if index == 0 else p for p in (train, cohort)]
+                result = subprocess.run([
+                    sys.executable, "-m", "src.features.pipeline",
+                    "--train", str(source_paths[0]), "--cohort", str(source_paths[1]),
+                    "--require-imputed", "--output", "models/preprocess.joblib",
+                    "--encoded-dir", "encoded",
+                ], cwd=root, env={**os.environ, "PYTHONPATH": str(repo),
+                                  "PYTHONHASHSEED": str(index)},
+                    capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                p = joblib.load(root / "models/preprocess.joblib")
+                metadata = json.loads((root / "models/preprocess_metadata.json").read_text())
+                self.assertEqual(p.build_metadata_, metadata)
+                for prefix, source in [("training", train), ("cohort", cohort)]:
+                    self.assertEqual(metadata[f"{prefix}_source"], source.name)
+                    self.assertEqual(metadata[f"{prefix}_sha256"],
+                                     hashlib.sha256(source.read_bytes()).hexdigest())
+                builds.append(root)
+            for relative in ["models/preprocess.joblib", "models/preprocess_metadata.json",
+                             "models/feature_names.json", "encoded/X_train_full_oof.npz",
+                             "encoded/train_full_oof_rows.csv"]:
+                with self.subTest(artifact=relative):
+                    self.assertEqual((builds[0] / relative).read_bytes(),
+                                     (builds[1] / relative).read_bytes())
+
+    def test_source_hash_normalizes_only_source_newlines(self):
+        from tools.check_preprocess_reproducibility import fingerprint, source_sha256
+        with tempfile.TemporaryDirectory() as folder:
+            lf, crlf = Path(folder) / "lf.py", Path(folder) / "crlf.py"
+            lf.write_bytes(b"x = 1\ny = 2\n")
+            crlf.write_bytes(b"x = 1\r\ny = 2\r\n")
+            self.assertEqual(source_sha256(lf), source_sha256(crlf))
+            self.assertNotEqual(fingerprint(lf)["sha256"], fingerprint(crlf)["sha256"])
+
     def test_per_column_flags_and_count_validation(self):
         X = self.X.assign(imputed="")
         X.loc[0, "imputed"] = "engine_capacity;mileage_km"
@@ -217,6 +296,8 @@ class FeatureTests(unittest.TestCase):
         result = p.fit_transform(self.X, self.y)
         self.assertNotIn("ordinal__age_band", p.get_feature_names_out())
         self.assertEqual(result.shape[0], len(self.X))
+        self.assertNotIn("59 = 67", p.describe())
+        self.assertNotIn("**67 features**", p.describe())
 
     def test_joblib_roundtrip(self):
         p = CarPreprocessor().fit(self.X, self.y)
@@ -240,6 +321,10 @@ class FeatureTests(unittest.TestCase):
         self.assertIn("aggregate_only", description)
         self.assertIn("Group overlap", description)
         self.assertIn(str(p.training_rows_), description)
+        complete = CarPreprocessor(include_frozen_price_stats=True)
+        complete.fit_transform(self.X.assign(imputed=""), self.y)
+        self.assertIn("--cohort data/master/train_cohort_imputed.csv --require-imputed "
+                      "--include-frozen-price-stats --describe", complete.describe())
 
     def test_series_target_alignment_enforced(self):
         with self.assertRaises(ValueError):

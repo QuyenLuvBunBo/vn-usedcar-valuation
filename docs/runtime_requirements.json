@@ -1,0 +1,71 @@
+{
+  "python_version": "3.12.14",
+  "source_commit": "20f94cca5b165a8c17cafa668890f28382f097eb",
+  "requirements": {
+    "requests": {
+      "installed": "2.34.2",
+      "required": ">=2.34",
+      "satisfied": true
+    },
+    "lxml": {
+      "installed": "6.1.1",
+      "required": ">=6.1",
+      "satisfied": true
+    },
+    "python-dotenv": {
+      "installed": "1.2.4",
+      "required": ">=1.2",
+      "satisfied": true
+    },
+    "tqdm": {
+      "installed": "4.70.1",
+      "required": ">=4.68",
+      "satisfied": true
+    },
+    "pandas": {
+      "installed": "3.0.3",
+      "required": ">=3.0",
+      "satisfied": true
+    },
+    "matplotlib": {
+      "installed": "3.10.8",
+      "required": ">=3.9",
+      "satisfied": true
+    },
+    "scikit-learn": {
+      "installed": "1.8.0",
+      "required": ">=1.6",
+      "satisfied": true
+    },
+    "lightgbm": {
+      "installed": "4.7.0",
+      "required": ">=4.5",
+      "satisfied": true
+    },
+    "catboost": {
+      "installed": "1.2.10",
+      "required": ">=1.2",
+      "satisfied": true
+    },
+    "xgboost": {
+      "installed": "3.4.1",
+      "required": ">=3.1",
+      "satisfied": true
+    },
+    "joblib": {
+      "installed": "1.5.3",
+      "required": ">=1.4",
+      "satisfied": true
+    },
+    "numpy": {
+      "installed": "2.3.5",
+      "required": "==2.3.5",
+      "satisfied": true
+    },
+    "scipy": {
+      "installed": "1.17.0",
+      "required": "==1.17.0",
+      "satisfied": true
+    }
+  }
+}

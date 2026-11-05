@@ -1,76 +1,81 @@
-# Bàn giao phần việc của Nguyễn Thế Phương
+# Nguyễn Thế Phương — preprocessing handoff
 
-Ngày bàn giao: 04/11/2026. Phạm vi: việc chính và việc phụ của Phương trong kế
-hoạch tuần 3. Các kết quả dưới đây được tạo từ 70.244 dòng train đã cung cấp.
+Updated: 2026-11-05. Final verified configuration: **67 features / per_column /
+price statistics excluded**, fitted on 70,244 frozen training rows and 52,417
+duplicate groups. No validation or test set was evaluated.
 
-## Năm dòng tóm tắt gửi người viết báo cáo
+## Summary for the report
 
-1. Đã triển khai `src/features/pipeline.py`: one-hot cho cột có tối đa 40 giá trị trên train, ordinal cho `age_band`, scaler và target encoding cho cặp `brand|model`.
-2. Target encoding dùng 5 fold theo `duplicate_group_id`; 52.417 nhóm không bị chia sang hai phía của một fold; cặp chưa gặp nhận trung bình `log1p(price_vnd)` của phần train tương ứng.
-3. Đã tạo `models/preprocess.joblib` và ma trận OOF gồm 70.244 dòng × 59 đặc trưng; các mô hình downstream phải dùng ma trận OOF để train.
-4. Đã chạy qua 27 kiểm thử và kiểm tra độc lập toàn bộ giá trị target encoding OOF; chưa sử dụng validation/test và chưa công bố chỉ số dự báo.
-5. Còn cần cột `imputed` gốc để fit 8 cờ theo từng trường; bản hiện tại chỉ có cờ tổng hợp từ `n_imputed`; tài liệu và metadata ghi rõ giới hạn này.
+1. The preprocessor uses train-only one-hot/frequency routing, ordered age bands,
+   numeric median imputation/scaling, and smoothed brand/model target encoding.
+2. Five folds keep duplicate_group_id disjoint. Every held-out row uses mappings
+   and a prior fitted only on the other folds.
+3. The final real-data matrix has **70,244 × 67** entries in its shape. A separate
+   optional price-statistic build produced **69** features and passed the same
+   independent OOF verification; the reference hashes describe 67 only.
+4. The original frozen cohort is now available and its hash matches the team's
+   reference. All eight history flags come from that cohort, joined by listing_id;
+   53,134 rows have nonempty histories and their token counts match n_imputed.
+5. Two independent 67-feature builds produced identical bytes for the joblib,
+   metadata, feature names, OOF matrix and row map. All 70,244 OOF target encodings
+   were independently checked in each run. **30 preprocessing tests** and
+   **160 tests under tests/** passed.
 
-## Đối chiếu với phân công
+## Assignment checklist
 
-| Yêu cầu | Trạng thái | Bằng chứng |
+| Requirement | Status | Evidence |
 | --- | --- | --- |
-| One-hot cho cột có tối đa 40 giá trị | Hoàn thành | Chọn nhánh từ cardinality của train, kiểm thử mốc 40/41 |
-| Ordinal cho age_band | Hoàn thành | Thứ tự 0–2, 3–5, 6–9, 10–14, 15+; giá trị lạ = -1 |
-| Target encoding brand và model có K-fold bên trong | Hoàn thành | GroupKFold 5 fold, kiểm thử thay đổi target của fold giữ lại |
-| Scaler | Hoàn thành | Median còn thiếu và StandardScaler fit trên train |
-| Cờ missing từ imputed | Mã nguồn hoàn thành; artifact còn thiếu dữ liệu | Có join theo listing_id và chế độ --require-imputed; chưa có imputed gốc |
-| Lưu models/preprocess.joblib | Đã tạo bản aggregate_only | Fitted trên 70.244 dòng, 59 đặc trưng; load được trong tiến trình mới |
-| tests/test_features.py | Hoàn thành | 27 kiểm thử chạy qua; log ở docs/test_results.txt |
-| Encoder không học từ val | Hoàn thành trong phạm vi module | transform không thay đổi mapping, categories hoặc scaler |
-| Giá trị lạ về trung bình toàn cục | Hoàn thành cho target encoder | Dùng mean log-target của train; trong OOF dùng mean của từng fold train |
-| docs/features.md sinh bằng --describe | Hoàn thành | Có thống kê cardinality, chính sách missing, fold audit và phiên bản |
-| Duy rà soát chéo | Chờ người thực hiện | Chưa có comment review, chưa tạo hoặc merge PR |
+| One-hot routing at 40 categories | Implemented and tested | Train-only routing; 40/41 cutoff test |
+| Ordinal age encoding | Implemented and tested | Ordered bands; unknown = -1 |
+| Internal grouped target encoding | Verified on original training data | Five disjoint folds; all OOF values checked |
+| Numeric scaling | Implemented and tested | Train-fitted median imputer and StandardScaler |
+| Per-column imputation flags | Verified with original cohort | Hash-matched input; listing_id join; counts match |
+| Saved preprocessor | Final 67-feature build verified | Two fresh-process builds, byte-identical outputs |
+| Regression tests | 30 passed | Complete dated test_results.txt |
+| Full tests/ suite | 160 passed | Complete dated full_test_results.txt |
+| Generated documentation | Matches final 67-feature configuration | Same verified build produced docs and reports |
+| Source provenance | Clean committed code, preserved in bundle | Push the supplied branch before remote review |
+| Peer approval | Not claimed | A merged PR or passing tests do not establish peer review |
 
-## Quyết định kỹ thuật cần ghi vào báo cáo
+## Runtime and reproducibility
 
-Các cột categorical có trên 40 giá trị dùng frequency encoding fit trên train;
-cặp brand/model có thêm target encoding được làm trơn với hệ số 20. Frequency
-encoding là quyết định triển khai để xử lý các cột vượt ngưỡng; đây chưa phải
-kết luận thực nghiệm về chất lượng mô hình. Phần so sánh cardinality vẫn do
-Quyết thực hiện.
+Python 3.12.14 / sklearn 1.8.0 / NumPy 2.3.5 / pandas 3.0.3 / SciPy 1.17.0 /
+joblib 1.5.3. All direct requirements constraints are satisfied; see
+[runtime_requirements.json](runtime_requirements.json).
 
-`brand_retention_rate` và `province_price_index` bị loại khỏi X theo cấu hình mặc
-định vì các giá trị đã được tính bằng target trên toàn bộ train. Dùng nguyên
-các giá trị đó trong outer CV sẽ đưa thông tin target của fold giữ lại vào
-đặc trưng. Có tùy chọn `--include-frozen-price-stats` cho giao thức train/val đã
-chốt; phải ghi rõ bộ đặc trưng trong benchmark. Không sửa lại mã của Quyền
-hoặc các thống kê gốc.
-
-Việc điền khuyết và nhóm category upstream đã được thực hiện trước khi nhận CSV.
-Muốn kiểm định hoàn toàn độc lập theo outer fold phải chạy lại các bước upstream
-trong từng fold. Các kiểm thử ở đây chứng minh phạm vi encoder mới, không chứng
-minh toàn bộ quá trình dựng dữ liệu upstream.
-
-## Đầu vào còn thiếu và cách hoàn tất
-
-Cần `data/master/train_cohort_imputed.csv`, hoặc CSV chỉ gồm `listing_id,imputed`
-của đúng tập train. Không thể suy ngược tên các trường đã điền từ `n_imputed`.
+[artifact_reproducibility.json](artifact_reproducibility.json) is the only
+reference hash table. [Data handover §5](data_handover.md#5-artifacts-that-git-ignores--rebuild-and-compare-the-hash-do-not-ship-the-binary)
+records the source commit, exact generation command, original-cohort provenance,
+and publication steps. The checker requires a clean checkout and produces the
+feature description and both verification reports together.
 
 ```bash
-python -m src.features.pipeline --features full \
-  --cohort data/master/train_cohort_imputed.csv \
-  --require-imputed --describe
+python -m tools.check_preprocess_reproducibility --cohort data/master/train_cohort_imputed.csv --expected-features 67 --artifacts-dir models/handoff
 ```
 
-Lệnh sẽ tạo lại đồng bộ joblib, tên đặc trưng, metadata và ma trận OOF. Với cùng
-dữ liệu và schema này, tám cờ theo trường nâng số đặc trưng từ 59 lên 67. Mô hình
-downstream cần được train lại sau khi đổi preprocessor.
+Commit source changes first, run verification, then commit generated evidence.
+Keep frozen inputs unchanged. A source text hash normalizes CRLF to LF; raw data
+and artifact hashes retain exact-byte semantics.
 
-## Điểm Duy cần rà soát
+## Technical decisions and limitations
 
-- Kiểm tra GroupKFold có giữ nguyên duplicate_group_id và mean của fold giữ lại không dùng target của chính fold đó.
-- Kiểm tra luồng train dùng fit_transform hoặc ma trận OOF, còn val/test dùng transform.
-- Kiểm tra việc ghi nhận bộ đặc trưng khi bật/tắt hai thống kê từ giá.
-- Kiểm tra join imputed bằng listing_id và khả năng import src.features.pipeline khi load joblib.
-- Chạy tests/test_features.py và thử tích hợp với mã train của nhóm 2 trước khi comment PR.
+Columns above 40 training categories use relative frequencies. The joint
+brand/model target encoder uses smoothing 20. These are implementation choices,
+not claims of improved prediction accuracy.
 
-Chưa có quyền truy cập nội dung repository qua kết nối GitHub (HTTP 404), nên
-chưa đối chiếu trực tiếp API với `src/models/train.py` hoặc chạy gate của repo.
-Gói này không thay thế kết quả review của Duy. Tập test vẫn dành cho lần đánh
-giá duy nhất tại M2 ngày 07/11/2026 theo kế hoạch.
+brand_retention_rate and province_price_index are excluded by default because
+they derive from whole-training targets. For outer CV, recompute them within
+each outer training fold before enabling them. The optional configuration adds
+two scaled values without missingness indicators; use separate experiment paths
+so it cannot overwrite the default evidence.
+
+Upstream imputation and category grouping were already applied to the supplied
+feature CSV. Strict raw-data CV requires rebuilding those operations inside each
+outer fold. These tests establish the new encoder's boundary, not every upstream
+step. Train on fit_transform or the matching OOF matrix; use transform for
+inference after joining the original imputation history.
+
+The separate crawler smoke test remains blocked by existing merge markers in
+src/sources/oto/brands_other.py. Downstream model integration and peer approval
+are not claimed here. The test set remains reserved for the planned M2 evaluation
+on 2026-11-07.

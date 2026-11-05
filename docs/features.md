@@ -1,12 +1,14 @@
 # Feature preprocessing
 
-Variant: **full**. Fitted on **70,244 training rows**; output: **59 features**, SciPy CSR matrix.
+Variant: **full**. Fitted on **70,244 training rows**; output: **67 features**, SciPy CSR matrix.
+
+Configuration: **per_column**; optional price statistics: **excluded**. Per-column mode adds eight imputation-history flags compared with aggregate-only mode for the same training data and settings. Output width also depends on training category cardinalities.
 
 ## Inputs and transformations
 
 Inputs are the engineered feature tables from build_features.py, not raw listings. price_vnd and identifiers are never emitted as model features. duplicate_group_id is used only to construct internal folds. Extra columns are ignored by a whitelist.
 
-Numeric columns: `manufacture_year`, `mileage_km`, `engine_capacity`, `seats`, `vehicle_age`, `km_per_year`, `engine_per_seat`, `n_imputed`. Remaining missing values use train medians, followed by StandardScaler. A fixed current-missingness indicator is emitted for every numeric column. Entirely missing training numeric columns cause an error instead of a zero fill.
+Numeric columns: `manufacture_year`, `mileage_km`, `engine_capacity`, `seats`, `vehicle_age`, `km_per_year`, `engine_per_seat`, `n_imputed`. Remaining missing values use train medians, followed by StandardScaler. Current-missingness indicators cover numeric columns except the two optional price statistics. Entirely missing training numeric columns cause an error instead of a zero fill.
 
 One-hot routing uses training cardinality only, including the missing token, with cutoff <= 40. Higher-cardinality fields use train-relative frequencies (unseen value = 0). brand/model additionally have a supervised joint encoding. Validation data never selects a category list or a routing method.
 
@@ -28,6 +30,14 @@ One-hot routing uses training cardinality only, including the missing token, wit
 
 Age order: 0-2 = 0, 3-5 = 1, 6-9 = 2, 10-14 = 3, 15+ = 4; unknown/missing = -1. Unknown one-hot categories produce an all-zero block.
 
+## Feature configuration
+
+The output count above is measured for this fitted artifact. For the full variant, --include-frozen-price-stats adds two scaled numeric statistics without missingness indicators. Record the exact configuration for each experiment; see [the preprocessing README](../README_preprocess.md).
+
+## Inference
+
+Before inference, call attach_imputed(val, val_cohort_imputed) before transform. A per-column artifact intentionally rejects feature tables that omit imputed. Keep all eight flags; do not rebuild with aggregate_only to bypass this error.
+
 ## Grouped target encoding
 
 Target is log1p(price_vnd). For each brand/model pair, encoding = (sum of y_log + 20 * training mean y_log) / (pair count + 20). Unseen pairs use the training global mean in log space.
@@ -38,11 +48,11 @@ fit_transform uses up to 5 internal GroupKFold folds, seed 42. An entire duplica
 
 ## Missing and imputed flags
 
-Artifact mode: **aggregate_only**.
+Artifact mode: **per_column**.
 
 With `imputed`, semicolon-separated field names produce imputed__any and eight per-column flags: body_type, transmission, fuel_type, origin, seller_type, seats, mileage_km, engine_capacity. The supplied n_imputed must equal the token count. Current NaN flags and historical imputation flags have different meanings and are kept separate.
 
-Without `imputed`, n_imputed supports only imputed__any. Field-level history cannot be reconstructed from a count. This artifact does not yet satisfy the per-column imputation-history part of the assignment. Use --cohort data/master/train_cohort_imputed.csv --require-imputed to rebuild the complete artifact. Join each validation/inference cohort in the same way.
+Without `imputed`, n_imputed supports only imputed__any. Field-level history cannot be reconstructed from a count. This artifact includes all eight per-column imputation-history flags. Keep the original imputed column available for every inference row. Join each validation/inference cohort in the same way.
 
 ## Leakage boundaries
 
@@ -52,7 +62,7 @@ The provided engineered CSV also contains prior imputation and frequency-groupin
 
 ## Reproducibility and handoff
 
-Run `python -m src.features.pipeline --features full --describe`. The CLI saves models/preprocess.joblib, models/preprocess_metadata.json, models/feature_names.json, data/master/X_train_full_oof.npz, and aligned data/master/train_full_oof_rows.csv. The row file includes the target, IDs, and fold assignment and must never be concatenated to the model matrix.
+Run `python -m src.features.pipeline --features full --cohort data/master/train_cohort_imputed.csv --require-imputed --describe`. The CLI saves models/preprocess.joblib, models/preprocess_metadata.json, models/feature_names.json, data/master/X_train_full_oof.npz, and aligned data/master/train_full_oof_rows.csv. The row file includes the target, IDs, and fold assignment and must never be concatenated to the model matrix.
 
 Custom classes load from src.features.pipeline; install/copy that module before joblib.load, and use the recorded dependency versions. This artifact replaces the earlier all-one-hot preprocessor and requires downstream models to be retrained.
 
@@ -72,6 +82,6 @@ No validation or test set was supplied or evaluated. No predictive metric is cla
 
 - scikit-learn == 1.8.0
 - numpy == 2.3.5
-- pandas == 2.2.3
+- pandas == 3.0.3
 - scipy == 1.17.0
 - joblib == 1.5.3
