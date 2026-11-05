@@ -1,14 +1,14 @@
 # Feature preprocessing
 
-Variant: **full**. Fitted on **70,244 training rows**; output: **69 features**, SciPy CSR matrix.
+Variant: **full**. Fitted on **70,244 training rows**; output: **67 features**, SciPy CSR matrix.
 
-Configuration: **per_column**; optional price statistics: **included**. For the frozen default full dataset, aggregate_only gives 59 = 67 minus eight per-column imputation flags. The final 67-feature handoff requires the original cohort; see [Feature count](../README_preprocess.md#feature-count-67-or-69).
+Configuration: **per_column**; optional price statistics: **excluded**. Per-column mode adds eight imputation-history flags compared with aggregate-only mode for the same training data and settings. Output width also depends on training category cardinalities.
 
 ## Inputs and transformations
 
 Inputs are the engineered feature tables from build_features.py, not raw listings. price_vnd and identifiers are never emitted as model features. duplicate_group_id is used only to construct internal folds. Extra columns are ignored by a whitelist.
 
-Numeric columns: `manufacture_year`, `mileage_km`, `engine_capacity`, `seats`, `vehicle_age`, `km_per_year`, `engine_per_seat`, `n_imputed`, `brand_retention_rate`, `province_price_index`. Remaining missing values use train medians, followed by StandardScaler. Current-missingness indicators cover numeric columns except the two optional price statistics. Entirely missing training numeric columns cause an error instead of a zero fill.
+Numeric columns: `manufacture_year`, `mileage_km`, `engine_capacity`, `seats`, `vehicle_age`, `km_per_year`, `engine_per_seat`, `n_imputed`. Remaining missing values use train medians, followed by StandardScaler. Current-missingness indicators cover numeric columns except the two optional price statistics. Entirely missing training numeric columns cause an error instead of a zero fill.
 
 One-hot routing uses training cardinality only, including the missing token, with cutoff <= 40. Higher-cardinality fields use train-relative frequencies (unseen value = 0). brand/model additionally have a supervised joint encoding. Validation data never selects a category list or a routing method.
 
@@ -30,11 +30,9 @@ One-hot routing uses training cardinality only, including the missing token, wit
 
 Age order: 0-2 = 0, 3-5 = 1, 6-9 = 2, 10-14 = 3, 15+ = 4; unknown/missing = -1. Unknown one-hot categories produce an all-zero block.
 
-## Frozen feature configurations
+## Feature configuration
 
-For the frozen full dataset with all eight imputation-history flags, the default configuration has **67 features**, excluding brand_retention_rate and province_price_index. Pass --include-frozen-price-stats to retain both numeric statistics for **69 features**. They add two scaled values without extra missingness indicators. These counts apply to the frozen dataset; categorical cardinality changes can change the output width.
-
-Report section 5 must identify 67/default or 69/with-price-stats for every experiment. Do not combine --ablate or model_gate results from the 69-feature setting with 67-feature model results without labelling the difference.
+The output count above is measured for this fitted artifact. For the full variant, --include-frozen-price-stats adds two scaled numeric statistics without missingness indicators. Record the exact configuration for each experiment; see [the preprocessing README](../README_preprocess.md).
 
 ## Inference
 
@@ -58,13 +56,13 @@ Without `imputed`, n_imputed supports only imputed__any. Field-level history can
 
 ## Leakage boundaries
 
-Default excluded precomputed price statistics: none. They were computed upstream from training prices. Reusing their whole-training values inside outer CV leaks held-out fold targets. --include-frozen-price-stats is an explicit opt-in for an already frozen train/val protocol; never enable it for outer CV unless those statistics have been rebuilt within each outer fold. Their source files are not modified.
+Default excluded precomputed price statistics: brand_retention_rate, province_price_index. They were computed upstream from training prices. Reusing their whole-training values inside outer CV leaks held-out fold targets. --include-frozen-price-stats is an explicit opt-in for an already frozen train/val protocol; never enable it for outer CV unless those statistics have been rebuilt within each outer fold. Their source files are not modified.
 
 The provided engineered CSV also contains prior imputation and frequency-grouping decisions. This transformer cannot undo them. Fully strict raw-data CV requires rebuilding those upstream steps inside each outer fold. Encoder tests establish this module's boundary, not a blanket proof that all upstream features are leakage-free.
 
 ## Reproducibility and handoff
 
-Run `python -m src.features.pipeline --features full --cohort data/master/train_cohort_imputed.csv --require-imputed --include-frozen-price-stats --describe`. The CLI saves models/preprocess.joblib, models/preprocess_metadata.json, models/feature_names.json, data/master/X_train_full_oof.npz, and aligned data/master/train_full_oof_rows.csv. The row file includes the target, IDs, and fold assignment and must never be concatenated to the model matrix.
+Run `python -m src.features.pipeline --features full --cohort data/master/train_cohort_imputed.csv --require-imputed --describe`. The CLI saves models/preprocess.joblib, models/preprocess_metadata.json, models/feature_names.json, data/master/X_train_full_oof.npz, and aligned data/master/train_full_oof_rows.csv. The row file includes the target, IDs, and fold assignment and must never be concatenated to the model matrix.
 
 Custom classes load from src.features.pipeline; install/copy that module before joblib.load, and use the recorded dependency versions. This artifact replaces the earlier all-one-hot preprocessor and requires downstream models to be retrained.
 
@@ -82,8 +80,8 @@ No validation or test set was supplied or evaluated. No predictive metric is cla
 
 ### Runtime versions
 
-- scikit-learn == 1.9.1
-- numpy == 2.5.4
-- pandas == 3.1.0
-- scipy == 1.18.1
+- scikit-learn == 1.8.0
+- numpy == 2.3.5
+- pandas == 3.0.3
+- scipy == 1.17.0
 - joblib == 1.5.3

@@ -1,9 +1,10 @@
-Run date (UTC): 2026-11-05T05:28:06.028423+00:00
-Source commit: 2aa4af7cd23ca40a6ba055ec69e3d6d015d6bf13
+Run date (UTC): 2026-11-05T06:18:28.955286+00:00
+Source commit: 20f94cca5b165a8c17cafa668890f28382f097eb
+Working tree dirty before run: false
 Python: 3.12.14
-Dependencies: sklearn=1.8.0, numpy=2.3.5, pandas=2.2.3, scipy=1.17.0, joblib=1.5.3
+Dependencies: scikit-learn=1.8.0, numpy=2.3.5, pandas=3.0.3, scipy=1.17.0, joblib=1.5.3
 Command: python -m unittest tests.test_features -v
-Scope: synthetic regression fixtures; not a frozen-cohort artifact verification.
+Scope: automated regression fixtures; frozen-data artifact verification is separate.
 
 test_age_order_and_unknown (tests.test_features.FeatureTests.test_age_order_and_unknown) ... ok
 test_all_missing_numeric_rejected (tests.test_features.FeatureTests.test_all_missing_numeric_rejected) ... ok
@@ -30,12 +31,13 @@ test_price_stats_opt_in_drops_missing_indicators (tests.test_features.FeatureTes
 test_series_target_alignment_enforced (tests.test_features.FeatureTests.test_series_target_alignment_enforced) ... ok
 test_sklearn_clone_and_model_pipeline (tests.test_features.FeatureTests.test_sklearn_clone_and_model_pipeline) ... ok
 test_smoothing_formula (tests.test_features.FeatureTests.test_smoothing_formula) ... ok
+test_source_hash_normalizes_only_source_newlines (tests.test_features.FeatureTests.test_source_hash_normalizes_only_source_newlines) ... ok
 test_target_and_ids_are_not_features (tests.test_features.FeatureTests.test_target_and_ids_are_not_features) ... ok
 test_transform_does_not_learn_validation_categories_or_stats (tests.test_features.FeatureTests.test_transform_does_not_learn_validation_categories_or_stats) ... ok
 test_unknown_onehot_zero_and_frequency_zero (tests.test_features.FeatureTests.test_unknown_onehot_zero_and_frequency_zero) ... ok
 test_unseen_pair_gets_global_training_mean (tests.test_features.FeatureTests.test_unseen_pair_gets_global_training_mean) ... ok
 
 ----------------------------------------------------------------------
-Ran 29 tests in 2.951s
+Ran 30 tests in 3.832s
 
 OK

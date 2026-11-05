@@ -359,9 +359,9 @@ class CarPreprocessor(TransformerMixin, BaseEstimator):
             f"output: **{len(self.feature_names_out_)} features**, SciPy CSR matrix.", "",
             f"Configuration: **{self.missing_mode_}**; optional price statistics: "
             f"**{'included' if self.include_frozen_price_stats else 'excluded'}**. "
-            "For the frozen default full dataset, aggregate_only gives 59 = 67 minus "
-            "eight per-column imputation flags. The final 67-feature handoff requires "
-            "the original cohort; see [Feature count](../README_preprocess.md#feature-count-67-or-69).", "",
+            "Per-column mode adds eight imputation-history flags compared with aggregate-only "
+            "mode for the same training data and settings. Output width also depends on "
+            "training category cardinalities.", "",
             "## Inputs and transformations", "",
             "Inputs are the engineered feature tables from build_features.py, not raw listings. "
             "price_vnd and identifiers are never emitted as model features. duplicate_group_id "
@@ -377,15 +377,11 @@ class CarPreprocessor(TransformerMixin, BaseEstimator):
             "| Column | Training cardinality | Encoding |", "| --- | ---: | --- |", *rows, "",
             "Age order: 0-2 = 0, 3-5 = 1, 6-9 = 2, 10-14 = 3, 15+ = 4; unknown/missing = -1. "
             "Unknown one-hot categories produce an all-zero block.", "",
-            "## Frozen feature configurations", "",
-            "For the frozen full dataset with all eight imputation-history flags, the default "
-            "configuration has **67 features**, excluding brand_retention_rate and province_price_index. "
-            "Pass --include-frozen-price-stats to retain both numeric statistics for **69 features**. "
-            "They add two scaled values without extra missingness indicators. These counts apply to "
-            "the frozen dataset; categorical cardinality changes can change the output width.", "",
-            "Report section 5 must identify 67/default or 69/with-price-stats for every experiment. "
-            "Do not combine --ablate or model_gate results from the 69-feature setting with "
-            "67-feature model results without labelling the difference.", "",
+            "## Feature configuration", "",
+            "The output count above is measured for this fitted artifact. "
+            "For the full variant, --include-frozen-price-stats adds two scaled numeric "
+            "statistics without missingness indicators. Record the exact configuration "
+            "for each experiment; see [the preprocessing README](../README_preprocess.md).", "",
             "## Inference", "",
             "Before inference, call attach_imputed(val, val_cohort_imputed) before transform. "
             "A per-column artifact intentionally rejects feature tables that omit imputed. "

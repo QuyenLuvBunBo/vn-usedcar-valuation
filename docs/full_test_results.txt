@@ -1,0 +1,223 @@
+Run date (UTC): 2026-11-05T06:18:34.341841+00:00
+Source commit: 20f94cca5b165a8c17cafa668890f28382f097eb
+Working tree dirty before run: false
+Python: 3.12.14
+Dependencies: scikit-learn=1.8.0, numpy=2.3.5, pandas=3.0.3, scipy=1.17.0, joblib=1.5.3
+Command: python -m unittest discover -s tests
+Scope: automated regression fixtures; frozen-data artifact verification is separate.
+
+................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 160 tests in 3.520s
+
+OK
+master.csv: 1 rows x 24 columns
+
+--- numeric columns (parse or empty) ---
+  manufacture_year   filled       1 | unparseable 0
+  mileage_km         filled       1 | unparseable 0
+  price_vnd          filled       1 | unparseable 0
+  engine_capacity    filled       1 | unparseable 0
+  seats              filled       1 | unparseable 0
+
+--- date columns (ISO 8601 or empty) ---
+  listing_date       filled       1 | not ISO 8601      0 | unparseable 0
+  scraped_at         filled       1 | not ISO 8601      0 | unparseable 0
+
+--- categorical columns (inside the contract enum) ---
+  transmission       outside enum     0
+  fuel_type          outside enum     0
+  origin             outside enum     0
+  body_type          outside enum     0
+  seller_type        outside enum     0
+  price_status       outside enum     0
+  tier               outside enum     0
+
+--- keys ---
+  duplicate listing_id 0 | empty listing_id 0 | duplicate source_url 0
+
+PROBLEMS: 0
+master.csv: 1 rows x 24 columns
+
+--- numeric columns (parse or empty) ---
+  manufacture_year   filled       1 | unparseable 0
+  mileage_km         filled       0 | unparseable 0
+  price_vnd          filled       1 | unparseable 0
+  engine_capacity    filled       0 | unparseable 0
+  seats              filled       1 | unparseable 0
+
+--- date columns (ISO 8601 or empty) ---
+  listing_date       filled       0 | not ISO 8601      0 | unparseable 0
+  scraped_at         filled       1 | not ISO 8601      0 | unparseable 0
+
+--- categorical columns (inside the contract enum) ---
+  transmission       outside enum     0
+  fuel_type          outside enum     0
+  origin             outside enum     0
+  body_type          outside enum     0
+  seller_type        outside enum     0
+  price_status       outside enum     0
+  tier               outside enum     0
+
+--- keys ---
+  duplicate listing_id 0 | empty listing_id 0 | duplicate source_url 0
+
+PROBLEMS: 0
+master.csv: 1 rows x 24 columns
+
+--- numeric columns (parse or empty) ---
+  manufacture_year   filled       1 | unparseable 0
+  mileage_km         filled       1 | unparseable 0
+  price_vnd          filled       1 | unparseable 0
+  engine_capacity    filled       1 | unparseable 0
+  seats              filled       1 | unparseable 0
+
+--- date columns (ISO 8601 or empty) ---
+  listing_date       filled       1 | not ISO 8601      1 | unparseable 0
+    example: ['10/2026']
+  scraped_at         filled       1 | not ISO 8601      0 | unparseable 0
+
+--- categorical columns (inside the contract enum) ---
+  transmission       outside enum     0
+  fuel_type          outside enum     0
+  origin             outside enum     0
+  body_type          outside enum     0
+  seller_type        outside enum     0
+  price_status       outside enum     0
+  tier               outside enum     0
+
+--- keys ---
+  duplicate listing_id 0 | empty listing_id 0 | duplicate source_url 0
+
+PROBLEMS: 1
+master.csv: 2 rows x 24 columns
+
+--- numeric columns (parse or empty) ---
+  manufacture_year   filled       2 | unparseable 0
+  mileage_km         filled       2 | unparseable 0
+  price_vnd          filled       2 | unparseable 0
+  engine_capacity    filled       2 | unparseable 0
+  seats              filled       2 | unparseable 0
+
+--- date columns (ISO 8601 or empty) ---
+  listing_date       filled       2 | not ISO 8601      0 | unparseable 0
+  scraped_at         filled       2 | not ISO 8601      0 | unparseable 0
+
+--- categorical columns (inside the contract enum) ---
+  transmission       outside enum     0
+  fuel_type          outside enum     0
+  origin             outside enum     0
+  body_type          outside enum     0
+  seller_type        outside enum     0
+  price_status       outside enum     0
+  tier               outside enum     0
+
+--- keys ---
+  duplicate listing_id 1 | empty listing_id 0 | duplicate source_url 1
+
+PROBLEMS: 1
+master.csv: 1 rows x 24 columns
+
+--- numeric columns (parse or empty) ---
+  manufacture_year   filled       1 | unparseable 0
+  mileage_km         filled       1 | unparseable 0
+  price_vnd          filled       1 | unparseable 0
+  engine_capacity    filled       1 | unparseable 0
+  seats              filled       1 | unparseable 0
+
+--- date columns (ISO 8601 or empty) ---
+  listing_date       filled       1 | not ISO 8601      0 | unparseable 0
+  scraped_at         filled       1 | not ISO 8601      0 | unparseable 0
+
+--- categorical columns (inside the contract enum) ---
+  transmission       outside enum     0
+  fuel_type          outside enum     1  ['Xang']
+  origin             outside enum     0
+  body_type          outside enum     0
+  seller_type        outside enum     0
+  price_status       outside enum     0
+  tier               outside enum     0
+
+--- keys ---
+  duplicate listing_id 0 | empty listing_id 0 | duplicate source_url 0
+
+PROBLEMS: 1
+master.csv: 1 rows x 24 columns
+
+--- numeric columns (parse or empty) ---
+  manufacture_year   filled       1 | unparseable 0
+  mileage_km         filled       1 | unparseable 0
+  price_vnd          filled       1 | unparseable 0
+  engine_capacity    filled       1 | unparseable 0
+  seats              filled       1 | unparseable 0
+
+--- date columns (ISO 8601 or empty) ---
+  listing_date       filled       1 | not ISO 8601      0 | unparseable 0
+  scraped_at         filled       1 | not ISO 8601      0 | unparseable 0
+
+--- categorical columns (inside the contract enum) ---
+  transmission       outside enum     0
+  fuel_type          outside enum     0
+  origin             outside enum     0
+  body_type          outside enum     0
+  seller_type        outside enum     0
+  price_status       outside enum     0
+  tier               outside enum     0
+
+--- keys ---
+  duplicate listing_id 0 | empty listing_id 1 | duplicate source_url 0
+
+PROBLEMS: 1
+master.csv: 1 rows x 24 columns
+
+--- numeric columns (parse or empty) ---
+  manufacture_year   filled       1 | unparseable 0
+  mileage_km         filled       1 | unparseable 0
+  price_vnd          filled       1 | unparseable 0
+  engine_capacity    filled       1 | unparseable 0
+  seats              filled       1 | unparseable 0
+
+--- date columns (ISO 8601 or empty) ---
+  listing_date       filled       1 | not ISO 8601      0 | unparseable 1
+    example: ['2026-13-45']
+  scraped_at         filled       1 | not ISO 8601      0 | unparseable 0
+
+--- categorical columns (inside the contract enum) ---
+  transmission       outside enum     0
+  fuel_type          outside enum     0
+  origin             outside enum     0
+  body_type          outside enum     0
+  seller_type        outside enum     0
+  price_status       outside enum     0
+  tier               outside enum     0
+
+--- keys ---
+  duplicate listing_id 0 | empty listing_id 0 | duplicate source_url 0
+
+PROBLEMS: 1
+master.csv: 1 rows x 24 columns
+
+--- numeric columns (parse or empty) ---
+  manufacture_year   filled       1 | unparseable 0
+  mileage_km         filled       1 | unparseable 0
+  price_vnd          filled       1 | unparseable 1
+  engine_capacity    filled       1 | unparseable 0
+  seats              filled       1 | unparseable 0
+
+--- date columns (ISO 8601 or empty) ---
+  listing_date       filled       1 | not ISO 8601      0 | unparseable 0
+  scraped_at         filled       1 | not ISO 8601      0 | unparseable 0
+
+--- categorical columns (inside the contract enum) ---
+  transmission       outside enum     0
+  fuel_type          outside enum     0
+  origin             outside enum     0
+  body_type          outside enum     0
+  seller_type        outside enum     0
+  price_status       outside enum     0
+  tier               outside enum     0
+
+--- keys ---
+  duplicate listing_id 0 | empty listing_id 0 | duplicate source_url 0
+
+PROBLEMS: 1

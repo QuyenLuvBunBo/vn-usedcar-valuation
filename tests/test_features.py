@@ -199,14 +199,15 @@ class FeatureTests(unittest.TestCase):
                 self.X[["listing_id"]].assign(imputed="").to_csv(cohort, index=False)
                 # Exercise relative and absolute CLI paths in fresh processes.
                 source_paths = [p.relative_to(root) if index == 0 else p for p in (train, cohort)]
-                subprocess.run([
+                result = subprocess.run([
                     sys.executable, "-m", "src.features.pipeline",
                     "--train", str(source_paths[0]), "--cohort", str(source_paths[1]),
                     "--require-imputed", "--output", "models/preprocess.joblib",
                     "--encoded-dir", "encoded",
                 ], cwd=root, env={**os.environ, "PYTHONPATH": str(repo),
                                   "PYTHONHASHSEED": str(index)},
-                    check=True, capture_output=True, text=True)
+                    capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 p = joblib.load(root / "models/preprocess.joblib")
                 metadata = json.loads((root / "models/preprocess_metadata.json").read_text())
                 self.assertEqual(p.build_metadata_, metadata)
@@ -221,6 +222,15 @@ class FeatureTests(unittest.TestCase):
                 with self.subTest(artifact=relative):
                     self.assertEqual((builds[0] / relative).read_bytes(),
                                      (builds[1] / relative).read_bytes())
+
+    def test_source_hash_normalizes_only_source_newlines(self):
+        from tools.check_preprocess_reproducibility import fingerprint, source_sha256
+        with tempfile.TemporaryDirectory() as folder:
+            lf, crlf = Path(folder) / "lf.py", Path(folder) / "crlf.py"
+            lf.write_bytes(b"x = 1\ny = 2\n")
+            crlf.write_bytes(b"x = 1\r\ny = 2\r\n")
+            self.assertEqual(source_sha256(lf), source_sha256(crlf))
+            self.assertNotEqual(fingerprint(lf)["sha256"], fingerprint(crlf)["sha256"])
 
     def test_per_column_flags_and_count_validation(self):
         X = self.X.assign(imputed="")
@@ -286,6 +296,8 @@ class FeatureTests(unittest.TestCase):
         result = p.fit_transform(self.X, self.y)
         self.assertNotIn("ordinal__age_band", p.get_feature_names_out())
         self.assertEqual(result.shape[0], len(self.X))
+        self.assertNotIn("59 = 67", p.describe())
+        self.assertNotIn("**67 features**", p.describe())
 
     def test_joblib_roundtrip(self):
         p = CarPreprocessor().fit(self.X, self.y)
