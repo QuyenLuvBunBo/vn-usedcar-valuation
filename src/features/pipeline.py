@@ -489,18 +489,22 @@ def main(argv=None):
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.encoded_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(preprocess, args.output, compress=3)
+    # Text outputs always use LF. Without this a Windows checkout writes CRLF, every hash below changes for
+    # identical content, and "rebuild and compare the hash" in docs/data_handover.md §5 stops working across OSes.
     for name, value in [("preprocess_metadata.json", metadata),
                         ("feature_names.json", preprocess.get_feature_names_out().tolist())]:
-        (args.output.parent / name).write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding="utf-8")
+        (args.output.parent / name).write_text(json.dumps(value, indent=2, ensure_ascii=False),
+                                               encoding="utf-8", newline="\n")
     matrix_path = args.encoded_dir / f"X_train_{args.features}_oof.npz"
     sparse.save_npz(matrix_path, X_oof)
     row_data = train[["listing_id", "duplicate_group_id", "price_vnd"]].copy()
     row_data["y_log"] = y_log.to_numpy()
     row_data["fold"] = preprocess.target_encoder_.oof_fold_ids_
-    row_data.to_csv(args.encoded_dir / f"train_{args.features}_oof_rows.csv", index=False)
+    row_data.to_csv(args.encoded_dir / f"train_{args.features}_oof_rows.csv", index=False,
+                    lineterminator="\n")
     if args.describe:
         args.docs.parent.mkdir(parents=True, exist_ok=True)
-        args.docs.write_text(preprocess.describe(), encoding="utf-8")
+        args.docs.write_text(preprocess.describe(), encoding="utf-8", newline="\n")
     print(json.dumps({"saved": str(args.output), "oof_matrix": str(matrix_path),
                       "rows": len(train), "features": X_oof.shape[1],
                       "missing_mode": preprocess.missing_mode_}, indent=2))

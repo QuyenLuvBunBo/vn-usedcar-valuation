@@ -1,16 +1,16 @@
 {
-  "measured_at_utc": "2026-11-05T06:18:43.603565+00:00",
-  "source_commit": "20f94cca5b165a8c17cafa668890f28382f097eb",
+  "measured_at_utc": "2026-11-05T17:26:17.414617+00:00",
+  "source_commit": "c83d60e48a27325dcbcb6082cf7eefce16bfb0f5",
   "working_tree_dirty": false,
-  "pipeline_sha256": "D3A22ACE2BE6955350461FA4F40FBEADBCB352E2CDC9874D79C5DFE9B275A31B",
+  "pipeline_sha256": "245F07EEBEA16DDBD72FA92F9A7099DC91A031D6DDB37A99D6BB708D11EF3FDB",
   "pipeline_hash_newlines": "CRLF normalized to LF; input/output data hashes use raw bytes",
-  "python_version": "3.12.14",
+  "python_version": "3.14.8",
   "versions": {
-    "scikit-learn": "1.8.0",
-    "numpy": "2.3.5",
+    "scikit-learn": "1.9.1",
+    "numpy": "2.4.6",
     "pandas": "3.0.3",
-    "scipy": "1.17.0",
-    "joblib": "1.5.3"
+    "scipy": "1.17.1",
+    "joblib": "1.6.0"
   },
   "input_files": {
     "train_features_full.csv": {
@@ -30,12 +30,12 @@
   "independent_oof_verification_passed_each_run": true,
   "outputs": {
     "models/preprocess.joblib": {
-      "size_bytes": 124498,
-      "sha256": "79E275D927177F9938DCB4166DE0F67FAD9CB80A5CA74727818E1A87CAE94C8A"
+      "size_bytes": 124495,
+      "sha256": "C261C1162EA2640109FBC45B1D79B85268E8B08AE049CD26177AAEF48E14C4B8"
     },
     "models/preprocess_metadata.json": {
-      "size_bytes": 1892,
-      "sha256": "DAB478A796EDC6E4D00FCE823793BE0CD247E029F1ECA0B43348D497B8F5FA0D"
+      "size_bytes": 1891,
+      "sha256": "5F07B0F38C97BABE9910E2BB9319299DD672A6F421540633A9FFE02BFADEB1B6"
     },
     "models/feature_names.json": {
       "size_bytes": 2010,
@@ -43,7 +43,7 @@
     },
     "encoded/X_train_full_oof.npz": {
       "size_bytes": 2497100,
-      "sha256": "12D71962B557959882F190C17575A2074FEAD363743B8CEE2EC973B646303208"
+      "sha256": "FA88F71A9AE33FA9EA6912FCB1EF4B50E5245897CC29122E200528B77D85E89B"
     },
     "encoded/train_full_oof_rows.csv": {
       "size_bytes": 3866796,

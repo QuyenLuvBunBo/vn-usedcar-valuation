@@ -112,14 +112,21 @@ in both runs. No validation or test set was evaluated.
 
 ### Source and runtime
 
-Measured source commit: `20f94cca5b165a8c17cafa668890f28382f097eb`.
-The source checkout was clean before and throughout verification
-(`working_tree_dirty: false`). The complete commit is preserved in the supplied
-Git bundle, followed by the documentation/evidence commit. Import and push that
-branch before remote review so the recorded commit is available on GitHub.
-Copying files or squashing into a new commit requires regenerating the evidence
-against that newly published commit. GitHub writes were unavailable during
-preparation; these documents do not claim the branch has already been pushed.
+Evidence is produced by `python -m tools.check_preprocess_reproducibility …` on a clean
+checkout. That tool records `git rev-parse HEAD` in `artifact_reproducibility.json`, refuses
+to run while the tree is dirty, and re-checks `HEAD` before it writes anything, so the
+`source_commit` field always names the tree the numbers came from. The provenance anchor
+is therefore: that field, `pipeline_sha256`, and the two input hashes.
+
+Do not record a commit that is not reachable from `main`. A **squash merge rewrites the
+commit id**, which is what made an earlier draft of this section cite a commit nobody could
+check out. Merge an evidence branch with a merge commit; if a squash is unavoidable, re-run
+the checker on the new `main` (one command) and commit the refreshed report instead of
+keeping the old ids.
+
+The two dated logs (`docs/test_results.txt`, `docs/full_test_results.txt`) are run records
+from a local, unpublished commit. They document that the suites passed; they are not
+provenance for the current tree.
 
 Runtime: Python **3.12.14**, scikit-learn **1.8.0**, NumPy **2.3.5**, pandas
 **3.0.3**, SciPy **1.17.0**, joblib **1.5.3**. This environment satisfies all direct
@@ -143,8 +150,16 @@ same checker from the same successful build.
 Joblib metadata stores only the input basenames and raw input hashes. Identical
 input bytes and filenames, code, settings, and runtime reproduced the same
 artifact bytes across different directories and Python hash seeds. This is not
-a cross-OS or cross-version serialization guarantee. Pipeline source hashing
-normalizes CRLF to LF; input/output file hashing intentionally does not.
+a cross-OS or cross-version serialization guarantee.
+
+`src/features/pipeline.py` writes every text output with LF — CSV via
+`lineterminator="\n"`, JSON and Markdown via `newline="\n"` — so the hashes of
+`train_full_oof_rows.csv`, `feature_names.json` and `preprocess_metadata.json` are
+comparable between Windows and Linux for identical content. Before that fix a Windows
+build produced a 3,937,041-byte `train_full_oof_rows.csv` (CRLF) against 3,866,796 bytes
+(LF) elsewhere — same 70,244 rows, same folds, different hash. `.npz` and `.joblib`
+remain runtime-specific: equal size and equal scientific content do not imply equal
+bytes across NumPy/scikit-learn versions.
 
 ### Original inputs and generation command
 

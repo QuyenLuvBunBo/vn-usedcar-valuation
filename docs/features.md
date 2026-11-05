@@ -80,8 +80,8 @@ No validation or test set was supplied or evaluated. No predictive metric is cla
 
 ### Runtime versions
 
-- scikit-learn == 1.8.0
-- numpy == 2.3.5
+- scikit-learn == 1.9.1
+- numpy == 2.4.6
 - pandas == 3.0.3
-- scipy == 1.17.0
-- joblib == 1.5.3
+- scipy == 1.17.1
+- joblib == 1.6.0
