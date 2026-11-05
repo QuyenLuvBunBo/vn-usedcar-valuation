@@ -7,7 +7,7 @@ pandas>=3.0               # tools/*, src/data_prep/eda.py
 matplotlib>=3.9           # figures written by src/data_prep/eda.py
 
 # --- Machine learning (week 3) ---
-scikit-learn>=1.5         # pipelines, encoders, IsolationForest, metrics, model selection
+scikit-learn>=1.6         # pipelines, encoders, IsolationForest, metrics, model selection
 lightgbm>=4.5             # the workhorse booster: fastest to iterate on (many fits per day)
 catboost>=1.2             # required benchmark row: ordered target statistics for brand|model
 xgboost>=3.1              # third booster row (drops first if a machine cannot install it)

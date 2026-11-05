@@ -347,10 +347,21 @@ class CarPreprocessor(TransformerMixin, BaseEstimator):
             "the assignment. Use --cohort data/master/train_cohort_imputed.csv "
             "--require-imputed to rebuild the complete artifact."
         )
+        rebuild = f"python -m src.features.pipeline --features {self.variant}"
+        if self.missing_mode_ == "per_column":
+            rebuild += " --cohort data/master/train_cohort_imputed.csv --require-imputed"
+        if self.include_frozen_price_stats:
+            rebuild += " --include-frozen-price-stats"
+        rebuild += " --describe"
         lines = [
             "# Feature preprocessing", "",
             f"Variant: **{self.variant}**. Fitted on **{self.training_rows_:,} training rows**; "
             f"output: **{len(self.feature_names_out_)} features**, SciPy CSR matrix.", "",
+            f"Configuration: **{self.missing_mode_}**; optional price statistics: "
+            f"**{'included' if self.include_frozen_price_stats else 'excluded'}**. "
+            "Per-column mode adds eight imputation-history flags compared with aggregate-only "
+            "mode for the same training data and settings. Output width also depends on "
+            "training category cardinalities.", "",
             "## Inputs and transformations", "",
             "Inputs are the engineered feature tables from build_features.py, not raw listings. "
             "price_vnd and identifiers are never emitted as model features. duplicate_group_id "
@@ -366,15 +377,11 @@ class CarPreprocessor(TransformerMixin, BaseEstimator):
             "| Column | Training cardinality | Encoding |", "| --- | ---: | --- |", *rows, "",
             "Age order: 0-2 = 0, 3-5 = 1, 6-9 = 2, 10-14 = 3, 15+ = 4; unknown/missing = -1. "
             "Unknown one-hot categories produce an all-zero block.", "",
-            "## Frozen feature configurations", "",
-            "For the frozen full dataset with all eight imputation-history flags, the default "
-            "configuration has **67 features**, excluding brand_retention_rate and province_price_index. "
-            "Pass --include-frozen-price-stats to retain both numeric statistics for **69 features**. "
-            "They add two scaled values without extra missingness indicators. These counts apply to "
-            "the frozen dataset; categorical cardinality changes can change the output width.", "",
-            "Report section 5 must identify 67/default or 69/with-price-stats for every experiment. "
-            "Do not combine --ablate or model_gate results from the 69-feature setting with "
-            "67-feature model results without labelling the difference.", "",
+            "## Feature configuration", "",
+            "The output count above is measured for this fitted artifact. "
+            "For the full variant, --include-frozen-price-stats adds two scaled numeric "
+            "statistics without missingness indicators. Record the exact configuration "
+            "for each experiment; see [the preprocessing README](../README_preprocess.md).", "",
             "## Inference", "",
             "Before inference, call attach_imputed(val, val_cohort_imputed) before transform. "
             "A per-column artifact intentionally rejects feature tables that omit imputed. "
@@ -411,7 +418,7 @@ class CarPreprocessor(TransformerMixin, BaseEstimator):
             "upstream steps inside each outer fold. Encoder tests establish this module's boundary, "
             "not a blanket proof that all upstream features are leakage-free.", "",
             "## Reproducibility and handoff", "",
-            f"Run `python -m src.features.pipeline --features {self.variant} --describe`. "
+            f"Run `{rebuild}`. "
             "The CLI saves models/preprocess.joblib, models/preprocess_metadata.json, "
             f"models/feature_names.json, data/master/X_train_{self.variant}_oof.npz, and aligned "
             f"data/master/train_{self.variant}_oof_rows.csv. The row file includes the target, IDs, and fold "

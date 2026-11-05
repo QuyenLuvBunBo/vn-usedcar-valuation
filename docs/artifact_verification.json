@@ -1,7 +1,7 @@
 {
   "training_rows": 70244,
   "duplicate_groups": 52417,
-  "output_features": 59,
+  "output_features": 67,
   "stored_matrix_finite": true,
   "row_order_matches_input": true,
   "data_hash_matches": true,
@@ -15,6 +15,6 @@
   "empty_input_supported": true,
   "validation_evaluated": false,
   "test_evaluated": false,
-  "missing_flags_mode": "aggregate_only",
-  "remaining_input": "original listing_id,imputed from training cohort"
+  "missing_flags_mode": "per_column",
+  "remaining_input": null
 }

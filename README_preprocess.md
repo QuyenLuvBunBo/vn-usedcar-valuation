@@ -5,29 +5,60 @@ The preprocessing implementation from PR #7 is retained. Use
 
 ## Runtime and dependencies
 
-The reviewer reports 27 passing original tests on Python 3.14.8 and scikit-learn
-1.9.1, with NumPy 2.4.6 and SciPy 1.17.1. The original package was built on Python
-3.12.14 and scikit-learn 1.8.0; that describes its build environment, not a project
-Python requirement. Use the same scikit-learn version for building and loading
-an artifact. This is necessary but not a guarantee of compatibility with every
-other dependency; full versions are recorded in preprocess_metadata.json.
+The measured environment is **Python 3.12.14**, scikit-learn **1.8.0**, NumPy
+**2.3.5**, pandas **3.0.3**, SciPy **1.17.0**, and joblib **1.5.3**.
+All installed direct dependencies satisfy `requirements.txt`; the complete
+comparison is in [runtime_requirements.json](docs/runtime_requirements.json).
+The scikit-learn floor is now `>=1.6`, matching `GroupKFold(shuffle=True)`.
 
-Use the repository's existing `requirements.txt`. This update does not change
-dependencies or require an additional requirements file.
+Use the existing requirements file. To reproduce the preprocessing versions:
+
+```bash
+python -m pip install -r requirements.txt "scikit-learn==1.8.0" "numpy==2.3.5" "pandas==3.0.3" "scipy==1.17.0" "joblib==1.5.3"
+```
+
+Build and load the joblib with matching Python and dependency versions. Matching
+versions are necessary for hash comparison; cross-OS byte equality is not promised.
+No additional requirements file is needed.
 
 ## Build and test
 
-Run from the repository root, with the frozen input CSVs already present:
+The final checked-in evidence covers **67 features / per_column / price
+statistics excluded**, using the original frozen training cohort. All
+**30 preprocessing tests** and **160 tests under tests/** passed; see the
+[preprocessing log](docs/test_results.txt) and [full log](docs/full_test_results.txt).
+
+From the repository root, with the two frozen input CSVs present, first commit
+source changes. The checker requires a clean checkout and writes all three
+evidence files together after both builds match:
 
 ```bash
-python -m unittest discover -s tests -p test_features.py -v
-python -m src.features.pipeline --features full --cohort data/master/train_cohort_imputed.csv \
-    --require-imputed --describe
+python -m tools.check_preprocess_reproducibility --cohort data/master/train_cohort_imputed.csv --expected-features 67
 ```
 
-The command regenerates `docs/features.md`, `models/preprocess.joblib`, metadata,
-feature names, the OOF matrix, and its aligned rows CSV. Do not regenerate the
-upstream frozen datasets just to resolve an artifact-loading error.
+It updates `docs/features.md`, `docs/artifact_verification.json`, and
+`docs/artifact_reproducibility.json`. Commit these generated files after the run.
+Do not run an unrelated opt-in build with `--describe` over the final description.
+
+To also save usable artifacts without writing under frozen `data/master/`, add:
+
+```bash
+python -m tools.check_preprocess_reproducibility --cohort data/master/train_cohort_imputed.csv --expected-features 67 --artifacts-dir models/handoff
+```
+
+The exported joblib and metadata are under `models/handoff/models/`; the matching
+OOF matrix and row map are under `models/handoff/encoded/`. These are local derived
+artifacts and must not be committed. Commit or stash modified evidence before
+rerunning the checker.
+
+For your Windows `.venv`, no activation is required:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest tests.test_features -v
+.\.venv\Scripts\python.exe -m tools.check_preprocess_reproducibility --cohort data/master/train_cohort_imputed.csv --expected-features 67
+```
+
+On Linux/WSL use `./.venv/bin/python` instead.
 
 ## Feature count 67 or 69
 
@@ -39,21 +70,19 @@ For the frozen full dataset with the original per-column imputation flags:
 | `--include-frozen-price-stats` | 69 | Included |
 
 The default excludes `brand_retention_rate` and `province_price_index`. To include
-both, add the flag to the build command:
+both, use separate output paths for the optional experiment:
 
 ```bash
 python -m src.features.pipeline --features full --cohort data/master/train_cohort_imputed.csv \
-    --require-imputed --include-frozen-price-stats --describe
+    --require-imputed --include-frozen-price-stats --output models/with-price-stats/preprocess.joblib \
+    --encoded-dir models/with-price-stats/encoded
 ```
 
-The flag adds two scaled numeric values, without extra missing-value indicators
-for those two columns. All other preprocessing remains unchanged. Counts can
-differ for other datasets because one-hot categories are fitted on training data.
-
-Both commands use the same output paths, so the last build replaces the earlier
-artifacts. Rebuild with the default command for the final 67-feature handoff.
-Use a matching preprocessor and trained price model; changing the feature
-configuration requires retraining the price model.
+The flag adds two scaled values without missing-value indicators for those
+columns. The real cohort produced **69** in a separate verified build; the
+published reference evidence remains **67**. Output counts can differ on other
+datasets because training category cardinalities control one-hot width.
+Changing feature configuration requires retraining the downstream price model.
 
 Report section 5 must state **67/default** or **69/with-price-statistics** for each
 experiment. The reviewer reports that `--ablate` and `model_gate` experiments used
@@ -77,16 +106,17 @@ field. Moving identical input files, with the same filenames, between directorie
 therefore does not change the embedded metadata. Use the same data, settings,
 Python and dependency versions when comparing complete artifact hashes.
 
-After the final default build, print the three full SHA256 hashes:
+[artifact_reproducibility.json](docs/artifact_reproducibility.json) is the **only
+reference table for artifact hashes**. [Data handover §5](docs/data_handover.md#5-artifacts-that-git-ignores--rebuild-and-compare-the-hash-do-not-ship-the-binary)
+explains the scope, input provenance, and source commit. Hashes from the earlier
+59-feature configuration have been replaced by measured 67-feature results.
 
-```bash
-python -c "from pathlib import Path; import hashlib; paths=['models/preprocess.joblib','data/master/X_train_full_oof.npz','data/master/train_full_oof_rows.csv']; print('\n'.join(p+'  '+hashlib.sha256(Path(p).read_bytes()).hexdigest().upper() for p in paths))"
-```
-
-Paste that output here after rebuilding in the repository environment. The
-supplied reference fingerprints are NPZ `FA88F71A...5E89B` and rows
-`CB694701...ED6A`; full reference hashes were not supplied. No final hashes are
-claimed here because the original training cohort was not available for this update.
+The checker runs fresh processes in separate temporary directories, varies
+relative/absolute input paths and Python hash seeds, verifies every OOF target
+encoding in both runs, and checks the source checkout stays unchanged. Source
+hashes normalize CRLF to LF; CSV and artifact hashes remain byte-exact. Evidence
+is written only after all checks succeed. A failed run leaves any older report
+unchanged; its timestamp must not be mistaken for a successful new run.
 
 ## Inference requires the imputation history
 
@@ -97,7 +127,7 @@ import joblib
 import pandas as pd
 from src.features.pipeline import attach_imputed
 
-preprocess = joblib.load("models/preprocess.joblib")
+preprocess = joblib.load("models/handoff/models/preprocess.joblib")
 val = pd.read_csv("data/master/val_features_full.csv", low_memory=False)
 val_cohort_imputed = pd.read_csv("data/master/val_cohort_imputed.csv", low_memory=False)
 val = attach_imputed(val, val_cohort_imputed)
