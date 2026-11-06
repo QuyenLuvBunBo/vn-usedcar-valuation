@@ -54,3 +54,6 @@ encoded/
 .idea/
 .DS_Store
 Thumbs.db
+
+# CatBoost writes its training log into the working directory
+catboost_info/

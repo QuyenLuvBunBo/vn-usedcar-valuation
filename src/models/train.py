@@ -49,6 +49,44 @@ def _median_predict(train: pd.DataFrame, val: pd.DataFrame) -> np.ndarray:
     return val.apply(one, axis=1).to_numpy()
 
 
+def _stringify(series: pd.Series) -> np.ndarray:
+    """Plain Python strings, missing → "missing". CatBoost refuses NaN inside a categorical column."""
+    values = series.astype(object).to_numpy()
+    return np.array([("missing" if value is None or value is pd.NA
+                      or (isinstance(value, float) and np.isnan(value)) else str(value))
+                     for value in values], dtype=object)
+
+
+class CatBoostCoded:
+    """CatBoost plus the train-derived integer code map, so predict() sees the same encoding.
+
+    CatBoost refuses unseen/NaN levels inside a categorical column at *predict* time too, so the
+    coding has to travel with the model instead of being applied once in the caller.
+    """
+
+    def __init__(self, model, mapping: dict[str, dict[str, int]], categorical: list[str]):
+        self.model = model
+        self.mapping = mapping
+        self.categorical = categorical
+
+    def _code(self, x: pd.DataFrame) -> pd.DataFrame:
+        frame = x.copy()
+        for column in self.categorical:
+            mapping = self.mapping[column]
+            values = x[column].astype(object)
+            frame[column] = np.array([
+                mapping.get("missing" if value is None or value is pd.NA
+                            or (isinstance(value, float) and np.isnan(value)) else str(value), -1)
+                for value in values], dtype=np.int32)
+        return frame
+
+    def predict(self, x: pd.DataFrame):
+        return self.model.predict(self._code(x))
+
+    def __getattr__(self, item):
+        return getattr(self.model, item)
+
+
 def _fit_dense(name: str, seed: int, x_train: pd.DataFrame, y_train: pd.Series, sample: int = 0):
     """Median impute + one-hot + scaler for the models that cannot take pandas categories."""
     from sklearn.compose import ColumnTransformer
@@ -75,8 +113,10 @@ def _fit_dense(name: str, seed: int, x_train: pd.DataFrame, y_train: pd.Series, 
     ])
     estimator = {
         "ridge": Ridge(alpha=1.0),
-        "lasso": Lasso(alpha=1e-5, max_iter=5000),
-        "elasticnet": ElasticNet(alpha=1e-5, l1_ratio=0.5, max_iter=5000),
+        # alpha/tol are set so a 20k-column one-hot design still converges in seconds, not minutes;
+        # the coefficient scale is meaningless here anyway because the target is log price.
+        "lasso": Lasso(alpha=1e-3, max_iter=1000, tol=1e-3),
+        "elasticnet": ElasticNet(alpha=1e-3, l1_ratio=0.5, max_iter=1000, tol=1e-3),
         "knn": KNeighborsRegressor(n_neighbors=25, weights="distance", n_jobs=-1),
         "rf": RandomForestRegressor(n_estimators=200, min_samples_leaf=3, max_features=0.4,
                                     random_state=seed, n_jobs=-1),
@@ -107,18 +147,37 @@ def _fit_tree(name: str, seed: int, x_train, y_train, x_val, y_val, params: dict
         categorical = [column for column in x_train.columns
                        if isinstance(x_train[column].dtype, pd.CategoricalDtype)]
         train_frame, val_frame = x_train.copy(), x_val.copy()
+        mappings: dict[str, dict[str, int]] = {}
         for column in categorical:
-            # CatBoost rejects NaN inside a categorical: make the missing token explicit.
-            train_frame[column] = train_frame[column].astype("object").fillna("missing").astype(str)
-            val_frame[column] = val_frame[column].astype("object").fillna("missing").astype(str)
+            # Integer codes, "missing" included as its own level: CatBoost accepts integer
+            # categorical values, and an int column cannot smuggle a NaN into the CTR builder.
+            train_values = x_train[column].astype(object)
+            mapping: dict[str, int] = {}
+            codes = np.empty(len(train_values), dtype=np.int32)
+            for position, value in enumerate(train_values):
+                key = ("missing" if value is None or value is pd.NA
+                       or (isinstance(value, float) and np.isnan(value)) else str(value))
+                codes[position] = mapping.setdefault(key, len(mapping))
+            val_values = x_val[column].astype(object)
+            val_codes = np.empty(len(val_values), dtype=np.int32)
+            for position, value in enumerate(val_values):
+                key = ("missing" if value is None or value is pd.NA
+                       or (isinstance(value, float) and np.isnan(value)) else str(value))
+                val_codes[position] = mapping.get(key, -1)     # unseen level → -1
+            mappings[column] = mapping
+            train_frame[column] = codes
+            val_frame[column] = val_codes
         model = CatBoostRegressor(iterations=int(params.get("iterations", 3000)),
                                   learning_rate=float(params.get("learning_rate", 0.05)),
                                   depth=int(params.get("depth", 8)), loss_function="RMSE",
                                   od_type="Iter", od_wait=100, random_seed=seed,
+                                  # Plain boosting + a single CTR combination keeps the mandatory
+                                  # iterations=3000 budget affordable on 70k rows; recorded in the table.
+                                  boosting_type="Plain", max_ctr_complexity=1, one_hot_max_size=10,
                                   verbose=False, thread_count=-1)
-        model.fit(train_frame, y_train, cat_features=list(range(len(categorical))),
+        model.fit(train_frame, y_train, cat_features=categorical,
                   eval_set=(val_frame, y_val), use_best_model=True)
-        return model
+        return CatBoostCoded(model, mappings, categorical)
     if name == "xgboost":
         import xgboost as xgb
         model = xgb.XGBRegressor(n_estimators=int(params.get("n_estimators", 900)),
