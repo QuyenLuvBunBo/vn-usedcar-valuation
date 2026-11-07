@@ -119,8 +119,10 @@ def main(argv: list[str] | None = None) -> int:
 
     by_year_frame = frame[frame["manufacture_year"].between(FIRST_MODEL_YEAR, LAST_MODEL_YEAR)]
     by_year = by_year_frame.groupby("manufacture_year")["price_vnd"].median()
-    implausible = frame[~frame["manufacture_year"].between(PLAUSIBLE_FIRST, PLAUSIBLE_LAST)]
+    implausible = frame[frame["manufacture_year"].notna()
+                        & ~frame["manufacture_year"].between(PLAUSIBLE_FIRST, PLAUSIBLE_LAST)]
     implausible_values = sorted(int(year) for year in implausible["manufacture_year"].dropna().unique())
+    missing_year = frame[frame["manufacture_year"].isna()]
     older = frame[frame["manufacture_year"].between(PLAUSIBLE_FIRST, FIRST_MODEL_YEAR - 1)]
     fig, axis = plt.subplots(figsize=(7, 4))
     axis.plot(by_year.index, by_year.to_numpy() / 1e9, marker="o", color="#a55a3b")
@@ -207,7 +209,8 @@ def main(argv: list[str] | None = None) -> int:
               f"{len(by_year_frame):,} listings. {len(older):,} listings are older stock "
               f"({PLAUSIBLE_FIRST}–{FIRST_MODEL_YEAR - 1}) and sit outside that window; "
               f"{len(implausible):,} rows carry a manufacture year that cannot be real "
-              f"({', '.join(str(year) for year in implausible_values)}) and are data-entry errors.", "",
+              f"({', '.join(str(year) for year in implausible_values)}), and {len(missing_year):,} rows have "
+              "no manufacture year at all — both are excluded from this table and from figure 4.", "",
               "| Year | Median price (VND) |", "| ---: | ---: |"]
     for year, value in by_year.items():
         lines.append(f"| {int(year)} | {int(value):,} |")

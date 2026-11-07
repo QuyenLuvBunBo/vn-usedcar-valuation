@@ -62,7 +62,7 @@ The top two provinces carry **71,350** of 100,803 listings (71%); across the top
 
 ## Median price by model year
 
-The table and figure 4 cover **2010–2026**, which is 93,615 listings. 7,175 listings are older stock (1980–2009) and sit outside that window; 13 rows carry a manufacture year that cannot be real (1025, 2028, 2030, 2032) and are data-entry errors.
+The table and figure 4 cover **2010–2026**, which is 93,615 listings. 7,175 listings are older stock (1980–2009) and sit outside that window; 4 rows carry a manufacture year that cannot be real (1025, 2028, 2030, 2032), and 9 rows have no manufacture year at all — both are excluded from this table and from figure 4.
 
 | Year | Median price (VND) |
 | ---: | ---: |

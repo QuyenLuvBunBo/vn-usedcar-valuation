@@ -61,8 +61,10 @@ listed here because each one changes how a number in the report should be read.
 2. **Placeholder odometers.** 6 of the 25 carry `mileage_km ≤ 100` or `≥ 900.000`, e.g. `999.998 km` on
    a 2024 car, `1 km` on a 2026 car. `km_per_year` inherits the nonsense, and `mileage_km` is a numeric
    feature, so these rows actively mislead the model rather than merely being wrong.
-3. **Impossible model years.** 13 rows carry `1025`, `2028`, `2030` or `2032` (see the EDA note); the
-   year is a first-class feature, so a 1025 car teaches the model nothing useful.
+3. **Impossible or missing model years.** **4 rows** carry `1025`, `2028`, `2030` or `2032`, and **9
+   rows have no `manufacture_year` at all** (an earlier note in this file said 13 — that count wrongly
+   folded the 9 missing values in with the impossible ones; `tools/audit_master` now prints both numbers
+   separately). The year is a first-class feature, so a 1025 car teaches the model nothing useful.
 4. **A duplicate pair survives into val.** `TBX_88471` and `TBX_87885` are the same Isuzu MU-X 2018 at
    33.330.000 VND with the identical prediction, but they carry different `listing_id` **and** different
    `duplicate_group_id`, so the grouped split cannot see them as one car and the tail counts the ad twice.
