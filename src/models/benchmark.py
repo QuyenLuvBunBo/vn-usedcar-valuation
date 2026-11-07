@@ -166,7 +166,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="also write the ledger here so a clean clone can read the numbers")
     args = parser.parse_args(argv)
 
-    models = list(trainer.MODELS) if args.all else [item.strip() for item in args.models.split(",") if item.strip()]
+    models = (list(trainer.MODELS) if args.all
+              else [trainer.resolve_model(item) for item in args.models.split(",") if item.strip()])
     tunable = {item.strip() for item in args.tune_models.split(",") if item.strip()}
     features = [item.strip() for item in args.features.split(",") if item.strip()]
     rows: list[dict] = []

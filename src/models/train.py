@@ -30,8 +30,17 @@ from src.models import common  # noqa: E402
 
 MODELS = ("median", "ridge", "lasso", "elasticnet", "knn", "rf", "hgb",
           "lightgbm", "catboost", "xgboost")
+# The plan writes `--model lgbm`; keep the short names working so the documented command is the real one.
+ALIASES = {"lgbm": "lightgbm", "lgb": "lightgbm", "cb": "catboost", "xgb": "xgboost",
+           "enet": "elasticnet", "rf200": "rf"}
 DENSE = ("ridge", "lasso", "elasticnet", "knn", "rf")
 TREES = ("hgb", "lightgbm", "catboost", "xgboost")
+
+
+def resolve_model(name: str) -> str:
+    """Accept the short names used in the plan (`lgbm`, `xgb`, `cb`) and in the benchmark list."""
+    lowered = str(name).strip().lower()
+    return ALIASES.get(lowered, lowered)
 
 
 def _median_predict(train: pd.DataFrame, val: pd.DataFrame) -> np.ndarray:
@@ -262,7 +271,7 @@ def _quantile_bands(x_train, y_train, x_val, seed: int, low: float = 0.1, high: 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Train one week-3 model and write its artefacts")
-    parser.add_argument("--model", choices=MODELS)
+    parser.add_argument("--model", help="one of: " + ", ".join(MODELS) + " (short names lgbm/xgb/cb work)")
     parser.add_argument("--list", action="store_true", dest="list_models")
     parser.add_argument("--features", default="full", choices=common.VARIANTS)
     parser.add_argument("--seed", type=int, default=common.SEED)
@@ -277,6 +286,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--models-dir", default=str(Path(__file__).resolve().parents[2] / "models"))
     parser.add_argument("--note", default="")
     args = parser.parse_args(argv)
+    args.model = resolve_model(args.model) if args.model else args.model
+    if args.model and args.model not in MODELS:
+        raise SystemExit(f"unknown model {args.model!r}; choose one of {', '.join(MODELS)}")
 
     if args.list_models or not args.model:
         print("models:", ", ".join(MODELS))

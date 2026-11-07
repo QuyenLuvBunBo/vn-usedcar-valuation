@@ -1,13 +1,14 @@
 """Feature-group ablation: what does each group of columns actually buy?
 
-The plan (§4.1) assigns this to team 1: *"drop-one at a time → a ΔR² table for report §4"*.
-It is a **relative** measurement — a fixed small estimator, one group removed at a time — not a
-benchmark, and the JSON says so. Ridge on 20k train rows is the default because that is what the
-plan asks for; `--estimator lgbm` reproduces the older LightGBM flavour.
+The plan (§4.1) assigns this to team 1: *"drop-one at a time → a ΔR² table for report §4"*. It is a
+**relative** measurement — one fixed estimator, one group removed at a time — not a benchmark, and the
+JSON says so. The default is the plan's own configuration: a fixed small LightGBM on the full 70k train
+rows (Ridge is kept as an option, but it would need a one-hot of the 3,212-level `brand|model`, which is
+exactly what `src/features/pipeline.py` exists for).
 
 Run:
     python -m tools.feature_ablation
-    python -m tools.feature_ablation --estimator lgbm --rows 0
+    python -m tools.feature_ablation --estimator ridge --rows 20000
 """
 
 from __future__ import annotations
@@ -26,14 +27,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.common import config  # noqa: E402
 from src.models import common  # noqa: E402
 
+# All 23 feature columns, partitioned into ten groups so every column is dropped exactly once.
 GROUPS = {
     "cat_identity": ["brand", "model", "model_group"],
     "cat_spec": ["transmission", "fuel_type", "origin", "body_type", "seller_type"],
-    "geo": ["province_group", "province_price_index", "brand_retention_rate"],
+    "geo": ["province_group"],
+    "price_stats": ["brand_retention_rate", "province_price_index"],
     "timing": ["manufacture_year", "vehicle_age", "age_band", "brand_age_band"],
     "usage": ["mileage_km", "km_per_year"],
     "size": ["engine_capacity", "engine_per_seat", "seats"],
-    "flags": ["n_imputed", "is_luxury_segment"],
+    "flags": ["n_imputed"],
+    "luxury": ["is_luxury_segment"],
     "source": ["source_platform"],
 }
 
@@ -72,8 +76,9 @@ def _fit_predict(x_train, y_train, x_val, y_val, estimator: str) -> float:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Drop-one feature-group ablation")
     parser.add_argument("--features", default="full", choices=common.VARIANTS)
-    parser.add_argument("--estimator", default="ridge", choices=("ridge", "lgbm"))
-    parser.add_argument("--rows", type=int, default=20000, help="train rows (plan asks for 20k)")
+    parser.add_argument("--estimator", default="lgbm", choices=("lgbm", "ridge"))
+    parser.add_argument("--rows", type=int, default=0,
+                        help="train rows (0 = all; the plan asks for a fixed small LightGBM on all 70k)")
     parser.add_argument("--out", default=str(config.DATA_MASTER / "feature_ablation.json"))
     parser.add_argument("--doc", default="docs/features_ablation.md")
     args = parser.parse_args(argv)

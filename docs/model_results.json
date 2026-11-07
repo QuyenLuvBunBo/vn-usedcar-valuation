@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-07T04:44:26+00:00",
+  "generated_at": "2026-11-07T06:38:09+00:00",
   "results": [
     {
       "model": "lightgbm+tuned",
@@ -40,6 +40,45 @@
       "median_ape": 0.0611
     },
     {
+      "model": "lightgbm",
+      "features": "full",
+      "seed": 42,
+      "train_rows": 70244,
+      "rows_used": 70244,
+      "holdout": "val",
+      "holdout_rows": 14964,
+      "n_features": 23,
+      "seconds": 63.3,
+      "quantiles": true,
+      "params": {
+        "n_estimators": 600,
+        "learning_rate": 0.05,
+        "num_leaves": 127,
+        "min_child_samples": 40
+      },
+      "tuning": {
+        "budget_seconds": 90,
+        "trials": 10,
+        "sample_rows": 15000,
+        "folds": 2,
+        "best_cv_r2_log": 0.9165,
+        "params": {
+          "n_estimators": 600,
+          "learning_rate": 0.05,
+          "num_leaves": 127,
+          "min_child_samples": 40
+        }
+      },
+      "predictions": "F:\\Code\\IntroDS\\data\\master\\predictions_val.csv",
+      "note": "",
+      "r2_log": 0.9486,
+      "rmse_log": 0.1876,
+      "r2_vnd": 0.9243,
+      "mae_vnd": 80996654,
+      "mape": 0.1122,
+      "median_ape": 0.0611
+    },
+    {
       "model": "catboost",
       "features": "full",
       "seed": 42,
@@ -63,31 +102,6 @@
       "mae_vnd": 91143312,
       "mape": 0.1199,
       "median_ape": 0.0693
-    },
-    {
-      "model": "lightgbm",
-      "features": "full",
-      "seed": 42,
-      "train_rows": 70244,
-      "rows_used": 70244,
-      "holdout": "val",
-      "holdout_rows": 14964,
-      "n_features": 23,
-      "seconds": 6.6,
-      "quantiles": false,
-      "params": {},
-      "tuning": {
-        "budget_seconds": 0,
-        "trials": 0,
-        "note": "no tuning requested"
-      },
-      "note": "benchmark runner",
-      "r2_log": 0.9462,
-      "rmse_log": 0.1919,
-      "r2_vnd": 0.9213,
-      "mae_vnd": 82441420,
-      "mape": 0.1151,
-      "median_ape": 0.063
     },
     {
       "model": "xgboost+tuned",
@@ -347,7 +361,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 14,
-      "seconds": 5.5,
+      "seconds": 7.2,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -355,7 +369,8 @@
         "trials": 0,
         "note": "no tuning requested"
       },
-      "note": "benchmark runner",
+      "predictions": "F:\\Code\\IntroDS\\data\\master\\predictions_val.csv",
+      "note": "",
       "r2_log": 0.9447,
       "rmse_log": 0.1945,
       "r2_vnd": 0.9151,
