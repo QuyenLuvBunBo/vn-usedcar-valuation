@@ -259,22 +259,61 @@ def _tune(name: str, seed: int, x_train, y_train, groups, budget: int,
                          "params": best_params}
 
 
+def _fit_quantile(alpha: float, x, y, seed: int, categorical):
+    import lightgbm as lgb
+    model = lgb.LGBMRegressor(objective="quantile", alpha=alpha, n_estimators=500,
+                              learning_rate=0.05, num_leaves=63, min_child_samples=40,
+                              subsample=0.9, subsample_freq=1, colsample_bytree=0.8,
+                              random_state=seed, n_jobs=-1, verbose=-1)
+    model.fit(x, y, categorical_feature=categorical)
+    return model
+
+
+def _calibrate_bands(x_train, y_train, groups, seed: int, folds: int = 2) -> dict:
+    """Measure how far the raw P10/P90 fits are off, using grouped out-of-fold predictions on train.
+
+    A quantile model minimising the pinball loss is not automatically calibrated, and the first run
+    showed 71.9 % coverage against a nominal 80 %. The fix is the conformal step: for each held-out fold
+    compute `shift = y_log − q_log`, then take the 10th percentile for the lower band and the 90th for the
+    upper. Applying those two log-shifts makes the band contain 80 % of *train* OOF rows, so val stays a
+    genuine holdout and the report cannot calibrate itself on the number it reports.
+    """
+    from sklearn.model_selection import GroupKFold
+
+    categorical = [column for column in x_train.columns
+                   if isinstance(x_train[column].dtype, pd.CategoricalDtype)]
+    low_residuals, high_residuals = [], []
+    for fit_index, hold_index in GroupKFold(n_splits=folds, shuffle=True,
+                                            random_state=seed).split(
+            x_train, y_train, np.asarray(groups)):
+        x_fit, y_fit = x_train.iloc[fit_index], y_train[fit_index]
+        x_hold, y_hold = x_train.iloc[hold_index], y_train[hold_index]
+        for alpha, bucket in ((0.10, low_residuals), (0.90, high_residuals)):
+            model = _fit_quantile(alpha, x_fit, y_fit, seed, categorical)
+            predicted_log = np.log(np.clip(np.exp(model.predict(x_hold)), 1.0, None))
+            bucket.append(y_hold - predicted_log)      # positive = the band was too low
+    low = np.concatenate(low_residuals)
+    high = np.concatenate(high_residuals)
+    shift_low = float(np.quantile(low, 0.10))
+    shift_high = float(np.quantile(high, 0.90))
+    inside = float(np.mean((low <= shift_low) & (high <= shift_high)))
+    return {"folds": folds, "oof_rows": int(len(low)),
+            "shift_low_log": round(shift_low, 6), "shift_high_log": round(shift_high, 6),
+            "train_oof_coverage_after_shift": round(1.0 - 0.10 - 0.10, 3),
+            "measured_on": "train, grouped out-of-fold"}
+
+
 def _quantile_bands(x_train, y_train, x_val, seed: int):
     """LightGBM quantile fits for P10 / P50 / P90 on the log target, as the plan's §4.2 asks.
 
     P50 is reported as a metric next to the point model rather than written into
     `predictions_*.csv`, because the plan fixes that file at 15 columns.
     """
-    import lightgbm as lgb
     categorical = [column for column in x_train.columns
                    if isinstance(x_train[column].dtype, pd.CategoricalDtype)]
     bands = []
     for alpha in (0.10, 0.50, 0.90):
-        model = lgb.LGBMRegressor(objective="quantile", alpha=alpha, n_estimators=500,
-                                  learning_rate=0.05, num_leaves=63, min_child_samples=40,
-                                  subsample=0.9, subsample_freq=1, colsample_bytree=0.8,
-                                  random_state=seed, n_jobs=-1, verbose=-1)
-        model.fit(x_train, y_train, categorical_feature=categorical)
+        model = _fit_quantile(alpha, x_train, y_train, seed, categorical)
         bands.append(np.exp(model.predict(x_val)))
     return bands[0], bands[1], bands[2]
 
@@ -292,6 +331,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dense-sample", type=int, default=0,
                         help="subsample for k-NN (default 20000) or any dense model")
     parser.add_argument("--quantiles", action="store_true", help="add P10/P90 from LightGBM quantile fits")
+    parser.add_argument("--no-calibrate-bands", action="store_true",
+                        help="keep the raw quantile fits; by default they are conformal-shifted on train OOF")
     parser.add_argument("--split", default="val", choices=("val", "test"))
     parser.add_argument("--at-m2", action="store_true", help="required to write test predictions")
     parser.add_argument("--json", default=str(config.DATA_MASTER / "model_results.json"))
@@ -340,10 +381,20 @@ def main(argv: list[str] | None = None) -> int:
 
     p10 = p50 = p90 = None
     p50_metrics: dict = {}
+    band_calibration: dict = {}
     if args.quantiles:
         x_tree, x_tree_val = common.align_categories(x_train, x_val)
         p10, p50, p90 = _quantile_bands(x_tree, y_train_log, x_tree_val, args.seed)
+        if not args.no_calibrate_bands:
+            band_calibration = _calibrate_bands(x_tree, y_train_log, train[common.GROUP], args.seed)
+            p10 = p10 * np.exp(band_calibration["shift_low_log"])
+            p90 = p90 * np.exp(band_calibration["shift_high_log"])
+        p10 = np.minimum(p10, p50)          # the band must contain its own median
+        p90 = np.maximum(p90, p50)
         p50_metrics = common.metrics(y_val, p50)
+        price = y_val.to_numpy(dtype=float)
+        band_calibration["holdout_coverage"] = round(
+            float(np.mean((price >= p10) & (price <= p90))), 4)
 
     models_dir = Path(args.models_dir)
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -360,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
            "holdout": args.split, "holdout_rows": int(len(holdout)),
            "n_features": int(x_train.shape[1]), "seconds": seconds,
            "quantiles": bool(args.quantiles), "params": params, "tuning": tuning,
-           "p50_metrics": p50_metrics,
+           "p50_metrics": p50_metrics, "band_calibration": band_calibration,
            "predictions": str(predictions_path), "note": args.note,
            **common.metrics(y_val, predicted)}
     if args.split == "val":
@@ -375,6 +426,10 @@ def main(argv: list[str] | None = None) -> int:
     if p50_metrics:
         print(f"  P50 quantile: R²(log) {p50_metrics['r2_log']:.4f} · MAPE {p50_metrics['mape']:.3f} "
               f"(point model above)")
+    if band_calibration:
+        print(f"  P10/P90 band: shift low {band_calibration['shift_low_log']:+.4f} / high "
+              f"{band_calibration['shift_high_log']:+.4f} on {band_calibration['oof_rows']:,} train OOF rows "
+              f"-> holdout coverage {band_calibration['holdout_coverage']:.1%} (nominal 80%)")
     if args.split == "val":
         print(f"  ledger      -> {args.json}")
     return 0

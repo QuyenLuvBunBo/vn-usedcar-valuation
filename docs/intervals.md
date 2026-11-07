@@ -4,27 +4,27 @@ Source: `predictions_val.csv` (14,964 rows). Nominal coverage **80%**; a calibra
 
 | Measure | Value |
 | --- | ---: |
-| inside the band | **71.91%** |
-| price below P10 | 13.69% |
-| price above P90 | 14.40% |
-| median band width | 99,482,588 VND |
-| median width / point estimate | 21.7% |
-| median APE of the point estimate | 6.2% |
+| inside the band | **81.70%** |
+| price below P10 | 9.19% |
+| price above P90 | 9.12% |
+| median band width | 122,737,220 VND |
+| median width / point estimate | 26.0% |
+| median APE of the point estimate | 6.3% |
 
-**Verdict: MISALIBRATED** (tolerance ±5% around nominal).
+**Verdict: PASS** (tolerance ±5% around nominal).
 
 ## Coverage by platform
 
 | Platform | Rows | Inside | Below P10 | Above P90 |
 | --- | ---: | ---: | ---: | ---: |
-| carmudi | 105 | 82.9% | 8.6% | 8.6% |
-| muaban.net | 1,044 | 74.4% | 14.0% | 11.6% |
-| chotot | 2,874 | 73.6% | 13.7% | 12.7% |
-| oto.com.vn | 4,369 | 73.1% | 11.8% | 15.1% |
-| vucar.vn | 309 | 72.2% | 8.4% | 19.4% |
-| tinbanxe.vn | 1,124 | 72.2% | 15.6% | 12.3% |
-| bonbanh | 4,529 | 69.2% | 15.7% | 15.0% |
-| carpla | 610 | 68.0% | 11.8% | 20.2% |
+| carmudi | 105 | 88.6% | 5.7% | 5.7% |
+| vucar.vn | 309 | 85.4% | 3.9% | 10.7% |
+| chotot | 2,874 | 83.0% | 9.5% | 7.6% |
+| muaban.net | 1,044 | 82.7% | 9.6% | 7.8% |
+| tinbanxe.vn | 1,124 | 82.4% | 10.5% | 7.1% |
+| oto.com.vn | 4,369 | 81.6% | 8.5% | 9.9% |
+| bonbanh | 4,529 | 80.6% | 9.8% | 9.6% |
+| carpla | 610 | 78.2% | 8.5% | 13.3% |
 
 ## Reading
 

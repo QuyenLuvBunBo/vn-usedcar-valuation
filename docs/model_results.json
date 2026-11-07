@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-07T16:47:03+00:00",
+  "generated_at": "2026-11-07T17:13:39+00:00",
   "results": [
     {
       "model": "lightgbm+tuned",
@@ -88,28 +88,39 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 16.7,
-      "quantiles": false,
+      "seconds": 19.1,
+      "quantiles": true,
       "params": {},
       "tuning": {
         "budget_seconds": 0,
         "trials": 0,
         "note": "no tuning requested"
       },
-      "note": "benchmark runner",
+      "p50_metrics": {
+        "r2_log": 0.9347,
+        "rmse_log": 0.2114,
+        "r2_vnd": 0.9004,
+        "mae_vnd": 86434096,
+        "mape": 0.1214,
+        "median_ape": 0.0568
+      },
+      "band_calibration": {
+        "folds": 2,
+        "oof_rows": 70244,
+        "shift_low_log": -0.022817,
+        "shift_high_log": 0.020599,
+        "train_oof_coverage_after_shift": 0.8,
+        "measured_on": "train, grouped out-of-fold",
+        "holdout_coverage": 0.817
+      },
+      "predictions": "F:\\Code\\IntroDS\\data\\master\\predictions_val.csv",
+      "note": "",
       "r2_log": 0.9462,
       "rmse_log": 0.1919,
       "r2_vnd": 0.9213,
       "mae_vnd": 82441420,
       "mape": 0.1151,
-      "median_ape": 0.063,
-      "rows_tail": 27,
-      "clean_r2_log": 0.9559,
-      "clean_rmse_log": 0.1728,
-      "clean_r2_vnd": 0.9219,
-      "clean_mae_vnd": 81782479,
-      "clean_mape": 0.1038,
-      "clean_median_ape": 0.0629
+      "median_ape": 0.063
     },
     {
       "model": "xgboost+tuned",
