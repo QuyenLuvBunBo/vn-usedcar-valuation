@@ -31,7 +31,7 @@ DOC = REPO / "docs" / "benchmark.md"
 
 
 def run_one(model: str, features: str, seed: int, tune_seconds: int, rows: int,
-            knn_sample: int = 20000) -> dict:
+            knn_sample: int = 20000, tune_fits: int = 25) -> dict:
     """Fit once, return the ledger row plus the per-row absolute percentage error."""
     train_frame = common.load_split(features, "train", rows, seed)
     val_frame = common.load_split(features, "val")
@@ -55,7 +55,7 @@ def run_one(model: str, features: str, seed: int, tune_seconds: int, rows: int,
         x_train, x_val = common.align_categories(x_train, x_val)
         if tune_seconds:
             params, tuning = trainer._tune(model, seed, x_train, y_train_log,
-                                           train_frame[common.GROUP], tune_seconds)
+                                           train_frame[common.GROUP], tune_seconds, tune_fits)
         fitted = trainer._fit_tree(model, seed, x_train, y_train_log, x_val, y_val_log, params)
         predicted = np.exp(fitted.predict(x_val))
         rows_used = len(train_frame)
@@ -158,6 +158,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tune-seconds", type=int, default=0,
                         help="time-boxed random search; tuned runs appear as <model>+tuned rows")
     parser.add_argument("--knn-sample", type=int, default=20000)
+    parser.add_argument("--tune-fits", type=int, default=25,
+                        help="random draws per tuned model (draws x 2 folds = fits; the plan caps at 60)")
     parser.add_argument("--tune-models", default="lightgbm,xgboost,catboost",
                         help="which models get a tuned row; a CatBoost trial alone can exceed a small budget")
     parser.add_argument("--doc", default=str(DOC))
@@ -189,12 +191,13 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {variant:7s} {model}+tuned ...", end="", flush=True)
                 try:
                     tuned = run_one(model, variant, args.seed, args.tune_seconds, args.rows,
-                                    args.knn_sample)
+                                    args.knn_sample, args.tune_fits)
                 except Exception as error:
                     print(f" SKIP ({type(error).__name__}: {error})")
                     continue
                 tuned["model"] = f"{model}+tuned"
-                tuned["note"] = f"random search {args.tune_seconds}s budget"
+                tuned["note"] = (f"random search {args.tune_fits} draws x 2 grouped folds "
+                                 f"= {args.tune_fits * 2} fits, {args.tune_seconds}s cap")
                 record(tuned, f"{model}+tuned")
 
     if not rows:

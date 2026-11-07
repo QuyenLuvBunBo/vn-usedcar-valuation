@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-07T12:35:30+00:00",
+  "generated_at": "2026-11-07T13:06:39+00:00",
   "results": [
     {
       "model": "lightgbm+tuned",
@@ -10,34 +10,35 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 66.5,
+      "seconds": 140.1,
       "quantiles": false,
       "params": {
-        "n_estimators": 600,
-        "learning_rate": 0.05,
-        "num_leaves": 127,
-        "min_child_samples": 40
+        "n_estimators": 900,
+        "learning_rate": 0.03,
+        "num_leaves": 63,
+        "min_child_samples": 20
       },
       "tuning": {
-        "budget_seconds": 90,
-        "trials": 10,
+        "budget_seconds": 600,
+        "trials": 25,
+        "fits": 50,
         "sample_rows": 15000,
         "folds": 2,
-        "best_cv_r2_log": 0.9165,
+        "best_cv_r2_log": 0.9175,
         "params": {
-          "n_estimators": 600,
-          "learning_rate": 0.05,
-          "num_leaves": 127,
-          "min_child_samples": 40
+          "n_estimators": 900,
+          "learning_rate": 0.03,
+          "num_leaves": 63,
+          "min_child_samples": 20
         }
       },
-      "note": "random search 90s budget",
-      "r2_log": 0.9486,
-      "rmse_log": 0.1876,
-      "r2_vnd": 0.9243,
-      "mae_vnd": 80996654,
-      "mape": 0.1122,
-      "median_ape": 0.0611
+      "note": "random search 25 draws x 2 grouped folds = 50 fits, 600s cap",
+      "r2_log": 0.9471,
+      "rmse_log": 0.1904,
+      "r2_vnd": 0.9215,
+      "mae_vnd": 82087205,
+      "mape": 0.114,
+      "median_ape": 0.0622
     },
     {
       "model": "lightgbm",
@@ -48,25 +49,26 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 60.3,
+      "seconds": 143.1,
       "quantiles": true,
       "params": {
-        "n_estimators": 600,
-        "learning_rate": 0.05,
-        "num_leaves": 127,
-        "min_child_samples": 40
+        "n_estimators": 900,
+        "learning_rate": 0.03,
+        "num_leaves": 63,
+        "min_child_samples": 20
       },
       "tuning": {
-        "budget_seconds": 90,
-        "trials": 10,
+        "budget_seconds": 600,
+        "trials": 25,
+        "fits": 50,
         "sample_rows": 15000,
         "folds": 2,
-        "best_cv_r2_log": 0.9165,
+        "best_cv_r2_log": 0.9175,
         "params": {
-          "n_estimators": 600,
-          "learning_rate": 0.05,
-          "num_leaves": 127,
-          "min_child_samples": 40
+          "n_estimators": 900,
+          "learning_rate": 0.03,
+          "num_leaves": 63,
+          "min_child_samples": 20
         }
       },
       "p50_metrics": {
@@ -79,12 +81,12 @@
       },
       "predictions": "F:\\Code\\IntroDS\\data\\master\\predictions_val.csv",
       "note": "",
-      "r2_log": 0.9486,
-      "rmse_log": 0.1876,
-      "r2_vnd": 0.9243,
-      "mae_vnd": 80996654,
-      "mape": 0.1122,
-      "median_ape": 0.0611
+      "r2_log": 0.9471,
+      "rmse_log": 0.1904,
+      "r2_vnd": 0.9215,
+      "mae_vnd": 82087205,
+      "mape": 0.114,
+      "median_ape": 0.0622
     },
     {
       "model": "catboost",
@@ -95,7 +97,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 346.0,
+      "seconds": 263.2,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -120,7 +122,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 97.1,
+      "seconds": 183.9,
       "quantiles": false,
       "params": {
         "n_estimators": 1200,
@@ -128,8 +130,9 @@
         "max_depth": 6
       },
       "tuning": {
-        "budget_seconds": 90,
-        "trials": 10,
+        "budget_seconds": 600,
+        "trials": 25,
+        "fits": 50,
         "sample_rows": 15000,
         "folds": 2,
         "best_cv_r2_log": 0.872,
@@ -139,7 +142,7 @@
           "max_depth": 6
         }
       },
-      "note": "random search 90s budget",
+      "note": "random search 25 draws x 2 grouped folds = 50 fits, 600s cap",
       "r2_log": 0.944,
       "rmse_log": 0.1957,
       "r2_vnd": 0.901,
@@ -156,7 +159,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 88.6,
+      "seconds": 64.3,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -181,7 +184,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 15.4,
+      "seconds": 13.8,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -206,7 +209,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 3.2,
+      "seconds": 2.6,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -231,7 +234,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 1.2,
+      "seconds": 0.8,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -256,7 +259,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 61.6,
+      "seconds": 43.4,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -281,7 +284,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 27.9,
+      "seconds": 18.0,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -306,7 +309,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 0.6,
+      "seconds": 0.5,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -331,34 +334,35 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 14,
-      "seconds": 70.9,
+      "seconds": 141.0,
       "quantiles": false,
       "params": {
-        "n_estimators": 400,
-        "learning_rate": 0.08,
+        "n_estimators": 900,
+        "learning_rate": 0.03,
         "num_leaves": 63,
         "min_child_samples": 20
       },
       "tuning": {
-        "budget_seconds": 90,
-        "trials": 10,
+        "budget_seconds": 600,
+        "trials": 25,
+        "fits": 50,
         "sample_rows": 15000,
         "folds": 2,
-        "best_cv_r2_log": 0.9163,
+        "best_cv_r2_log": 0.9173,
         "params": {
-          "n_estimators": 400,
-          "learning_rate": 0.08,
+          "n_estimators": 900,
+          "learning_rate": 0.03,
           "num_leaves": 63,
           "min_child_samples": 20
         }
       },
-      "note": "random search 90s budget",
-      "r2_log": 0.946,
-      "rmse_log": 0.1922,
-      "r2_vnd": 0.9166,
-      "mae_vnd": 84128146,
-      "mape": 0.1161,
-      "median_ape": 0.0648
+      "note": "random search 25 draws x 2 grouped folds = 50 fits, 600s cap",
+      "r2_log": 0.9464,
+      "rmse_log": 0.1916,
+      "r2_vnd": 0.9162,
+      "mae_vnd": 84155488,
+      "mape": 0.1155,
+      "median_ape": 0.0627
     },
     {
       "model": "lightgbm",
@@ -369,7 +373,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 14,
-      "seconds": 7.2,
+      "seconds": 6.1,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -377,8 +381,7 @@
         "trials": 0,
         "note": "no tuning requested"
       },
-      "predictions": "F:\\Code\\IntroDS\\data\\master\\predictions_val.csv",
-      "note": "",
+      "note": "benchmark runner",
       "r2_log": 0.9447,
       "rmse_log": 0.1945,
       "r2_vnd": 0.9151,
@@ -395,7 +398,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 14,
-      "seconds": 293.6,
+      "seconds": 254.5,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -420,32 +423,33 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 14,
-      "seconds": 89.8,
+      "seconds": 162.6,
       "quantiles": false,
       "params": {
         "n_estimators": 1200,
-        "learning_rate": 0.03,
+        "learning_rate": 0.08,
         "max_depth": 6
       },
       "tuning": {
-        "budget_seconds": 90,
-        "trials": 10,
+        "budget_seconds": 600,
+        "trials": 25,
+        "fits": 50,
         "sample_rows": 15000,
         "folds": 2,
-        "best_cv_r2_log": 0.876,
+        "best_cv_r2_log": 0.8764,
         "params": {
           "n_estimators": 1200,
-          "learning_rate": 0.03,
+          "learning_rate": 0.08,
           "max_depth": 6
         }
       },
-      "note": "random search 90s budget",
-      "r2_log": 0.9418,
-      "rmse_log": 0.1996,
-      "r2_vnd": 0.8977,
-      "mae_vnd": 80330313,
-      "mape": 0.1123,
-      "median_ape": 0.0606
+      "note": "random search 25 draws x 2 grouped folds = 50 fits, 600s cap",
+      "r2_log": 0.9413,
+      "rmse_log": 0.2004,
+      "r2_vnd": 0.8983,
+      "mae_vnd": 80995302,
+      "mape": 0.1133,
+      "median_ape": 0.0618
     },
     {
       "model": "catboost+tuned",
@@ -492,7 +496,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 14,
-      "seconds": 7.1,
+      "seconds": 6.7,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -517,7 +521,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 14,
-      "seconds": 81.5,
+      "seconds": 56.1,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -542,7 +546,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 14,
-      "seconds": 1.2,
+      "seconds": 0.7,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -567,7 +571,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 14,
-      "seconds": 7.9,
+      "seconds": 4.5,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -592,7 +596,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 14,
-      "seconds": 18.5,
+      "seconds": 16.9,
       "quantiles": false,
       "params": {},
       "tuning": {
@@ -642,7 +646,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 14,
-      "seconds": 21.5,
+      "seconds": 17.0,
       "quantiles": false,
       "params": {},
       "tuning": {

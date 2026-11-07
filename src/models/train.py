@@ -213,8 +213,13 @@ TUNABLE = {
 }
 
 
-def _tune(name: str, seed: int, x_train, y_train, groups, budget: int) -> tuple[dict, dict]:
-    """Time-boxed random search. Bounded on purpose: the plan fixes 90 minutes per model as a rule."""
+def _tune(name: str, seed: int, x_train, y_train, groups, budget: int,
+          fits: int = 25) -> tuple[dict, dict]:
+    """Randomized search over a small grid, capped at `fits` draws × 2 grouped folds.
+
+    The plan allows `RandomizedSearchCV ≤60 fits` or `Optuna ≤80 trials` inside a 90-minute box; this is
+    the same shape with an explicit draw count (25 draws × 2 folds = 50 fits) plus a wall-clock cap.
+    """
     if budget <= 0 or name not in TUNABLE:
         return {}, {"budget_seconds": 0, "trials": 0, "note": "fixed parameters (no tuning)"}
     from sklearn.model_selection import GroupKFold
@@ -231,7 +236,7 @@ def _tune(name: str, seed: int, x_train, y_train, groups, budget: int) -> tuple[
     rng = np.random.RandomState(seed)
     best_params, best_score, trials = {}, -np.inf, 0
     started = time.monotonic()
-    while trials < 10 and time.monotonic() - started < budget:
+    while trials < fits and time.monotonic() - started < budget:
         params = {key: values[rng.randint(len(values))] for key, values in space.items()}
         scores = []
         try:
@@ -248,7 +253,8 @@ def _tune(name: str, seed: int, x_train, y_train, groups, budget: int) -> tuple[
             best_params, best_score = params, score
         trials += 1
     return best_params, {"budget_seconds": int(budget), "trials": trials,
-                         "sample_rows": int(sample), "folds": 2,
+                         "fits": trials * len(folds), "sample_rows": int(sample),
+                         "folds": len(folds),
                          "best_cv_r2_log": round(float(best_score), 4) if best_params else None,
                          "params": best_params}
 
@@ -281,6 +287,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=common.SEED)
     parser.add_argument("--rows", type=int, default=0, help="sample the train rows (0 = all)")
     parser.add_argument("--tune-seconds", type=int, default=0, help="time-boxed random search")
+    parser.add_argument("--tune-fits", type=int, default=25,
+                        help="random draws in the search (draws x 2 grouped folds = model fits)")
     parser.add_argument("--dense-sample", type=int, default=0,
                         help="subsample for k-NN (default 20000) or any dense model")
     parser.add_argument("--quantiles", action="store_true", help="add P10/P90 from LightGBM quantile fits")
@@ -324,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
         x_train, x_val = common.align_categories(x_train, x_val)
         if args.tune_seconds:
             params, tuning = _tune(args.model, args.seed, x_train, y_train_log,
-                                   train[common.GROUP], args.tune_seconds)
+                                   train[common.GROUP], args.tune_seconds, args.tune_fits)
         model = _fit_tree(args.model, args.seed, x_train, y_train_log, x_val, y_val_log, params)
         predicted = np.exp(model.predict(x_val))
         used_rows = len(train)
