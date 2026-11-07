@@ -99,7 +99,8 @@ def _fit_dense(name: str, seed: int, x_train: pd.DataFrame, y_train: pd.Series, 
 
     if sample and len(x_train) > sample:
         index = np.random.RandomState(seed).choice(len(x_train), sample, replace=False)
-        x_train, y_train = x_train.iloc[index], y_train.iloc[index]
+        x_train = x_train.iloc[index]
+        y_train = np.asarray(y_train, dtype=float)[index]     # callers pass the log target as an array
     numeric = [column for column in x_train.columns if pd.api.types.is_numeric_dtype(x_train[column])]
     categorical = [column for column in x_train.columns if column not in numeric]
     numeric_steps = [("impute", SimpleImputer(strategy="median"))]
@@ -212,7 +213,9 @@ def _tune(name: str, seed: int, x_train, y_train, groups, budget: int) -> tuple[
     space = TUNABLE[name]
     sample = min(len(x_train), 15000)
     index = np.random.RandomState(seed).choice(len(x_train), sample, replace=False)
-    x_sample, y_sample = x_train.iloc[index], y_train.iloc[index]
+    x_sample = x_train.iloc[index]
+    y_array = np.asarray(y_train, dtype=float)      # callers pass the log target as an array
+    y_sample = y_array[index]
     groups_sample = np.asarray(groups)[index]
     folds = list(GroupKFold(n_splits=2, shuffle=True, random_state=seed).split(x_sample, y_sample,
                                                                               groups_sample))
@@ -224,10 +227,10 @@ def _tune(name: str, seed: int, x_train, y_train, groups, budget: int) -> tuple[
         scores = []
         try:
             for fit_index, hold_index in folds:
-                model = _fit_tree(name, seed, x_sample.iloc[fit_index], y_sample.iloc[fit_index],
-                                  x_sample.iloc[hold_index], y_sample.iloc[hold_index], params)
+                model = _fit_tree(name, seed, x_sample.iloc[fit_index], y_sample[fit_index],
+                                  x_sample.iloc[hold_index], y_sample[hold_index], params)
                 predicted = np.exp(model.predict(x_sample.iloc[hold_index]))
-                scores.append(common.metrics(np.exp(y_sample.iloc[hold_index]), predicted)["r2_log"])
+                scores.append(common.metrics(np.exp(y_sample[hold_index]), predicted)["r2_log"])
         except Exception:  # a draw that does not converge is just a bad draw
             trials += 1
             continue

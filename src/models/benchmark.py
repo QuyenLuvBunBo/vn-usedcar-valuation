@@ -30,7 +30,8 @@ DEFAULT_MODELS = ("median", "ridge", "lightgbm", "catboost", "rf")
 DOC = REPO / "docs" / "benchmark.md"
 
 
-def run_one(model: str, features: str, seed: int, tune_seconds: int, rows: int) -> dict:
+def run_one(model: str, features: str, seed: int, tune_seconds: int, rows: int,
+            knn_sample: int = 20000) -> dict:
     """Fit once, return the ledger row plus the per-row absolute percentage error."""
     train_frame = common.load_split(features, "train", rows, seed)
     val_frame = common.load_split(features, "val")
@@ -46,7 +47,8 @@ def run_one(model: str, features: str, seed: int, tune_seconds: int, rows: int) 
         predicted = trainer._median_predict(train_frame, val_frame)
         rows_used = len(train_frame)
     elif model in trainer.DENSE:
-        rows_used = 20000 if model == "knn" else len(train_frame)
+        sample = knn_sample if model == "knn" else 0
+        rows_used = min(sample, len(train_frame)) if sample else len(train_frame)
         fitted = trainer._fit_dense(model, seed, x_train, y_train_log, rows_used)
         predicted = np.exp(fitted.predict(x_val))
     else:
@@ -153,26 +155,46 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--features", default="minimal,full")
     parser.add_argument("--seed", type=int, default=common.SEED)
     parser.add_argument("--rows", type=int, default=0)
-    parser.add_argument("--tune-seconds", type=int, default=0)
+    parser.add_argument("--tune-seconds", type=int, default=0,
+                        help="time-boxed random search; tuned runs appear as <model>+tuned rows")
+    parser.add_argument("--knn-sample", type=int, default=20000)
+    parser.add_argument("--tune-models", default="lightgbm,xgboost,catboost",
+                        help="which models get a tuned row; a CatBoost trial alone can exceed a small budget")
     parser.add_argument("--doc", default=str(DOC))
     parser.add_argument("--json", default=str(config.DATA_MASTER / "model_results.json"))
+    parser.add_argument("--copy-to", default=str(REPO / "docs" / "model_results.json"),
+                        help="also write the ledger here so a clean clone can read the numbers")
     args = parser.parse_args(argv)
 
     models = list(trainer.MODELS) if args.all else [item.strip() for item in args.models.split(",") if item.strip()]
+    tunable = {item.strip() for item in args.tune_models.split(",") if item.strip()}
     features = [item.strip() for item in args.features.split(",") if item.strip()]
     rows: list[dict] = []
+    ledger = Path(args.json)
+
+    def record(row: dict, label: str) -> None:
+        print(f" R2(log) {row['r2_log']:.4f}  MAPE {row['mape']:.3f}  {row['seconds']:.0f}s")
+        common.append_result(ledger, {key: value for key, value in row.items() if not key.startswith("_")})
+        rows.append(row)
+
     for variant in features:
         for model in models:
             print(f"  {variant:7s} {model} ...", end="", flush=True)
             try:
-                row = run_one(model, variant, args.seed, args.tune_seconds, args.rows)
+                record(run_one(model, variant, args.seed, 0, args.rows, args.knn_sample), model)
             except Exception as error:  # one model failing must not kill the table
                 print(f" SKIP ({type(error).__name__}: {error})")
-                continue
-            print(f" R2(log) {row['r2_log']:.4f}  MAPE {row['mape']:.3f}  {row['seconds']:.0f}s")
-            common.append_result(Path(args.json),
-                                 {key: value for key, value in row.items() if not key.startswith("_")})
-            rows.append(row)
+            if args.tune_seconds and model in trainer.TUNABLE and model in tunable:
+                print(f"  {variant:7s} {model}+tuned ...", end="", flush=True)
+                try:
+                    tuned = run_one(model, variant, args.seed, args.tune_seconds, args.rows,
+                                    args.knn_sample)
+                except Exception as error:
+                    print(f" SKIP ({type(error).__name__}: {error})")
+                    continue
+                tuned["model"] = f"{model}+tuned"
+                tuned["note"] = f"random search {args.tune_seconds}s budget"
+                record(tuned, f"{model}+tuned")
 
     if not rows:
         raise SystemExit("no model ran")
@@ -180,6 +202,13 @@ def main(argv: list[str] | None = None) -> int:
     if not doc_path.is_absolute():
         doc_path = REPO / doc_path
     write_doc(rows, doc_path, args.tune_seconds)
+    if args.copy_to:
+        target = Path(args.copy_to)
+        if not target.is_absolute():
+            target = REPO / target
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(ledger.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
+        print(f"  ledger copy -> {target}")
     best = max(rows, key=lambda row: row["r2_log"])
     print(f"\nbest: {best['model']} / {best['features']}  R2(log) {best['r2_log']:.4f}  MAPE {best['mape']:.3f}")
     print(f"  table -> {doc_path}")
