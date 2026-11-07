@@ -137,24 +137,25 @@ T3 mà không phải thêm một mô hình thứ ba.
 
 - **Median APE 6,3%, MAPE 11,5%** trên val; đây là hai con số khác nhau và cả hai đều đúng — MAPE bị
   kéo bởi đuôi phải, median APE mô tả trải nghiệm của một tin rao điển hình.
-- **Nhãn bất thường** (`data/master/anomaly_labels.csv`, review rate hiệu chỉnh đúng **3,00%**):
-  Fair **11.970** · Overpriced **1.398** · Bargain **1.392** · Suspicious **204**.
+- **Nhãn bất thường** (`data/master/anomaly_labels.csv`, review rate hiệu chỉnh đúng **3,00%**,
+  P10/P90 lấy từ mô hình quantile của LightGBM): Fair **10.765** · Overpriced **2.103** ·
+  Bargain **1.990** · Suspicious **106**.
 - **Theo nhóm sai số** (`docs/error_taxonomy.md`, quy tắc hiển nhiên để đọc lại):
-  tin dưới 200 triệu **1.461** tin, median APE **13,8%**, Δ trung bình **+25,6%** — mô hình **định giá
-  cao** xe rẻ, vì nhóm này chứa nhiều giá đặt cọc/giá ảo; km bất thường **118** tin / 7,8%; nhóm còn
-  lại 13.385 tin / 6,0%.
-- **Theo nguồn**: carmudi 8,7% (chỉ 105 tin) · chotot 7,4% (2.874) · muaban 7,2% · carpla 6,5% ·
-  tinbanxe 6,4% · bonbanh 6,1% · oto.com.vn 6,0% · vucar 4,8%. Sai số không đều giữa các sàn, nên một
-  MAPE tổng không đủ.
-- **Theo decile giá**: decile rẻ nhất có median APE **13,8%**, gấp đôi phần còn lại — mô hình yếu nhất
-  đúng ở nơi người mua ít tiền nhất.
+  tin dưới 200 triệu **1.461** tin, median APE **13,3%**, Δ trung bình **+25,1%** — mô hình **định giá
+  cao** xe rẻ, vì nhóm này chứa nhiều giá đặt cọc/giá ảo; km bất thường **118** tin / 10,0%; nhóm còn
+  lại **13.385** tin / 5,9%.
+- **Theo nguồn**: carmudi **10,0%** (chỉ 105 tin) · chotot 7,2% (2.874) · muaban 6,6% · tinbanxe 6,6% ·
+  carpla 6,5% · bonbanh 6,0% · oto.com.vn 6,0% · vucar 5,0%. Sai số không đều giữa các sàn và sàn nhỏ
+  nhất có sai số lớn nhất, nên một MAPE tổng không đủ.
+- **Theo decile giá**: decile rẻ nhất (< 200 triệu) có median APE **13,2%**, gần gấp đôi các decile
+  phía trên (6,8% / 5,6%) — mô hình yếu nhất đúng ở nơi người mua ít tiền nhất.
 - **Độ quan trọng** (`data/master/feature_importance.csv`): `brand_age_band` 0,510 ·
   `manufacture_year` 0,262 · `model` 0,231 · `model_group` 0,180 · `brand` 0,132 · `engine_capacity`
   0,130. Ba đặc trưng đầu đều là "xe gì, đời nào" — khớp với ablation ở mục 4.
 - **Ba case study** (`docs/case_studies.md`, chọn bằng quy tắc nên tái lập được):
-  `MUA_71248118` Toyota Corolla Cross 2022 rao **7,35 tỷ** trong khi mô hình ước **629 triệu**
-  (Δ −91,4% — giá đặt cọc ảo); `CHOTOT_134989809` Aion Y Plus 2024 với **999.998 km** (Δ +502%);
-  `CARPLA_F8W47` Audi Q5 2024 nhập khẩu rao **218 triệu** so với ước lượng **2,09 tỷ** (Δ +858%).
+  `MUA_71248118` Toyota Corolla Cross 2022 rao **7,35 tỷ** trong khi mô hình ước **623 triệu**
+  (Δ −91,5% — giá đặt cọc ảo); `CHOTOT_134989809` Aion Y Plus 2024 với **999.998 km** (Δ +502%);
+  `CARPLA_F8W47` Audi Q5 2024 nhập khẩu rao **218 triệu** so với ước lượng **2,14 tỷ** (Δ +882%).
 
 Ba case này không phải lỗi mô hình có thể sửa bằng tuning: chúng là **giá đặt cọc/giá ảo**, **odometer
 bị chỉnh**, và **xe nhập khẩu**. Mục 7 phải nói rằng sản phẩm cần *dữ liệu* (lịch sử tai nạn, xác nhận

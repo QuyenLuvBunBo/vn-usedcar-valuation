@@ -254,6 +254,9 @@ def _quantile_bands(x_train, y_train, x_val, seed: int, low: float = 0.1, high: 
                                   random_state=seed, n_jobs=-1, verbose=-1)
         model.fit(x_train, y_train, categorical_feature=categorical)
         bands.append(np.exp(model.predict(x_val)))
+    return bands[0], bands[1]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Train one week-3 model and write its artefacts")
     parser.add_argument("--model", choices=MODELS)
