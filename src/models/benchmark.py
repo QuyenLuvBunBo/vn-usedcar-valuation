@@ -62,11 +62,18 @@ def run_one(model: str, features: str, seed: int, tune_seconds: int, rows: int,
 
     scores = common.metrics(y_val, predicted)
     true_vnd = y_val.to_numpy(dtype=float)
+    # The tail that the hand read found: asking price below a quarter of the estimate. Those rows are
+    # deposit-style ads, not prices, so the "clean" numbers are the honest skill measure.
+    tail_mask = (predicted / np.clip(true_vnd, 1.0, None)) > 4.0
+    clean = ~tail_mask
+    clean_scores = common.metrics(true_vnd[clean], predicted[clean]) if clean.any() else {}
     return {"model": model, "features": features, "seed": seed, "train_rows": int(len(train_frame)),
             "rows_used": int(rows_used), "holdout": "val", "holdout_rows": int(len(val_frame)),
             "n_features": int(x_train.shape[1]), "seconds": round(time.monotonic() - started, 1),
             "quantiles": False, "params": params, "tuning": tuning,
             "note": "benchmark runner", **scores,
+            "rows_tail": int(tail_mask.sum()),
+            **{f"clean_{key}": value for key, value in clean_scores.items()},
             "_abs_errors": np.abs(predicted - true_vnd) / true_vnd}
 
 
@@ -93,17 +100,20 @@ def write_doc(rows: list[dict], path: Path, tuning_budget: int) -> None:
         f"Tuning budget: **{tuning_budget}s per model** (random search, 2 grouped folds, 15k sample). "
         "Models without a budget entry use fixed parameters.",
         "",
-        "| Features | Model | R²(log) | RMSE(log) | R²(VND) | MAE (VND) | MAPE | median APE | rows | s | tuning |",
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+        "| Features | Model | R²(log) | RMSE(log) | R²(VND) | MAE (VND) | MAPE | MAPE clean | median APE | rows | tail | s | tuning |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     for row in sorted(rows, key=lambda item: (item["features"], -item["r2_log"])):
         tuning = row.get("tuning") or {}
-        budget = (f"{tuning.get('budget_seconds')}s/{tuning.get('trials')} trials"
+        budget = (f"{tuning.get('budget_seconds')}s/{tuning.get('trials')} draws"
                   if tuning.get("trials") else "fixed")
+        clean_mape = row.get("clean_mape")
+        clean_cell = f"{clean_mape:.3f}" if isinstance(clean_mape, float) else "–"
         lines.append(
             f"| {row['features']} | {row['model']} | {row['r2_log']:.4f} | {row['rmse_log']:.4f} | "
-            f"{row['r2_vnd']:.4f} | {row['mae_vnd']:,} | {row['mape']:.3f} | {row['median_ape']:.3f} | "
-            f"{row['rows_used']:,} | {row['seconds']:.1f} | {budget} |")
+            f"{row['r2_vnd']:.4f} | {row['mae_vnd']:,} | {row['mape']:.3f} | {clean_cell} | "
+            f"{row['median_ape']:.3f} | {row['rows_used']:,} | {row.get('rows_tail', 0)} | "
+            f"{row['seconds']:.1f} | {budget} |")
     reached = best["r2_log"] > 0.946
     lines += [
         "",
@@ -142,6 +152,10 @@ def write_doc(rows: list[dict], path: Path, tuning_budget: int) -> None:
         "median APE are the honest per-listing numbers.",
         "- A `rows` value below 70,244 means the model was subsampled for runtime (k-NN by design); "
         "the column makes that visible instead of hiding it.",
+        "- **`MAPE clean` recomputes the error after dropping the `tail` rows** — asking prices below a "
+        "quarter of the model's estimate. The hand read in `docs/error_audit_25.md` shows those rows are "
+        "deposit-style ads, not prices, so the clean column is the honest measure of valuation skill and "
+        "the all-rows MAPE is a measure of ad quality on the cheapest listings.",
         "- No test-set number appears here on purpose (plan §1: one evaluation at M2).",
         "",
     ]

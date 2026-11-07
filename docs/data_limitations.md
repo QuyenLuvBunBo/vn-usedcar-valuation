@@ -45,3 +45,27 @@ segment in §6, so any per-platform claim about it is noise.
 - **No accident, service or ownership history** exists in the source data, which is why the three
   structural failure modes (bait price, odometer manipulation, import/salvage) cannot be fixed by
   modelling — see `docs/case_studies.md`.
+
+## 4. Four defects found while reading the worst predictions
+
+These come from `docs/error_audit_25.md`, which reads all 25 worst val rows field by field. They are
+listed here because each one changes how a number in the report should be read.
+
+1. **Deposit-style asking prices.** 23 of the 25 worst rows ask less than a quarter of the model's
+   estimate, and only **23 rows in the whole val split (0,15 %)** are that cheap — **69,6 %** of them
+   from Chợ Tốt. A 2020 Mitsubishi Triton listed at 42 million is a deposit, not a price. `price_status`
+   says `"full"` on **all 25**, so the column that is supposed to flag this cannot: the filter has to be
+   added upstream (`deposit_suspected`: asking price below 25 % of the segment median) and applied
+   before the split. Until then, report the error **with and without** this tail —
+   `docs/benchmark.md` now carries both columns (`MAPE` and `MAPE clean`).
+2. **Placeholder odometers.** 6 of the 25 carry `mileage_km ≤ 100` or `≥ 900.000`, e.g. `999.998 km` on
+   a 2024 car, `1 km` on a 2026 car. `km_per_year` inherits the nonsense, and `mileage_km` is a numeric
+   feature, so these rows actively mislead the model rather than merely being wrong.
+3. **Impossible model years.** 13 rows carry `1025`, `2028`, `2030` or `2032` (see the EDA note); the
+   year is a first-class feature, so a 1025 car teaches the model nothing useful.
+4. **A duplicate pair survives into val.** `TBX_88471` and `TBX_87885` are the same Isuzu MU-X 2018 at
+   33.330.000 VND with the identical prediction, but they carry different `listing_id` **and** different
+   `duplicate_group_id`, so the grouped split cannot see them as one car and the tail counts the ad twice.
+
+One more pattern in the same tail: `engine_capacity` is missing on **24 of the 25** worst rows, i.e. the
+61 %-missing column is absent exactly where the error is largest.
