@@ -5,7 +5,7 @@ Each case is picked by an explicit rule in `tools/error_report.py::pick_cases`, 
 ## Case 1 — asking price far below the model (deposit bait)
 
 - Listing: `MUA_71248118` — Toyota Corolla Cross, 2022, 48000 km, Hà Nội
-- Asking price: **7,350,000,000 VND** · model estimate **622,931,555 VND** · Δ -91.5% · APE 91.5%
+- Asking price: **7,350,000,000 VND** · model estimate **627,850,053 VND** · Δ -91.5% · APE 91.5%
 - Bucket: `3_import_or_salvage` · quality flags: `nan`
 - Link: https://muaban.net/o-to/ban-o-to-toyota-corolla-cross-quan-long-bien-ha-noi/toyota-corolla-cross-2022-1-8hv-48000-km-id71248118
 
@@ -14,7 +14,7 @@ Why it matters: The listing asks at least 45% under the model's estimate; in thi
 ## Case 2 — odometer outlier
 
 - Listing: `CHOTOT_134989809` — Aion Y Plus, 2024, 999998 km, Hưng Yên
-- Asking price: **200,000,000 VND** · model estimate **1,211,693,660 VND** · Δ +505.8% · APE 505.8%
+- Asking price: **200,000,000 VND** · model estimate **1,096,472,989 VND** · Δ +448.2% · APE 448.2%
 - Bucket: `2_odometer_outlier` · quality flags: `nan`
 - Link: https://xe.chotot.com/134989809.htm
 
@@ -23,7 +23,7 @@ Why it matters: Mileage divided by vehicle age is above 60,000 km/year, three to
 ## Case 3 — import / salvage
 
 - Listing: `CARPLA_F8W47` — Audi Q5, 2024, 7000 km, Hà Nội
-- Asking price: **218,000,000 VND** · model estimate **2,141,083,539 VND** · Δ +882.1% · APE 882.1%
+- Asking price: **218,000,000 VND** · model estimate **2,157,689,143 VND** · Δ +889.8% · APE 889.8%
 - Bucket: `3_import_or_salvage` · quality flags: `nan`
 - Link: https://carpla.vn/xe/audi-q5-sline-quattro-2024---7000km-f8w47
 
