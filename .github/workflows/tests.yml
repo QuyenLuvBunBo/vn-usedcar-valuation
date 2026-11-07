@@ -1,0 +1,36 @@
+name: tests
+
+# What can run here: the unit suite. It uses synthetic fixtures only, so it needs no frozen data.
+# What cannot run here: anything that reads `data/master/*` — the snapshot lives on Drive (≈90 MB, and
+# docs/data_handover.md §5 forbids committing it). Those checks are one command locally:
+#     python -m tools.clean_check      # git archive HEAD + build_features + train + gate + tests
+#     python -m src.models.benchmark   # the val table
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: CLI stays importable
+        run: |
+          python -m src.models.train --list
+          python -m tools.feature_ablation --help
+          python -m tools.clean_check --help
+          python -m tools.eda_summary --help

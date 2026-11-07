@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-07T06:38:09+00:00",
+  "generated_at": "2026-11-07T12:35:30+00:00",
   "results": [
     {
       "model": "lightgbm+tuned",
@@ -48,7 +48,7 @@
       "holdout": "val",
       "holdout_rows": 14964,
       "n_features": 23,
-      "seconds": 63.3,
+      "seconds": 60.3,
       "quantiles": true,
       "params": {
         "n_estimators": 600,
@@ -68,6 +68,14 @@
           "num_leaves": 127,
           "min_child_samples": 40
         }
+      },
+      "p50_metrics": {
+        "r2_log": 0.9347,
+        "rmse_log": 0.2114,
+        "r2_vnd": 0.9004,
+        "mae_vnd": 86434096,
+        "mape": 0.1214,
+        "median_ape": 0.0568
       },
       "predictions": "F:\\Code\\IntroDS\\data\\master\\predictions_val.csv",
       "note": "",

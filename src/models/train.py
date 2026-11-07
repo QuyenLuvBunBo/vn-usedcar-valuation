@@ -253,20 +253,24 @@ def _tune(name: str, seed: int, x_train, y_train, groups, budget: int) -> tuple[
                          "params": best_params}
 
 
-def _quantile_bands(x_train, y_train, x_val, seed: int, low: float = 0.1, high: float = 0.9):
-    """LightGBM quantile regression for P10/P90 on the log target, as the plan's §4.2 asks."""
+def _quantile_bands(x_train, y_train, x_val, seed: int):
+    """LightGBM quantile fits for P10 / P50 / P90 on the log target, as the plan's §4.2 asks.
+
+    P50 is reported as a metric next to the point model rather than written into
+    `predictions_*.csv`, because the plan fixes that file at 15 columns.
+    """
     import lightgbm as lgb
     categorical = [column for column in x_train.columns
                    if isinstance(x_train[column].dtype, pd.CategoricalDtype)]
     bands = []
-    for alpha in (low, high):
+    for alpha in (0.10, 0.50, 0.90):
         model = lgb.LGBMRegressor(objective="quantile", alpha=alpha, n_estimators=500,
                                   learning_rate=0.05, num_leaves=63, min_child_samples=40,
                                   subsample=0.9, subsample_freq=1, colsample_bytree=0.8,
                                   random_state=seed, n_jobs=-1, verbose=-1)
         model.fit(x_train, y_train, categorical_feature=categorical)
         bands.append(np.exp(model.predict(x_val)))
-    return bands[0], bands[1]
+    return bands[0], bands[1], bands[2]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -326,10 +330,12 @@ def main(argv: list[str] | None = None) -> int:
         used_rows = len(train)
     seconds = round(time.monotonic() - started, 1)
 
-    p10 = p90 = None
+    p10 = p50 = p90 = None
+    p50_metrics: dict = {}
     if args.quantiles:
         x_tree, x_tree_val = common.align_categories(x_train, x_val)
-        p10, p90 = _quantile_bands(x_tree, y_train_log, x_tree_val, args.seed)
+        p10, p50, p90 = _quantile_bands(x_tree, y_train_log, x_tree_val, args.seed)
+        p50_metrics = common.metrics(y_val, p50)
 
     models_dir = Path(args.models_dir)
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -346,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
            "holdout": args.split, "holdout_rows": int(len(holdout)),
            "n_features": int(x_train.shape[1]), "seconds": seconds,
            "quantiles": bool(args.quantiles), "params": params, "tuning": tuning,
+           "p50_metrics": p50_metrics,
            "predictions": str(predictions_path), "note": args.note,
            **common.metrics(y_val, predicted)}
     if args.split == "val":
@@ -357,6 +364,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{row['model']:12s} {row['features']:8s} {row['r2_log']:>8.4f} {row['rmse_log']:>10.4f} "
           f"{row['mae_vnd']:>13,} {row['mape']:>7.3f} {row['seconds']:>7.1f}")
     print(f"\n  predictions -> {predictions_path} ({len(frame):,} rows, {len(frame.columns)} columns)")
+    if p50_metrics:
+        print(f"  P50 quantile: R²(log) {p50_metrics['r2_log']:.4f} · MAPE {p50_metrics['mape']:.3f} "
+              f"(point model above)")
     if args.split == "val":
         print(f"  ledger      -> {args.json}")
     return 0
