@@ -37,6 +37,26 @@ def raw_path(split: str) -> Path:
     return config.DATA_MASTER / f"{split}.csv"
 
 
+def cohort_path(split: str) -> Path:
+    return config.DATA_MASTER / f"{split}_cohort_imputed.csv"
+
+
+def province_path(split: str) -> Path:
+    """Where to read `location_province` for the prediction contract.
+
+    `location_province` is not a feature — the feature table carries the encoded `province_group` — so the
+    predictions frame joins it back from outside. The frozen snapshot's **mandatory** folder ships the
+    cohort but not `{split}.csv` (that one lives in `02_full_rebuild/`, see `docs/data_handover.md` §1),
+    and the cohort has the same column, so a download of the mandatory folder alone is enough to train.
+    """
+    for candidate in (raw_path(split), cohort_path(split)):
+        if candidate.exists():
+            return candidate
+    raise SystemExit(
+        f"neither {raw_path(split).name} nor {cohort_path(split).name} exists in {config.DATA_MASTER} -> "
+        "download 01_week3_mandatory/ from the Drive folder (docs/data_handover.md §1)")
+
+
 def load_split(variant: str, split: str, rows: int = 0, seed: int = SEED) -> pd.DataFrame:
     """Load a feature table; `rows > 0` takes a seeded sample (for 20k-row ablations)."""
     path = features_path(variant, split)
@@ -94,8 +114,9 @@ def metrics(y_true: Iterable[float], y_pred: Iterable[float]) -> dict:
 
 def predictions_frame(split_frame: pd.DataFrame, y_pred_vnd, p10=None, p90=None,
                       split: str = "val") -> pd.DataFrame:
-    """The 14-column contract; `location_province` is not in the feature table, so join the raw split."""
-    raw = pd.read_csv(raw_path(split), usecols=["listing_id", "location_province"], low_memory=False)
+    """The 15-column contract; `location_province` is not in the feature table, so read it back."""
+    raw = pd.read_csv(province_path(split), usecols=["listing_id", "location_province"],
+                      low_memory=False)
     frame = split_frame[[*ID_COLUMNS, "brand", "model", "manufacture_year", "mileage_km",
                          "source_platform", TARGET]].copy()
     frame = frame.merge(raw, on="listing_id", how="left")

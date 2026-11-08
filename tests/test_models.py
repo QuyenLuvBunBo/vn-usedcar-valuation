@@ -8,6 +8,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -112,6 +113,34 @@ class TestEvaluationTests(unittest.TestCase):
             self.assertIn("evaluated once", second)
             forced = trainer._write_test_evaluation(path, self.row(), force=True)
             self.assertIn("wrote", forced)
+
+
+class PredictionContractTests(unittest.TestCase):
+    """`location_province` is not a feature, so it is read back — the mandatory snapshot alone must do."""
+
+    def frame(self) -> pd.DataFrame:
+        return pd.DataFrame({"listing_id": ["A"], "duplicate_group_id": ["G1"], "brand": ["Kia"],
+                             "model": ["Morning"], "manufacture_year": [2020], "mileage_km": [1000.0],
+                             "source_platform": ["bonbanh"], "price_vnd": [300_000_000.0]})
+
+    def test_province_falls_back_to_the_cohort_when_the_raw_split_is_absent(self):
+        with tempfile.TemporaryDirectory() as folder:
+            master = Path(folder)
+            (master / "val_cohort_imputed.csv").write_text(
+                "listing_id,location_province\nA,Hà Nội\n", encoding="utf-8")
+            with mock.patch.object(common.config, "DATA_MASTER", master):
+                out = common.predictions_frame(self.frame(), [330_000_000.0],
+                                               [280_000_000.0], [380_000_000.0], "val")
+            self.assertEqual(list(out.columns), list(common.PREDICTION_COLUMNS))
+            self.assertEqual(out.loc[0, "location_province"], "Hà Nội")
+            self.assertAlmostEqual(float(out.loc[0, "abs_pct_error"]), 0.1, places=6)
+
+    def test_missing_snapshot_names_the_folder_to_download(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with mock.patch.object(common.config, "DATA_MASTER", Path(folder)):
+                with self.assertRaises(SystemExit) as raised:
+                    common.predictions_frame(self.frame(), [1.0], split="test")
+            self.assertIn("01_week3_mandatory", str(raised.exception))
 
 
 if __name__ == "__main__":

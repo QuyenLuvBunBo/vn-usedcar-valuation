@@ -27,10 +27,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.common import config  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
-# Everything the chain needs that git does not carry: the frozen snapshot only.
+# Everything the chain needs that git does not carry: only the **mandatory** snapshot folder
+# (`01_week3_mandatory/` in docs/data_handover.md §1). If a step ever needs more than this, the claim
+# "one folder is enough to train" is broken and this check should fail rather than paper over it.
 FROZEN_INPUTS = (
     "train_cohort_imputed.csv", "val_cohort_imputed.csv", "test_cohort_imputed.csv",
-    "train.csv", "val.csv", "test.csv", "master_clean_dataset.csv",
 )
 
 
