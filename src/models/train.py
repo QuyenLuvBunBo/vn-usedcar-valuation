@@ -358,7 +358,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--features", default="full", choices=common.VARIANTS)
     parser.add_argument("--seed", type=int, default=common.SEED)
     parser.add_argument("--rows", type=int, default=0, help="sample the train rows (0 = all)")
-    parser.add_argument("--tune-seconds", type=int, default=0, help="time-boxed random search")
+    parser.add_argument("--tune-seconds", "--tune", dest="tune_seconds", type=int, default=0,
+                        help="time-boxed random search (--tune is the short spelling)")
+    parser.add_argument("--params", default="",
+                        help="JSON hyperparameters to use as-is, e.g. the winner of a val tuning run; "
+                             "this is how the test evaluation reuses frozen params instead of re-tuning")
+    parser.add_argument("--label", default="",
+                        help="name recorded in the ledger/predictions, e.g. lightgbm+tuned when --params "
+                             "came from a tuning run (defaults to --model)")
     parser.add_argument("--tune-fits", type=int, default=25,
                         help="random draws in the search (draws x 2 grouped folds = model fits)")
     parser.add_argument("--dense-sample", type=int, default=0,
@@ -408,7 +415,11 @@ def main(argv: list[str] | None = None) -> int:
         predicted = np.exp(model.predict(x_val))
     else:
         x_train, x_val = common.align_categories(x_train, x_val)
-        if args.tune_seconds:
+        if args.params:
+            params = json.loads(args.params)
+            tuning = {"budget_seconds": 0, "trials": 0, "frozen": True,
+                      "note": "hyperparameters passed via --params (frozen before the test run)"}
+        elif args.tune_seconds:
             params, tuning = _tune(args.model, args.seed, x_train, y_train_log,
                                    train[common.GROUP], args.tune_seconds, args.tune_fits)
         model = _fit_tree(args.model, args.seed, x_train, y_train_log, x_val, y_val_log, params)
@@ -449,7 +460,7 @@ def main(argv: list[str] | None = None) -> int:
     clean = ~tail_mask
     clean_scores = common.metrics(true_vnd[clean], predicted[clean]) if clean.any() else {}
 
-    row = {"model": args.model, "features": args.features, "seed": args.seed,
+    row = {"model": args.label or args.model, "features": args.features, "seed": args.seed,
            "train_rows": int(len(train)), "rows_used": int(used_rows),
            "holdout": args.split, "holdout_rows": int(len(holdout)),
            "n_features": int(x_train.shape[1]), "seconds": seconds,

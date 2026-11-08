@@ -35,8 +35,12 @@ def summarise(frame: pd.DataFrame) -> dict:
     below = float((price < low).mean())
     above = float((price > high).mean())
     width = high - low
+    point = frame["y_pred_vnd"].to_numpy(dtype=float)
+    outside = (point < low) | (point > high)
     return {"rows": int(len(frame)), "below": below, "inside": 1.0 - below - above, "above": above,
             "median_width": float(np.median(width)),
+            "point_outside": float(outside.mean()),
+            "point_outside_rows": int(outside.sum()),
             "median_relative_width": float(np.median(width / np.clip(frame["y_pred_vnd"], 1, None))),
             "median_ape": float(np.median(frame["abs_pct_error"]))}
 
@@ -68,7 +72,9 @@ def main(argv: list[str] | None = None) -> int:
         f"| price above P90 | {overall['above']:.2%} |",
         f"| median band width | {overall['median_width']:,.0f} VND |",
         f"| median width / point estimate | {overall['median_relative_width']:.1%} |",
-        f"| median APE of the point estimate | {overall['median_ape']:.1%} |", "",
+        f"| median APE of the point estimate | {overall['median_ape']:.1%} |",
+        f"| point estimate outside its own band | {overall['point_outside']:.2%} "
+        f"({overall['point_outside_rows']:,} rows) |", "",
         f"**Verdict: {verdict}** (tolerance ±{TOLERANCE:.0%} around nominal).", "",
         "## Coverage by platform", "",
         "| Platform | Rows | Inside | Below P10 | Above P90 |", "| --- | ---: | ---: | ---: | ---: |",
@@ -84,6 +90,11 @@ def main(argv: list[str] | None = None) -> int:
               "- An asymmetry between `below` and `above` is the useful signal: too many prices above P90 "
               "means the upper quantile is under-fitted, which is what a plain squared-loss model does "
               "when the price distribution has a long right tail.",
+              "- `point estimate outside its own band` is **not** a defect and not a rounding artefact: the "
+              "point forecast comes from the mean model while P10/P90 come from separate quantile models "
+              "fitted on the same rows, so nothing forces the mean to fall inside them. `train.py` only "
+              "enforces `p10 ≤ P50 ≤ P90` *within* the quantile triple. Forcing the band to swallow the "
+              "point forecast would widen it and silently destroy the calibration measured above.",
               "- The bands are fitted with 500-tree LightGBM quantile models and **are not tuned**; the "
               "numbers here are the reason to tune them, not proof that they are fine.", ""]
     doc = Path(args.doc)

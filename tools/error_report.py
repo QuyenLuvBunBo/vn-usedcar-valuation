@@ -99,7 +99,7 @@ def write_taxonomy(frame: pd.DataFrame, path: Path) -> None:
     lines += ["", "## Median APE by price decile", "", "| Decile | median APE |", "| --- | ---: |"]
     for name, value in by_decile.items():
         lines.append(f"| {name} | {value:.1%} |")
-        lines += ["", "Reading: the error is not uniform. Cheap listings and extreme odometer values carry the "
+    lines += ["", "Reading: the error is not uniform. Cheap listings and extreme odometer values carry the "
               "largest percentage error, which is why §6 must report error by segment rather than one MAPE.",
               f"The hand read of these rows is in [error_audit_25.md](error_audit_25.md): 24 of the 25 are "
               "deposit-style prices, 6 have placeholder odometers and 1 is a genuine duplicate, so the tail "

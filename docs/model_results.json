@@ -1,6 +1,62 @@
 {
-  "generated_at": "2026-11-08T04:54:05+00:00",
+  "generated_at": "2026-11-08T05:11:09+00:00",
   "results": [
+    {
+      "model": "lightgbm+tuned",
+      "features": "full",
+      "seed": 42,
+      "train_rows": 70244,
+      "rows_used": 70244,
+      "holdout": "test",
+      "holdout_rows": 14980,
+      "n_features": 23,
+      "seconds": 32.9,
+      "quantiles": true,
+      "params": {
+        "n_estimators": 900,
+        "learning_rate": 0.03,
+        "num_leaves": 63,
+        "min_child_samples": 20
+      },
+      "tuning": {
+        "budget_seconds": 0,
+        "trials": 0,
+        "frozen": true,
+        "note": "hyperparameters passed via --params (frozen before the test run)"
+      },
+      "p50_metrics": {
+        "r2_log": 0.9319,
+        "rmse_log": 0.2154,
+        "r2_vnd": 0.8499,
+        "mae_vnd": 98069149,
+        "mape": 0.1162,
+        "median_ape": 0.0559
+      },
+      "band_calibration": {
+        "folds": 2,
+        "oof_rows": 70244,
+        "shift_low_log": -0.022817,
+        "shift_high_log": 0.020599,
+        "train_oof_coverage_after_shift": 0.8,
+        "measured_on": "train, grouped out-of-fold",
+        "holdout_coverage": 0.8191
+      },
+      "predictions": "F:\\Code\\IntroDS\\data\\master\\predictions_test.csv",
+      "note": "frozen params from the val tuning run; test evaluated once at M2",
+      "rows_tail": 19,
+      "clean_r2_log": 0.9558,
+      "clean_rmse_log": 0.1729,
+      "clean_r2_vnd": 0.9034,
+      "clean_mae_vnd": 89063293,
+      "clean_mape": 0.1006,
+      "clean_median_ape": 0.0606,
+      "r2_log": 0.9487,
+      "rmse_log": 0.1869,
+      "r2_vnd": 0.9026,
+      "mae_vnd": 89731484,
+      "mape": 0.1088,
+      "median_ape": 0.0607
+    },
     {
       "model": "lightgbm+tuned",
       "features": "full",
@@ -46,6 +102,62 @@
       "clean_mae_vnd": 81437294,
       "clean_mape": 0.1027,
       "clean_median_ape": 0.0621
+    },
+    {
+      "model": "lightgbm+tuned",
+      "features": "full",
+      "seed": 42,
+      "train_rows": 70244,
+      "rows_used": 70244,
+      "holdout": "val",
+      "holdout_rows": 14964,
+      "n_features": 23,
+      "seconds": 31.9,
+      "quantiles": true,
+      "params": {
+        "n_estimators": 900,
+        "learning_rate": 0.03,
+        "num_leaves": 63,
+        "min_child_samples": 20
+      },
+      "tuning": {
+        "budget_seconds": 0,
+        "trials": 0,
+        "frozen": true,
+        "note": "hyperparameters passed via --params (frozen before the test run)"
+      },
+      "p50_metrics": {
+        "r2_log": 0.9347,
+        "rmse_log": 0.2114,
+        "r2_vnd": 0.9004,
+        "mae_vnd": 86434096,
+        "mape": 0.1214,
+        "median_ape": 0.0568
+      },
+      "band_calibration": {
+        "folds": 2,
+        "oof_rows": 70244,
+        "shift_low_log": -0.022817,
+        "shift_high_log": 0.020599,
+        "train_oof_coverage_after_shift": 0.8,
+        "measured_on": "train, grouped out-of-fold",
+        "holdout_coverage": 0.817
+      },
+      "predictions": "F:\\Code\\IntroDS\\data\\master\\predictions_val.csv",
+      "note": "frozen params from the val tuning run (600s cap, 25 draws x 2 folds)",
+      "rows_tail": 27,
+      "clean_r2_log": 0.9567,
+      "clean_rmse_log": 0.1713,
+      "clean_r2_vnd": 0.9221,
+      "clean_mae_vnd": 81437294,
+      "clean_mape": 0.1027,
+      "clean_median_ape": 0.0621,
+      "r2_log": 0.9471,
+      "rmse_log": 0.1904,
+      "r2_vnd": 0.9215,
+      "mae_vnd": 82087205,
+      "mape": 0.114,
+      "median_ape": 0.0622
     },
     {
       "model": "catboost",

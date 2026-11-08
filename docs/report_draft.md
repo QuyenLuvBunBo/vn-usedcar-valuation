@@ -91,71 +91,114 @@ và 19 dòng mất nhãn bị loại chứ không điền.
 
 ## 5. So sánh mô hình (val, 14.964 dòng)
 
-8 mô hình × 2 bộ đặc trưng, **không tuning** (ngân sách 0s — cột `tuning` trong
-`docs/benchmark.md` ghi rõ), mọi số trên val, không có số test:
+8 mô hình × 2 bộ đặc trưng; 3 tổ hợp được tune trong **600 s, 25 draws × 2 grouped folds = 50 fits**,
+phần còn lại dùng tham số cố định — cột `tuning` của `docs/benchmark.md` ghi từng dòng. Mọi số trong mục
+này trên **val**; test chỉ được đánh giá **một lần** và để riêng ở §5b.
 
 | Bộ | Mô hình | R²(log) | MAPE | median APE | MAE (VND) |
 | --- | --- | ---: | ---: | ---: | ---: |
-| full | **catboost** | **0,9465** | 12,0% | 6,9% | 91.143.312 |
-| full | **lightgbm** | 0,9462 | **11,5%** | 6,3% | 82.441.420 |
+| full | **lightgbm+tuned** | **0,9471** | 11,4% | 6,2% | 82.087.205 |
+| full | catboost | 0,9465 | 12,0% | 6,9% | 91.143.312 |
+| minimal | lightgbm+tuned | 0,9464 | 11,6% | 6,3% | 84.155.488 |
+| full | lightgbm | 0,9462 | 11,5% | 6,3% | 82.441.420 |
+| full | **xgboost+tuned** | 0,9440 | **11,0%** | **5,9%** | **78.041.635** |
 | full | rf | 0,9411 | 12,1% | 6,4% | 87.698.367 |
-| full | xgboost | 0,9409 | **11,1%** | **5,7%** | **78.256.273** |
+| full | xgboost | 0,9409 | 11,1% | 5,7% | 78.256.273 |
 | full | ridge | 0,8970 | 18,0% | 10,4% | 141.897.201 |
 | full | median (baseline) | 0,8773 | 18,8% | 7,3% | 101.649.813 |
 | full | elasticnet | 0,8722 | 21,2% | 13,4% | 174.713.377 |
 | full | lasso | 0,8561 | 22,9% | 14,8% | 190.664.684 |
 | minimal | lightgbm | 0,9447 | 11,7% | 6,4% | 84.885.802 |
-| minimal | catboost | 0,9438 | 12,3% | 7,1% | 95.474.212 |
 | minimal | xgboost | 0,9388 | 11,3% | 6,0% | 80.850.994 |
-| minimal | rf | 0,9370 | 12,6% | 6,7% | 94.182.039 |
 
-Bốn điều phải nói thẳng trong mục này, kể cả khi nó làm mất tính "thành tích":
+Năm điều phải nói thẳng trong mục này, kể cả khi nó làm mất tính "thành tích":
 
-1. **Sàn canary là 0,946 / 11,6%; mô hình tốt nhất chỉ hơn ở R² 0,0005 và *kém* hơn ở MAPE.** Không
-   có "bước nhảy" nào từ mô hình phức tạp: LightGBM chưa tune đã 0,9447–0,9462.
-2. **CatBoost và LightGBM hoà nhau** (0,9465 vs 0,9462). Wilcoxon theo cặp trên APE nói catboost nhỉnh
-   hơn (p = 2,3e-15) — nhưng R² chỉ chênh 0,0003 và seed sd là 0,0003, nên thứ tự này không đáng để
-   đổi 291s lấy 6,5s huấn luyện.
-3. **XGBoost thắng ở không gian VND** (MAPE 11,1%, MAE 78,3 triệu) dù R² thấp hơn — tức "mô hình tốt
-   nhất" phụ thuộc metric, và báo cáo phải nói rõ chọn metric nào vì lý do gì.
+1. **Sàn canary là 0,946 / 11,6%; mô hình tốt nhất hơn ở cả hai — nhưng rất mỏng: +0,0011 R², −0,2 điểm
+   MAPE.** Không có "bước nhảy" nào từ mô hình phức tạp: LightGBM chưa tune đã 0,9447–0,9462, và bản
+   chưa tune *nằm đúng trên sàn* (0,9462 vs 0,946). Câu "đáng làm phức tạp" chỉ đứng được nhờ dòng tuned.
+2. **Tuning mua được rất ít: +0,0009 R²** (0,9462 → 0,9471) đổi lấy 50 fits và 31,9 s → 468,5 s huấn
+   luyện. Wilcoxon theo cặp nói chênh lệch này *có thật* (p = 7,8e-05, seed sd 0,0003), nhưng 0,0009
+   không phải thứ người dùng cảm nhận được.
+3. **CatBoost và LightGBM hoà nhau** (0,9465 vs 0,9462 khi chưa tune). Wilcoxon nói catboost nhỉnh
+   (p = 2,3e-15) nhưng chênh R² chỉ 0,0003 — đúng một seed sd — và MAPE lại *kém* hơn (12,0% vs 11,5%).
+4. **XGBoost thắng ở không gian VND** (MAPE 11,0%, median APE 5,9%, MAE 78,0 triệu — tốt nhất bảng) dù
+   R² thấp hơn hẳn (0,9440); ngược lại Wilcoxon theo cặp nói nó **kém** lightgbm+tuned (p = 5,8e-12).
+   Hai kết luận trái nhau vì XGBoost thắng ở nhóm xe đắt nhưng thua lẻ tẻ ở số đông. Đây chính là lý do
+   phải chốt *một* metric chính **trước** khi đọc bảng, không phải sau.
+5. **Baseline median mạnh hơn ridge ở median APE** (7,3% vs 10,4%) dù R² thấp hơn (0,8773 vs 0,8970).
+   Một mô hình tuyến tính "trông tốt hơn" theo R² nhưng tệ hơn ở chính giữa phân bố — đúng loại kết
+   luận sai mà cột median APE sinh ra để chặn.
 4. **Baseline median mạnh hơn ridge ở median APE** (7,3% vs 10,4%) dù R² thấp hơn (0,8773 vs 0,8970).
    Một mô hình tuyến tính "trông tốt hơn" theo R² nhưng tệ hơn ở chính giữa phân bố — đúng loại kết
    luận sai mà bảng median APE sinh ra để chặn.
 
-Bộ **full** chỉ hơn **minimal** khoảng 0,0015 R² (0,9462 vs 0,9447). Với seed sd 0,0003 thì chênh lệch
-này nhỏ nhưng có thật (Wilcoxon p = 7,4e-07), nên giữ full là hợp lý nhưng không được mô tả là "cải
-thiện lớn".
+Bộ **full** chỉ hơn **minimal** khoảng 0,0015 R² (0,9462 vs 0,9447) ở cặp chưa tune. Với seed sd 0,0003
+thì chênh lệch này nhỏ nhưng có thật (Wilcoxon p = 7,4e-07), nên giữ full là hợp lý nhưng không được mô
+tả là "cải thiện lớn".
 
 Đường cong học (LightGBM, 10/25/50/100% train): **0,8947 → 0,9107 → 0,9311 → 0,9440** — vẫn đang
-tăng, nên trần hiện tại là *dữ liệu*, không phải đặc trưng.
+tăng, nên trần hiện tại là *dữ liệu*, không phải đặc trưng. Đây cũng là lý do không đáng đổ thêm thời
+gian vào tuning: 50 fits mua 0,0009, trong khi thêm dữ liệu vẫn đang mua hàng chục điểm phần nghìn.
 
-**Mô hình dùng cho `predictions_val.csv`: lightgbm / full.** Lý do ghi rõ: R² hoà với catboost trong
-phạm vi nhiễu, MAPE tốt hơn (11,5% vs 12,0%), và LightGBM cho quantile trực tiếp để sinh P10/P90 cho
-T3 mà không phải thêm một mô hình thứ ba.
+**Mô hình dùng cho artefact (`predictions_{val,test}.csv`): lightgbm+tuned / full**, tham số đóng băng
+`n_estimators=900, learning_rate=0.03, num_leaves=63, min_child_samples=20` — thắng trong 600 s / 25
+draws. Lần chạy lại bằng `--params` cho **đúng** 0,9471 / 0,1904 / 82.087.205 / 0,114 trong 31,9 s thay
+vì 468,5 s, nên artefact tái lập được mà không cần tune lại. Lý do chọn LightGBM thay vì catboost: MAPE
+tốt hơn (11,4% vs 12,0%), và LightGBM cho quantile trực tiếp để sinh P10/P90 cho T3 mà không phải thêm
+một mô hình thứ ba.
+
+## 5b. Kết quả test — lần đánh giá duy nhất
+
+Test chỉ được chấm **một lần**, sau khi đã đóng băng mô hình và tham số; file ghi
+`docs/test_evaluation.md`, coverage band `docs/intervals_test.md`.
+
+| Thước đo | val (14.964) | **test (14.980)** |
+| --- | ---: | ---: |
+| R²(log) | 0,9471 | **0,9487** |
+| RMSE(log) | 0,1904 | 0,1869 |
+| R²(VND) | 0,9215 | 0,9026 |
+| MAE (VND) | 82.087.205 | 89.731.484 |
+| MAPE | 11,4% | **10,9%** |
+| MAPE clean | 10,3% | 10,1% |
+| median APE | 6,2% | 6,1% |
+| band phủ (nominal 80%) | 81,70% | **81,91%** |
+
+Đọc bảng này cho ba điều:
+
+1. **Test không dễ hơn val một cách bất thường.** R²(log) và MAPE *tốt hơn* val 0,0016 / 0,5 điểm —
+   trong phạm vi biến động giữa hai tập cùng phân phối, không phải "test dễ".
+2. **MAE và R²(VND) lại kém hơn** (89,7 vs 82,1 triệu; 0,9026 vs 0,9215) vì chúng tính bằng VND tuyệt
+   đối và test có mix xe đắt hơn. Cùng một mô hình, hai kết luận trái chiều — lặp lại bài học ở mục 5.
+3. **Band chuyển được sang test** (81,91% so với nominal 80%, lệch 8,62% dưới P10 / 9,47% trên P90), nên
+   ngưỡng hiệu chỉnh trên train OOF không bị overfit vào val.
+
+Điều **không** được làm sau khi đọc bảng trên: tune lại, đổi mô hình, đổi band, rồi chạy test lần hai.
+Split đã tiêu; nếu có ai chạy lại `predictions_test.csv` thì con số "một lần" trong báo cáo mất nghĩa.
 
 ## 6. Phân tích sai số
 
-- **Median APE 6,3%, MAPE 11,5%** trên val; đây là hai con số khác nhau và cả hai đều đúng — MAPE bị
-  kéo bởi đuôi phải, median APE mô tả trải nghiệm của một tin rao điển hình.
+- **Median APE 6,2%, MAPE 11,4%** trên val (trên test: 6,1% / 10,9%); đây là hai con số khác nhau và cả
+  hai đều đúng — MAPE bị kéo bởi đuôi phải, median APE mô tả trải nghiệm của một tin rao điển hình.
 - **Nhãn bất thường** (`data/master/anomaly_labels.csv`, review rate hiệu chỉnh đúng **3,00%**,
-  P10/P90 lấy từ mô hình quantile của LightGBM): Fair **10.765** · Overpriced **2.103** ·
-  Bargain **1.990** · Suspicious **106**.
+  P10/P90 lấy từ mô hình quantile của LightGBM): Fair **12.225** · Bargain **1.331** · Overpriced
+  **1.325** · Suspicious **83**.
 - **Theo nhóm sai số** (`docs/error_taxonomy.md`, quy tắc hiển nhiên để đọc lại):
-  tin dưới 200 triệu **1.461** tin, median APE **13,3%**, Δ trung bình **+25,1%** — mô hình **định giá
-  cao** xe rẻ, vì nhóm này chứa nhiều giá đặt cọc/giá ảo; km bất thường **118** tin / 10,0%; nhóm còn
-  lại **13.385** tin / 5,9%.
-- **Theo nguồn**: carmudi **10,0%** (chỉ 105 tin) · chotot 7,2% (2.874) · muaban 6,6% · tinbanxe 6,6% ·
-  carpla 6,5% · bonbanh 6,0% · oto.com.vn 6,0% · vucar 5,0%. Sai số không đều giữa các sàn và sàn nhỏ
-  nhất có sai số lớn nhất, nên một MAPE tổng không đủ.
-- **Theo decile giá**: decile rẻ nhất (< 200 triệu) có median APE **13,2%**, gần gấp đôi các decile
-  phía trên (6,8% / 5,6%) — mô hình yếu nhất đúng ở nơi người mua ít tiền nhất.
+  tin dưới 200 triệu **1.461** tin, median APE **13,2%**, Δ trung bình **+24,7%** — mô hình **định giá
+  cao** xe rẻ, vì nhóm này chứa nhiều giá đặt cọc/giá ảo; km bất thường **118** tin / 9,6%; nhóm còn
+  lại **13.385** tin / 5,8%.
+- **Theo nguồn**: carmudi **10,0%** (105 tin) · chotot 7,1% (2.874) · muaban 6,7% (1.044) ·
+  tinbanxe 6,5% (1.124) · carpla 6,3% (610) · oto.com.vn 5,9% (4.369) · bonbanh 5,9% (4.529) ·
+  vucar 4,8% (309). Sai số không đều giữa các sàn và sàn nhỏ nhất có sai số lớn nhất, nên một MAPE
+  tổng không đủ.
+- **Theo decile giá**: decile rẻ nhất (< 200 triệu) có median APE **13,0%**, gần gấp đôi các decile
+  phía trên (6,8% / 5,4%) — mô hình yếu nhất đúng ở nơi người mua ít tiền nhất.
 - **Độ quan trọng** (`data/master/feature_importance.csv`): `brand_age_band` 0,510 ·
   `manufacture_year` 0,262 · `model` 0,231 · `model_group` 0,180 · `brand` 0,132 · `engine_capacity`
   0,130. Ba đặc trưng đầu đều là "xe gì, đời nào" — khớp với ablation ở mục 4.
 - **Ba case study** (`docs/case_studies.md`, chọn bằng quy tắc nên tái lập được):
-  `MUA_71248118` Toyota Corolla Cross 2022 rao **7,35 tỷ** trong khi mô hình ước **623 triệu**
-  (Δ −91,5% — giá đặt cọc ảo); `CHOTOT_134989809` Aion Y Plus 2024 với **999.998 km** (Δ +502%);
-  `CARPLA_F8W47` Audi Q5 2024 nhập khẩu rao **218 triệu** so với ước lượng **2,14 tỷ** (Δ +882%).
+  `MUA_71248118` Toyota Corolla Cross 2022 rao **7,35 tỷ** trong khi mô hình ước **631 triệu**
+  (Δ −91,4% — giá đặt cọc ảo); `CHOTOT_134989809` Aion Y Plus 2024 với **999.998 km** (Δ +488%);
+  `CARPLA_F8W47` Audi Q5 2024 nhập khẩu rao **218 triệu** so với ước lượng **2,06 tỷ** (Δ +843%).
 
 Ba case này không phải lỗi mô hình có thể sửa bằng tuning: chúng là **giá đặt cọc/giá ảo**, **odometer
 bị chỉnh**, và **xe nhập khẩu**. Mục 7 phải nói rằng sản phẩm cần *dữ liệu* (lịch sử tai nạn, xác nhận
