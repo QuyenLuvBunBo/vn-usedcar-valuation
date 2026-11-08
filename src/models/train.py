@@ -318,6 +318,39 @@ def _quantile_bands(x_train, y_train, x_val, seed: int):
     return bands[0], bands[1], bands[2]
 
 
+def _write_test_evaluation(path: Path, row: dict, force: bool = False) -> str:
+    """Record the single test evaluation. The file is written once on purpose.
+
+    The plan allows **one** test evaluation for the whole project, so an existing file is not overwritten
+    unless `--force` is passed; a silent second write is exactly how a holdout stops being a holdout.
+    """
+    if path.exists() and not force:
+        return f"{path} already exists -> the test set is evaluated once; pass --force to overwrite"
+    metrics = [("R²(log)", f"{row['r2_log']:.4f}"), ("RMSE(log)", f"{row['rmse_log']:.4f}"),
+               ("R²(VND)", f"{row['r2_vnd']:.4f}"), ("MAE (VND)", f"{row['mae_vnd']:,}"),
+               ("MAPE", f"{row['mape']:.3f}"), ("median APE", f"{row['median_ape']:.3f}"),
+               ("MAPE clean", f"{row.get('clean_mape', float('nan')):.3f}")]
+    lines = ["# The single test evaluation", "",
+             "**This is the one evaluation of the test split for the whole project** (plan §1: *one* "
+             "evaluation at the freeze). Every other number in `docs/benchmark.md` is on `val`.", "",
+             f"- Measured: {config.now_iso()}",
+             f"- Model: **{row['model']} / {row['features']}** (seed {row['seed']})",
+             f"- Parameters: `{json.dumps(row.get('params') or {}, ensure_ascii=False)}`",
+             f"- Tuning: `{json.dumps(row.get('tuning') or {}, ensure_ascii=False)}`",
+             f"- Rows: **{row['holdout_rows']:,}** test listings · band: "
+             + ("calibrated on train OOF" if row.get("band_calibration") else "raw quantile fits"),
+             f"- Predictions: `{row.get('predictions')}`", "",
+             "| Metric | Test |", "| --- | ---: |"]
+    lines += [f"| {name} | {value} |" for name, value in metrics]
+    lines += ["", f"`MAPE clean` drops the {row.get('rows_tail', 0)} test rows whose asking price is below a "
+              "quarter of the estimate — the deposit-style ads described in `docs/error_audit_25.md`. "
+              "Quote both numbers or quote neither.", "",
+              "Do not tune, refit or re-select a model after reading this table: the split is spent.", ""]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    return f"wrote {path}"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Train one week-3 model and write its artefacts")
     parser.add_argument("--model", help="one of: " + ", ".join(MODELS) + " (short names lgbm/xgb/cb work)")
@@ -335,6 +368,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="keep the raw quantile fits; by default they are conformal-shifted on train OOF")
     parser.add_argument("--split", default="val", choices=("val", "test"))
     parser.add_argument("--at-m2", action="store_true", help="required to write test predictions")
+    parser.add_argument("--test-doc", default="docs/test_evaluation.md",
+                        help="where the single test evaluation is recorded (written once)")
+    parser.add_argument("--force", action="store_true",
+                        help="overwrite an existing test evaluation — only when it was a mistake")
     parser.add_argument("--json", default=str(config.DATA_MASTER / "model_results.json"))
     parser.add_argument("--models-dir", default=str(Path(__file__).resolve().parents[2] / "models"))
     parser.add_argument("--note", default="")
@@ -406,6 +443,12 @@ def main(argv: list[str] | None = None) -> int:
     predictions_path = config.DATA_MASTER / f"predictions_{args.split}.csv"
     frame.to_csv(predictions_path, index=False, lineterminator="\n")
 
+    # The tail the hand read identified: asking price below a quarter of the estimate.
+    true_vnd = y_val.to_numpy(dtype=float)
+    tail_mask = (predicted / np.clip(true_vnd, 1.0, None)) > 4.0
+    clean = ~tail_mask
+    clean_scores = common.metrics(true_vnd[clean], predicted[clean]) if clean.any() else {}
+
     row = {"model": args.model, "features": args.features, "seed": args.seed,
            "train_rows": int(len(train)), "rows_used": int(used_rows),
            "holdout": args.split, "holdout_rows": int(len(holdout)),
@@ -413,9 +456,10 @@ def main(argv: list[str] | None = None) -> int:
            "quantiles": bool(args.quantiles), "params": params, "tuning": tuning,
            "p50_metrics": p50_metrics, "band_calibration": band_calibration,
            "predictions": str(predictions_path), "note": args.note,
+           "rows_tail": int(tail_mask.sum()),
+           **{f"clean_{key}": value for key, value in clean_scores.items()},
            **common.metrics(y_val, predicted)}
-    if args.split == "val":
-        common.append_result(Path(args.json), row)
+    common.append_result(Path(args.json), row)
 
     header = f"{'model':12s} {'features':8s} {'R2(log)':>8s} {'RMSE(log)':>10s} {'MAE(VND)':>13s} {'MAPE':>7s} {'s':>7s}"
     print(header)
@@ -432,6 +476,9 @@ def main(argv: list[str] | None = None) -> int:
               f"-> holdout coverage {band_calibration['holdout_coverage']:.1%} (nominal 80%)")
     if args.split == "val":
         print(f"  ledger      -> {args.json}")
+    else:
+        print(f"  ledger      -> {args.json} (holdout=test)")
+        print("  " + _write_test_evaluation(Path(args.test_doc), row, args.force))
     return 0
 
 

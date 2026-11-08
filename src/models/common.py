@@ -118,10 +118,10 @@ def append_result(path: Path, row: dict) -> dict:
             payload.setdefault("results", [])
         except json.JSONDecodeError:
             pass
-    key = (row.get("model"), row.get("features"), row.get("seed"))
+    key = (row.get("model"), row.get("features"), row.get("seed"), row.get("holdout", "val"))
     payload["results"] = [existing for existing in payload["results"]
                           if (existing.get("model"), existing.get("features"),
-                              existing.get("seed")) != key]
+                              existing.get("seed"), existing.get("holdout", "val")) != key]
     payload["results"].append(row)
     payload["results"].sort(key=lambda item: (item.get("features", ""), -float(item.get("r2_log") or 0)))
     payload["generated_at"] = config.now_iso()

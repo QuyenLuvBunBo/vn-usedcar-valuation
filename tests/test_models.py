@@ -5,12 +5,15 @@ Run: python -m unittest tests.test_models -v
 
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from src.models import anomaly, common
+from src.models import train as trainer
 
 
 def tiny_predictions() -> pd.DataFrame:
@@ -86,6 +89,29 @@ class AnomalyTests(unittest.TestCase):
         # a larger review rate must lower the threshold, and the rate is clamped to 2–5%
         self.assertLessEqual(anomaly.calibrate(scores, 0.5), anomaly.calibrate(scores, 0.02))
         self.assertAlmostEqual(float((scores >= anomaly.calibrate(scores, 0.5)).mean()), 0.05, places=2)
+
+
+class TestEvaluationTests(unittest.TestCase):
+    """The single test evaluation is recorded once — the file must refuse a silent overwrite."""
+
+    def row(self) -> dict:
+        return {"model": "lightgbm", "features": "full", "seed": 42, "holdout": "test",
+                "holdout_rows": 14_980, "r2_log": 0.94, "rmse_log": 0.2, "r2_vnd": 0.9,
+                "mae_vnd": 1_000, "mape": 0.11, "median_ape": 0.06, "clean_mape": 0.1,
+                "rows_tail": 12, "params": {}, "tuning": {}, "predictions": "predictions_test.csv",
+                "band_calibration": {"folds": 2}}
+
+    def test_written_once_then_refused(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "test_evaluation.md"
+            self.assertIn("wrote", trainer._write_test_evaluation(path, self.row()))
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("single test evaluation", text)
+            self.assertIn("MAPE clean", text)
+            second = trainer._write_test_evaluation(path, self.row())
+            self.assertIn("evaluated once", second)
+            forced = trainer._write_test_evaluation(path, self.row(), force=True)
+            self.assertIn("wrote", forced)
 
 
 if __name__ == "__main__":
