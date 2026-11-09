@@ -1,5 +1,24 @@
 # Week 3 report — used-car valuation and listing screening
 
+## Abstract
+
+We built a used-car price guide and a listing-screening layer for the Vietnamese market from **100,887
+listings across eight platforms**, frozen as a snapshot on 31 October 2026. Prices are modelled as
+`log1p(price_vnd)` and split by duplicate group rather than by row, so a car cross-posted on four sites
+cannot appear on both sides of the split. On the held-out validation split (14,964 listings) a tuned
+LightGBM on the full feature set reaches **R²(log) 0.9471** with **MAPE 11.4%** and a **median absolute
+percentage error of 6.2%** — a typical listing is priced within about 6% of its asking price, and the
+median baseline (0.8773) is beaten by seven points. The **test split was scored exactly once**, after the
+model and its parameters had been frozen: **R²(log) 0.9487, MAPE 10.9%, median APE 6.1%**, and the 80%
+price interval covered **81.9%** of asking prices. The same quantile band, combined with an Isolation
+Forest, assigns every validation listing one of four labels: **81.7% Fair, 8.9% Bargain, 8.9%
+Overpriced, 0.6% Suspicious** — 83 listings for a human to read, which is the point of the screening
+layer. Two findings matter more than the score. First, the ceiling is **data, not modelling**: nine model
+families sit inside 0.937–0.947, fifty tuning fits buy +0.0009, and the learning curve is still rising at
+70,000 rows. Second, the honest headline is **not** the leaderboard: `Bargain` is not a buy signal, the
+worst errors are deposit-style prices rather than model failures, and any future model change must be
+reported as a limitation because the holdout has been spent.
+
 Every number below is the value its artefact produced on the frozen splits. Nothing was re-run,
 re-selected or rounded toward a nicer figure after the test split was opened; §8.2 names the one place
 where a validation-selected number is optimistic, and by how much.
@@ -26,6 +45,10 @@ where a validation-selected number is optimistic, and by how much.
 | 6 Errors | `docs/error_taxonomy.md`, `docs/case_studies.md` | `python -m tools.error_report` |
 | 7 Labelling | `anomaly_labels.csv`, `anomaly_thresholds.json` | `python -m src.models.anomaly` |
 | 8 Limitations | — | — |
+| 9 Conclusions | — | — |
+| A Reproduction | — | `python -m tools.clean_check` |
+| B Artefact inventory | `data/master/*` | see the table in B |
+| C Metric glossary | — | — |
 
 ## 1. Pipeline
 
@@ -84,6 +107,30 @@ is counted (case- and diacritic-insensitive folding plus an alias table), otherw
 | `fig3_price_by_province.png` | median price by province | TP.HCM 38,271 + Hà Nội 33,079 = **71%** of volume; top-12 median spread **×1.7** |
 | `fig4_price_by_year.png` | median price by model year | 225 million (2010) → 699 million (2025), rising almost monotonically |
 | `fig5_price_per_km_by_segment.png` | price per 1,000 km by segment | segments spread **×9.4** on price per km against **×3.5** on absolute price |
+
+**Figure 1 — price distribution.** The right tail survives the price window, which is why every model in
+§5 fits a log target.
+
+![Price distribution](figures/fig1_price_distribution.png)
+
+**Figure 2 — median price by platform.** A factor of 1.54 between the cheapest and dearest platform with
+at least 500 listings.
+
+![Median price by platform](figures/fig2_price_by_source.png)
+
+**Figure 3 — median price by province.** The two largest markets carry 71% of the volume; the top-12
+median spread is 1.7×.
+
+![Median price by province](figures/fig3_price_by_province.png)
+
+**Figure 4 — median price by model year.** The depreciation curve the model has to learn, 2010–2026.
+
+![Median price by model year](figures/fig4_price_by_year.png)
+
+**Figure 5 — price per 1,000 km by segment.** Segments spread 9.4× on this ratio against 3.5× on
+absolute price, so mileage does not normalise a segment away.
+
+![Price per 1,000 km by segment](figures/fig5_price_per_km_by_segment.png)
 
 ### 3.2 Three readings that change later sections
 
@@ -396,3 +443,134 @@ Three things must be said plainly:
   it. Anything changed from here is reported as a limitation, without a second test run — otherwise the
   "evaluated once" claim in this report stops meaning anything.
 
+## 9. Conclusions and next steps
+
+### 9.1 What is settled
+
+1. **The model is good enough for price guidance, and the evidence is a real holdout.** R²(log) 0.9487 and
+   median APE 6.1% on 14,980 listings that were never touched during development. A typical listing is
+   priced within about 6% of its asking price; the model is not a demonstration that happens to fit val.
+2. **The gap to the baseline is the interesting number, not the gap to the ceiling.** The global-median
+   baseline scores 0.8773; the shipped model scores 0.9471 on val. Seven points of R² is what "predicting
+   price from vehicle identity and age" actually buys. The remaining 0.05 is the part this dataset cannot
+   deliver.
+3. **The complexity is justified, but only just.** Against the canary floor of 0.946 the shipped model wins
+   by 0.0011. That is enough to keep the model and not enough to celebrate; §5.1 says so in the same
+   words, which is why a reader can trust the rest of the table.
+4. **The intervals are calibrated and they transfer.** 81.70% coverage on val, 81.91% on test against a
+   nominal 80%, with the calibration fitted on train out-of-fold rows only. This is the part of the
+   deliverable that would break first if the feature set changed.
+5. **The screening layer produces a workload, not a verdict.** 83 Suspicious listings on 14,964 is a queue
+   a human can clear in a morning; the number to distrust is the label, not the count.
+
+### 9.2 What the product should promise, and what it should not
+
+The evidence supports **"a starting number for a negotiation and a short review queue"**. It does not
+support **contract-grade valuation**, for one structural reason: every label here is an *asking* price, and
+the haggling margin is not in the dataset. Stated as a limitation, that is honest; stated as a feature, it
+would be a promise the data cannot keep.
+
+Concretely: quote the interval, not the point. Quote `median APE 6.1%` for a typical listing and say out
+loud that the cheapest decile is twice as bad (13.0%). Show `Bargain` next to a warning that a price below
+P10 is more often a deposit than a deal — 24 of the 25 worst rows in §6 are exactly that.
+
+### 9.3 What we would do next, in order
+
+| Priority | Work | Why it is first |
+| --- | --- | --- |
+| 1 | **Transaction prices** (sold listings, dealer invoices) | converts an asking-price model into a valuation model; nothing else moves the target definition |
+| 2 | **Real odometer history** (service records, registration data) | `mileage_km` is 12.7% missing and worth ΔR² 0.0001 as-is; the *true* value is the signal the model currently lacks |
+| 3 | **Model-year × variant taxonomy** (`sub_model_trim` is 55.7% missing) | the top three features are all "what car, which year"; filling the missing half is the cheapest real gain |
+| 4 | **Time axis** (listing date as a seasonality feature, not a leak) | with a second snapshot, month-of-year becomes learnable; with one snapshot it is not |
+| 5 | More tuning, more model families | measured at +0.0009 for 50 fits; this is the last thing worth doing, not the first |
+
+### 9.4 What must not happen
+
+Any of items 1–5 changes the data or the model, which means a **new snapshot and a re-opened freeze**. The
+current test number (0.9487) then becomes historical: it stays in this report as the measurement of *this*
+model on *this* split, and a new number is produced by a new one-shot evaluation, never by re-scoring the
+same split until it looks better. Concretely: `docs/test_evaluation.md` is written once and refuses to be
+overwritten, and `python -m src.models.train --split test` exits unless `--at-m2` is passed. Those two
+guards exist so that this paragraph stays true after the report is submitted.
+
+## Appendix A — Reproduction runbook
+
+The repository does **not** carry the data snapshot (`data/master/*` is git-ignored, per
+`docs/data_handover.md` §5). A fresh clone plus the mandatory download reproduces every number in this
+report:
+
+```bash
+# 0. environment
+pip install -r requirements.txt          # Python 3.12; lightgbm >= 4.5, pandas >= 3.0
+
+# 1. snapshot: put these three files in data/master/
+#    train_cohort_imputed.csv, val_cohort_imputed.csv, test_cohort_imputed.csv
+#    (01_week3_mandatory/ on Drive; verify with SHA256SUMS.txt)
+
+# 2. features
+python -m src.features.build_features --features full --split all
+
+# 3. the shipped model on val, with the parameters frozen before the test run
+python -m src.models.train --model lgbm --features full --quantiles --label lightgbm+tuned \
+  --params '{"n_estimators":900,"learning_rate":0.03,"num_leaves":63,"min_child_samples":20}'
+#   -> R²(log) 0.9471, MAE 82,087,205, MAPE 11.4%, band coverage 81.7%
+
+# 4. the one-shot test evaluation (writes docs/test_evaluation.md once)
+python -m src.models.train --model lgbm --features full --quantiles --split test --at-m2 \
+  --label lightgbm+tuned \
+  --params '{"n_estimators":900,"learning_rate":0.03,"num_leaves":63,"min_child_samples":20}'
+#   -> R²(log) 0.9487, MAPE 10.9%, band coverage 81.91%
+
+# 5. downstream artefacts
+python -m src.models.anomaly --predictions data/master/predictions_val.csv   # §7
+python -m tools.error_report                                                # §6
+python -m tools.check_intervals                                             # §5.2, §7
+python -m tools.model_gate                                                  # leak gate
+```
+
+Two shortcuts: `python -m tools.clean_check` extracts `HEAD` into a temp directory and runs features →
+train → gate → tests on it (this is how "the committed tree is enough" is asserted, not assumed), and
+`python -m src.models.benchmark` regenerates the §5.1 table (slow: three models × 600 s of tuning).
+Timings on the machine that produced this report: features ≈ 20 s, train ≈ 45 s including quantiles, gate
+and tests ≈ 10 s.
+
+## Appendix B — Artefact inventory
+
+Everything a reviewer needs to check a number, and nothing that has to be trusted:
+
+| Artefact | Contents | Used by |
+| --- | --- | --- |
+| `data/master/predictions_val.csv` | 14,964 × 15: ids, vehicle, asking price, `y_pred_*`, `p10_vnd`, `p90_vnd`, residual, APE | §5.1, §6, §7 |
+| `data/master/predictions_test.csv` | 14,980 × 15, same contract, written once at M2 | §5.2 |
+| `data/master/model_results.json` | append-only ledger, one row per (model, features, seed, holdout, frozen) | §5.1, §5.2 |
+| `docs/model_results.json` | committed copy of the ledger, so the numbers travel with the repo | §5.1, §5.2 |
+| `docs/benchmark.md` | the §5.1 table with tuning budget and per-row timings | §5.1 |
+| `docs/test_evaluation.md` | the single test evaluation, written once, refuses overwrite | §5.2 |
+| `docs/intervals.md`, `docs/intervals_test.md` | band coverage by platform, on val and on test | §5.2, §7 |
+| `data/master/anomaly_labels.csv` | per-listing label, band, forest score, reason | §7 |
+| `data/master/anomaly_thresholds.json` | calibrated forest threshold, review rate, label counts | §7 |
+| `docs/error_taxonomy.md`, `docs/error_audit_25.md` | error buckets, platform/decile breakdowns, the hand-read tail | §6 |
+| `docs/case_studies.md` | three listings picked by rule, with URLs | §6 |
+| `data/master/feature_ablation.json`, `docs/features_ablation.md` | drop-one-group ΔR² | §4.2 |
+| `data/master/cardinality_study.json`, `docs/cardinality_research.md` | encoding comparison | §4.3 |
+| `docs/model_extras.md` | permutation importance, partial dependence, seed stability, learning curve | §4.4 |
+| `docs/eda_summary.md`, `docs/figures/fig1..fig5` | the EDA tables and the five figures | §3 |
+| `docs/data_limitations.md`, `docs/features.md`, `docs/feature_formulas.md` | data caveats and the feature definitions | §2, §4, §8 |
+
+## Appendix C — Metric glossary
+
+| Term | Definition | Why it is reported |
+| --- | --- | --- |
+| **R²(log)** | coefficient of determination on `log1p(price_vnd)` — the space the models are trained in | primary metric: it is the training objective and the metric the canary floor is expressed in |
+| **RMSE(log)** | root mean squared error in log space | same space as R²(log), in price-error units |
+| **R²(VND)** | R² on raw VND | shows how much of the *money* variance is explained; always flattering because the distribution is skewed |
+| **MAE (VND)** | mean absolute error in VND | the number a business reader feels; scales with car price |
+| **MAPE** | mean absolute percentage error over all rows | comparable across price levels, but dominated by cheap rows |
+| **MAPE clean** | MAPE after dropping rows whose asking price is below a quarter of the estimate | the same measure without the deposit-price tail (`docs/error_audit_25.md`) |
+| **median APE** | median absolute percentage error | the typical listing rather than the average; immune to the tail |
+| **band coverage** | share of asking prices inside `[p10_vnd, p90_vnd]` | calibration check against the nominal 80%; a band that does not cover 80% makes the §7 labels fire at the wrong rate |
+| **canary floor** | R²(log) 0.946 / MAPE 11.6% from `tools/baseline_smoke` | the number any added complexity has to beat to be worth its cost |
+
+_§3 and §7 were drafted from the artefacts listed in Appendix B (`docs/eda_summary.md`,
+`anomaly_labels.csv`, `anomaly_thresholds.json`); Phong and Tuấn Anh review them before submission.
+Copy-editing — one voice, layout, PDF, submission form — remains the editor's job._
