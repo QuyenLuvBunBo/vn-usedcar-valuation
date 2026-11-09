@@ -1,4 +1,4 @@
-# Week 3 report — used-car valuation and listing screening
+# Analysis 2 report (M2, week 3) — used-car valuation and listing screening
 
 ## Abstract
 
@@ -102,14 +102,13 @@ regional number is wrong.
 
 | Figure | What it shows | The number to remember |
 | --- | --- | --- |
-| `fig1_price_distribution.png` | price distribution | right-skewed even inside the window ⇒ every model fits `log1p(price_vnd)`, and R²(VND) always looks better than R²(log) |
+| `fig1_price_distribution.png` | price distribution, drawn on a log10 axis | the raw VND scale has an extreme right tail; log10 nearly symmetrises it, with a residual tail above roughly 10^9.5 VND — which is the visual argument for fitting `log1p(price_vnd)` |
 | `fig2_price_by_source.png` | median price by platform | 420 million (muaban.net) → 645 million (carpla): **×1.54** |
 | `fig3_price_by_province.png` | median price by province | TP.HCM 38,271 + Hà Nội 33,079 = **71%** of volume; top-12 median spread **×1.7** |
 | `fig4_price_by_year.png` | median price by model year | 225 million (2010) → 699 million (2025), rising almost monotonically |
 | `fig5_price_per_km_by_segment.png` | price per 1,000 km by segment | segments spread **×9.4** on price per km against **×3.5** on absolute price |
 
-**Figure 1 — price distribution.** The right tail survives the price window, which is why every model in
-§5 fits a log target.
+**Figure 1 — price distribution.** The x-axis is `log10(asking price, VND)`. On the raw VND scale the tail runs to hundreds of billions and no model would fit it; on the log scale the bulk sits symmetrically around 8.7, with a residual right tail above roughly 10^9.5 VND. That is the picture behind the `log1p` target used in §5.
 
 ![Price distribution](figures/fig1_price_distribution.png)
 
@@ -135,10 +134,10 @@ absolute price, so mileage does not normalise a segment away.
 ### 3.2 Three readings that change later sections
 
 1. **Price per km splits the segments more than absolute price does — and mileage is still weak.**
-   Look at the ten segments with at least 900 ads: price per 1,000 km runs from 4.6 million (Hatchback) to
-   42.7 million (Coupe), **×9.4**, while absolute price only runs from 265 million to 934 million, **×3.5**.
-   So mileage does not "normalise" a segment away. For the model itself, §4.2 measures what dropping
-   `mileage_km` and `km_per_year` actually costs: **ΔR² 0.0001**.
+   Take the eight segments plotted in Figure 5, every one with at least 900 ads: price per 1,000 km runs
+   from 4.6 million (Hatchback) to 42.7 million (Coupe), **×9.4**, while absolute price only runs from 265
+   million to 934 million, **×3.5**. So mileage does not "normalise" a segment away. For the model itself,
+   §4.2 measures what dropping `mileage_km` and `km_per_year` actually costs: **ΔR² 0.0001**.
 2. **`body_type` is missing on 18.2% of the window (18.6% of train)** — a fifth of the market cannot be put
    in a segment at all, so every "by segment" sentence in this report is about the other 82%.
 3. **Small platforms differ in distribution, not just in volume.** carmudi has 546 ads, vucar 2,124, carpla
@@ -257,9 +256,11 @@ in §5.2.
 | minimal | lasso | 0.8344 | 0.3367 | 0.6868 | 207,337,967 | 25.5% | 23.1% | 16.2% | 19.4 | fixed |
 
 `MAPE clean` throws out rows whose asking price is below a quarter of the estimate — the deposit-style ads
-§6 is about. One old row (`minimal`/`catboost+tuned`) predates that column and shows `—`. The two `median`
-rows are identical because the baseline ignores the feature set completely: a "model" that only knows the
-global median already sits at R²(log) 0.8773.
+§6 is about. One row, `minimal`/`catboost+tuned`, shows `—`: its search stopped after a single draw inside
+the 600 s budget, and the run was written before this column existed. The row stays as it is rather than
+spending another 300 s to fill one cell of a search that never finished. The two `median` rows are identical
+because the baseline ignores the feature set completely: a "model" that only knows the global median already
+sits at R²(log) 0.8773.
 
 **We fixed the primary metric before reading the table: R²(log)** — the thing the models actually minimise,
 and the thing the canary floor is stated in. That order matters, because the metric picks the winner:
@@ -570,7 +571,3 @@ Everything a reviewer needs to check a number, and nothing that has to be taken 
 | **median APE** | median absolute percentage error | the typical listing rather than the average; immune to the tail |
 | **band coverage** | share of asking prices inside `[p10_vnd, p90_vnd]` | calibration check against the nominal 80%; a band that does not cover 80% makes the §7 labels fire at the wrong rate |
 | **canary floor** | R²(log) 0.946 / MAPE 11.6% from `tools/baseline_smoke` | the number any added complexity has to beat to be worth its cost |
-
-_§3 and §7 were drafted from the artefacts in Appendix B (`docs/eda_summary.md`, `anomaly_labels.csv`,
-`anomaly_thresholds.json`) and reviewed by Phong and Tuấn Anh. Copy-editing is done; layout and the PDF for
-submission are still to do._
