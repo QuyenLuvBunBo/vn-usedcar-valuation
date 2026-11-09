@@ -4,7 +4,7 @@
 
 We built a used-car price guide and a screening layer for Vietnamese listings, from **100,887 ads across
 eight platforms**, frozen as a snapshot on 31 October 2026. We model `log1p(price_vnd)` and split the data
-by duplicate group instead of by row, so the same car posted on four sites can't show up on both sides of
+by duplicate group instead of by row, so the same car posted on four sites cannot show up on both sides of
 the split. On validation (14,964 listings) a tuned LightGBM with the full feature set reaches **R²(log)
 0.9471**, with **MAPE 11.4%** and a **median absolute percentage error of 6.2%**: a typical ad gets a price
 within about 6% of what the seller is asking, and the global-median baseline (0.8773) is beaten by seven
@@ -14,7 +14,7 @@ band, plus an Isolation Forest, gives every validation listing one of four label
 Bargain, 8.9% Overpriced, 0.6% Suspicious**. That last one is 83 ads for a human to read — which is the
 whole point of the screening layer. Two things matter more than the score. The ceiling here is **data, not
 modelling**: nine model families sit inside 0.937–0.947, fifty tuning fits buy +0.0009, and the learning
-curve is still climbing at 70,000 rows. And the honest headline isn't the leaderboard: `Bargain` doesn't
+curve is still climbing at 70,000 rows. And the honest headline is not the leaderboard: `Bargain` does not
 mean "buy this", the worst errors are deposit-style prices rather than model failures, and any future model
 change has to be reported as a limitation, because the holdout has been spent.
 
@@ -51,11 +51,11 @@ because it was chosen on validation, and §8.2 says which and by how much.
 
 ## 1. Pipeline
 
-We froze the dataset on 31 October and haven't touched it since. `master_clean_dataset.csv` (100,887 rows)
+We froze the dataset on 31 October and have not touched it since. `master_clean_dataset.csv` (100,887 rows)
 goes through `src.data_prep.pipeline`, which splits by `duplicate_group_id` (seed 42), then takes the cohort
 and imputes, then builds `{train,val,test}_features_{minimal,full}.csv`. The split comes out at **70.1% /
 14.93% / 14.97%** (70,244 / 14,964 / 14,980 rows once features are built). There are **75,496 duplicate
-groups** and none of them straddles two splits, so a car cross-posted on four sites can't sit in both train
+groups** and none of them straddles two splits, so a car cross-posted on four sites cannot sit in both train
 and val.
 
 Four checks run before a number is allowed into this report:
@@ -73,7 +73,7 @@ gets to show only the flattering number. The test split is scored **once** — t
 ## 2. Data quality
 
 - **100,887 rows** in the master, **100,868 with a price**. We drop the 19 without one instead of imputing —
-  you don't invent the thing you're predicting.
+  you do not invent the thing you are predicting.
 - **75,496 duplicate groups** across 100,887 ads, so cross-posting is real. Splitting by group is what stops
   val and test from being inflated by the same car listed on several sites.
 - **Missing rates on train**: `engine_capacity` **61.2%**, `sub_model_trim` **55.7%**, `seller_type`
@@ -83,7 +83,7 @@ gets to show only the flattering number. The test split is scored **once** — t
 - **Brand names**: 164 spellings collapse to **146 brands** (`Hyundai`/`HYUNDAI`,
   `Mercedes Benz`/`Mercedes-Benz`, `VinFast`/`Vinfast`, `LandRover`/`Land Rover`). Skip this and the brand
   column is noise, with 18 brands split in two.
-- **10,906 train rows** carry at least one `quality_flags` entry. The model never sees the flag — it's
+- **10,906 train rows** carry at least one `quality_flags` entry. The model never sees the flag — it is
   banned as a feature — so those rows are learned like any other. The flag is our judgement about the ad,
   not a property of the car.
 - **Prices on train**: median 520 million, P10 199 million, P90 1.479 billion VND.
@@ -137,19 +137,19 @@ absolute price, so mileage does not normalise a segment away.
 1. **Price per km splits the segments more than absolute price does — and mileage is still weak.**
    Look at the ten segments with at least 900 ads: price per 1,000 km runs from 4.6 million (Hatchback) to
    42.7 million (Coupe), **×9.4**, while absolute price only runs from 265 million to 934 million, **×3.5**.
-   So mileage doesn't "normalise" a segment away. For the model itself, §4.2 measures what dropping
+   So mileage does not "normalise" a segment away. For the model itself, §4.2 measures what dropping
    `mileage_km` and `km_per_year` actually costs: **ΔR² 0.0001**.
-2. **`body_type` is missing on 18.2% of the window (18.6% of train)** — a fifth of the market can't be put
+2. **`body_type` is missing on 18.2% of the window (18.6% of train)** — a fifth of the market cannot be put
    in a segment at all, so every "by segment" sentence in this report is about the other 82%.
 3. **Small platforms differ in distribution, not just in volume.** carmudi has 546 ads, vucar 2,124, carpla
-   4,179 — yet carpla's median asking price is 1.54× muaban's. That's why §6 reports error per platform
+   4,179 — yet carpla's median asking price is 1.54× muaban's. That is why §6 reports error per platform
    instead of one MAPE, and why §8.1 says carmudi is too small to stand as its own segment.
 
 ### 3.3 What the model cannot see
 
 The asking price, not the transaction price; no accident, service, ownership or legal history; four rows
-carry a model year that can't be real (1025, 2028, 2030, 2032) and nine have none at all; `engine_capacity`
-is missing on 61.2% of train, so a large share of cars can't be told apart by displacement. We carry these
+carry a model year that cannot be real (1025, 2028, 2030, 2032) and nine have none at all; `engine_capacity`
+is missing on 61.2% of train, so a large share of cars cannot be told apart by displacement. We carry these
 into §6 and §8.1 instead of treating them as noise.
 
 ## 4. Features
@@ -184,7 +184,7 @@ the group goes, measured against a **0.9184** baseline:
 Two readings, both against what we expected going in, so both go in plainly:
 
 1. **Age and identity are 90% of the value** (ΔR² 0.1280 + 0.0528). Dropping mileage moves R² by 0.0001 —
-   in this dataset the odometer just isn't a pricing signal, however much it feels like one.
+   in this dataset the odometer is simply not a pricing signal, however much it feels like one.
 2. **The geo group adds nothing** (ΔR² is slightly negative). That backs the decision to keep the two price
    statistics out of the default preprocessor: dropping them costs nothing and takes away a target leak
    waiting to happen.
@@ -193,8 +193,8 @@ Two readings, both against what we expected going in, so both go in plainly:
 
 From `docs/cardinality_research.md` (LightGBM on 20,000 rows, only the brand/model encoding changes):
 `brand`+`model` as categorical **0.9319** · `model_group` **0.9313** · `model` **0.9304** · out-of-fold
-target encoding **0.9178**. At this cardinality — 1,912 models, 103–146 brands — target encoding **doesn't
-win**. It's a variance-control trick for linear models, not an accuracy gain, and we say so rather than
+target encoding **0.9178**. At this cardinality — 1,912 models, 103–146 brands — target encoding **does not
+win**. It is a variance-control trick for linear models, not an accuracy gain, and we say so rather than
 dressing it up as a technique that paid off.
 
 ### 4.4 What the fitted model actually uses
@@ -218,7 +218,7 @@ million, at 2025 it says 858 million.
 That ±0.0003 is exactly why §5.1 uses a paired test instead of a bare ranking: anything below about 0.001 is
 the noise you get from re-running the same code.
 
-**Learning curve** (7,024 / 17,561 / 35,122 / 70,244 train rows): 0.8947 → 0.9107 → 0.9311 → 0.9440. It's
+**Learning curve** (7,024 / 17,561 / 35,122 / 70,244 train rows): 0.8947 → 0.9107 → 0.9311 → 0.9440. It is
 still climbing at the last point, which means the ceiling here is **data and features**, not model capacity
 — the strongest argument we have against spending another day on hyperparameters.
 
@@ -287,7 +287,7 @@ p = 7.4e-07) against a 0.0003 noise floor — worth keeping, not worth calling a
 `n_estimators=900, learning_rate=0.03, num_leaves=63, min_child_samples=20`. Running it back through
 `--params` gives exactly **0.9471 / 0.1904 / 82,087,205 / 11.4%** in 31.9 s instead of 468.5 s, so the
 artefact reproduces without repeating the search. We took LightGBM over catboost for two reasons: better
-MAPE (11.4% vs 12.0%), and it emits quantiles directly, so the P10/P90 band in §7 doesn't need a third model.
+MAPE (11.4% vs 12.0%), and it emits quantiles directly, so the P10/P90 band in §7 does not need a third model.
 
 ### 5.2 Test — the single evaluation
 
@@ -307,16 +307,16 @@ We scored the test split **once**, after the model and its parameters were froze
 
 Three things come out of that table:
 
-1. **The test split isn't suspiciously easy.** R²(log) and MAPE come out 0.0016 / 0.5 points *better* than
+1. **The test split is not suspiciously easy.** R²(log) and MAPE come out 0.0016 / 0.5 points *better* than
    val — the kind of gap you get between two splits of the same distribution, not evidence that the holdout
    was kind to us.
-2. **MAE and R²(VND) go the other way** (89.7 vs 82.1 million; 0.9026 vs 0.9215), because they're absolute
+2. **MAE and R²(VND) go the other way** (89.7 vs 82.1 million; 0.9026 vs 0.9215), because they are absolute
    VND numbers and the test mix has more expensive cars. Same model, opposite readings — the lesson from
    §5.1, now on held-out data.
 3. **The band survives the move** — 81.91% against a nominal 80%, split as 8.62% below P10 and 9.47% above
-   P90. Calibrating on train OOF didn't quietly fit the band to val.
+   P90. Calibrating on train OOF did not quietly fit the band to val.
 
-What we **won't** do now: re-tune, re-pick a model, widen the band, or score the test split again. The split
+What we **will not** do now: re-tune, re-pick a model, widen the band, or score the test split again. The split
 is spent, and `docs/test_evaluation.md` refuses a second write unless `--force` is passed by hand. Anything
 we change from here goes in as a limitation (§8.2), never as a fresh test number.
 
@@ -345,7 +345,7 @@ we change from here goes in as a limitation (§8.2), never as a fresh test numbe
   `manufacture_year` 0.262 · `model` 0.231 · `model_group` 0.180 · `brand` 0.132 · `engine_capacity` 0.130.
   The first three are "what car, which year" again, matching §4.2.
 
-None of those three failure modes is a model bug. They're a deposit price, an edited odometer, and an import
+None of those three failure modes is a model bug. They are a deposit price, an edited odometer, and an import
 advertised at a domestic-looking price. §8.2 draws the conclusion: this product needs *data* — transaction
 prices, service history — more than it needs another model.
 
@@ -358,10 +358,10 @@ How it works (`src/models/anomaly.py`, thresholds in `data/master/anomaly_thresh
 2. **Isolation Forest** — 300 trees, `max_samples` 4096, on the val feature matrix (numbers as they are,
    categoricals as codes). Its job is to find "outside the band **and** odd in feature space".
 3. **Review threshold** — the 97th percentile of the forest score, i.e. **3.00%** of val rows (449 ads) land
-   in the review queue. That's a **budget for how many ads a human will read**, not an estimate of how many
+   in the review queue. That is a **budget for how many ads a human will read**, not an estimate of how many
    bad ads exist.
 
-Labels are produced on **val** (14,964 ads). We deliberately leave the test split unlabelled — it's only
+Labels are produced on **val** (14,964 ads). We deliberately leave the test split unlabelled — it is only
 there for §5.2.
 
 | Label | Ads | Share | Median Δ (asking vs estimate) |
@@ -401,22 +401,22 @@ Three things worth saying out loud:
 
 1. **`Bargain` does not mean "buy this".** 336 of the 1,331 Bargains are under 200 million — the exact bucket
    §6 calls deposit and bait prices (24 of the 25 worst rows). The label says "below the model". The model
-   can't tell a deposit from a car.
+   cannot tell a deposit from a car.
 2. **Labels move with the band, so they move with the model.** Swap the model or recalibrate the band and the
-   shares change. That's why §6 quotes the coverage, and why the forest threshold is written into
+   shares change. That is why §6 quotes the coverage, and why the forest threshold is written into
    `anomaly_thresholds.json` — so a later run can be compared instead of trusted.
 3. **The 3% review rate is a choice about workload.** Set it to 2% or 5% and you change how many ads a person
    reads, not the nature of the problem. 83 Suspicious ads out of 14,964 is few enough to read by hand, and
-   that's the whole deliverable.
+   that is the whole deliverable.
 
 ## 8. Limitations
 
 ### 8.1 Data
 
 - **Asking price, not transaction price.** Everything here means "the model matches the asking price". We
-  don't know the haggling margin or what was actually paid, so error measured on asking prices is an **upper
-  bound** on error against real sale prices — and this snapshot can't tell us how loose that bound is.
-- **Fields we need and don't have**: `engine_capacity` 61.2% missing, `sub_model_trim` 55.7%, `body_type`
+  do not know the haggling margin or what was actually paid, so error measured on asking prices is an **upper
+  bound** on error against real sale prices — and this snapshot cannot tell us how loose that bound is.
+- **Fields we need and do not have**: `engine_capacity` 61.2% missing, `sub_model_trim` 55.7%, `body_type`
   18.2% of the window, `mileage_km` 12.7%. No accident, service, ownership or legal-history data at all.
 - **One snapshot, no time.** We exclude the listing date because it leaks, which also means the model knows
   nothing about seasonality or how prices drift month to month.
@@ -431,15 +431,15 @@ Three things worth saying out loud:
   and the learning curve is still climbing (0.8947 → 0.9440 from 7k to 70k rows). Real mileage, a proper
   brand/model taxonomy, seasonality — any of those is worth more than another model.
 - **The ranking depends on the metric.** LightGBM+tuned wins R²(log) at 0.9471; XGBoost+tuned wins MAE, MAPE
-  and median APE while the paired Wilcoxon calls it worse. We fix R²(log) as primary because it's the
+  and median APE while the paired Wilcoxon calls it worse. We fix R²(log) as primary because it is the
   training objective and the metric the canary floor is written in — and we say plainly that a different
   primary metric would give a different winner.
 - **The tuned score is a bit optimistic.** 0.9471 is the best of 25 draws picked on the same 14,964 val rows,
-  so it should sag on new data. It actually went *up* to 0.9487 on test, but that's one measurement, not
+  so it should sag on new data. It actually went *up* to 0.9487 on test, but that is one measurement, not
   proof against the optimism.
-- **The band doesn't always contain the point forecast** — 1.80% of val rows and 1.78% of test rows. The band
+- **The band does not always contain the point forecast** — 1.80% of val rows and 1.78% of test rows. The band
   comes from quantile models, the point comes from the mean model, so nothing forces one inside the other.
-  It's recorded in `docs/intervals.md`; forcing the band to swallow the point would widen it and wreck the
+  It is recorded in `docs/intervals.md`; forcing the band to swallow the point would widen it and wreck the
   calibration.
 - **The test split is spent.** `docs/test_evaluation.md` is written once and the tool refuses to overwrite it.
   Anything we change from here goes in as a limitation, with no second test run — otherwise the "evaluated
@@ -451,10 +451,10 @@ Three things worth saying out loud:
 
 1. **The model is good enough for price guidance, and we have a real holdout to say so.** R²(log) 0.9487 and
    median APE 6.1% on 14,980 ads nobody touched during development. A typical ad gets within about 6% of its
-   asking price. This isn't a demo that happens to fit val.
+   asking price. This is not a demo that happens to fit val.
 2. **The gap to the baseline is the number worth quoting, not the gap to the ceiling.** The global-median
    baseline scores 0.8773; the shipped model scores 0.9471 on val. Seven points of R² is what "predict price
-   from which car and which year" actually buys. The last 0.05 is what this dataset can't give us.
+   from which car and which year" actually buys. The last 0.05 is what this dataset cannot give us.
 3. **The complexity pays for itself, but barely.** Against the canary floor of 0.946 the shipped model wins by
    0.0011. Enough to keep it, not enough to celebrate — §5.1 says the same thing in the same words, which is
    why the rest of that table is worth trusting.
@@ -464,25 +464,25 @@ Three things worth saying out loud:
 5. **The screening layer produces a workload, not a verdict.** 83 Suspicious ads out of 14,964 is a queue a
    person clears in a morning. The part to distrust is the label, not the count.
 
-### 9.2 What the product should promise, and what it shouldn't
+### 9.2 What the product should promise, and what it should not
 
 What the evidence supports: **"a starting number for a negotiation, plus a short review queue."** What it
-doesn't support: **contract-grade valuation**. The reason is structural — every label here is an *asking*
-price and the haggling margin isn't in the data. As a limitation that's honest; as a feature claim it's a
-promise the data can't keep.
+does not support: **contract-grade valuation**. The reason is structural — every label here is an *asking*
+price and the haggling margin is not in the data. As a limitation that is honest; as a feature claim it is a
+promise the data cannot keep.
 
 In practice: quote the interval, not the point. Quote `median APE 6.1%` for a typical ad, and say out loud
 that the cheapest decile is twice as bad (13.0%). Put a warning next to `Bargain` that a price below P10 is
 more often a deposit than a deal — 24 of the 25 worst rows in §6 are exactly that.
 
-### 9.3 What we'd do next, in order
+### 9.3 What we would do next, in order
 
 | Priority | Work | Why it comes first |
 | --- | --- | --- |
 | 1 | **Transaction prices** (sold listings, dealer invoices) | turns an asking-price model into a valuation model; nothing else changes the target definition |
 | 2 | **Real odometer history** (service records, registration data) | `mileage_km` is 12.7% missing and worth ΔR² 0.0001 as it stands; the *true* value is the signal the model currently lacks |
 | 3 | **Model-year × variant taxonomy** (`sub_model_trim` is 55.7% missing) | the top three features are all "what car, which year"; filling the missing half is the cheapest real gain |
-| 4 | **Time axis** (listing date as seasonality, not as a leak) | with a second snapshot, month-of-year becomes learnable; with one, it isn't |
+| 4 | **Time axis** (listing date as seasonality, not as a leak) | with a second snapshot, month-of-year becomes learnable; with one, it is not |
 | 5 | More tuning, more model families | measured at +0.0009 for 50 fits; this is the last thing worth doing, not the first |
 
 ### 9.4 What must not happen
@@ -496,7 +496,7 @@ passed.
 
 ## Appendix A — Reproduction runbook
 
-The data snapshot isn't in the repo (`data/master/*` is git-ignored — `docs/data_handover.md` §5 explains
+The data snapshot is not in the repo (`data/master/*` is git-ignored — `docs/data_handover.md` §5 explains
 why). A fresh clone plus the mandatory download reproduces every number in this report:
 
 ```bash
@@ -530,7 +530,7 @@ python -m tools.model_gate                                                  # le
 
 Two shortcuts. `python -m tools.clean_check` pulls `HEAD` into a temp folder and runs features → train → gate →
 tests there, which is how "the committed tree is enough" gets *checked* instead of assumed. And
-`python -m src.models.benchmark` rebuilds the §5.1 table, though it's slow: three models × 600 s of tuning.
+`python -m src.models.benchmark` rebuilds the §5.1 table, though it is slow: three models × 600 s of tuning.
 Timings on the machine that produced this report: features about 20 s, train about 45 s including quantiles,
 gate and tests about 10 s.
 
