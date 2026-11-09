@@ -7,7 +7,8 @@ frozen feature table. Outputs are the two files the plan names:
     data/master/anomaly_thresholds.json   the calibrated thresholds and the review rate they imply
 
 Labels: **Bargain** (price below P10), **Overpriced** (above P90), **Fair** (inside), and
-**Suspicious** (outside the band *and* top-1% Isolation Forest score) — the plan's rule.
+**Suspicious** (outside the band *and* an Isolation Forest score at or above the threshold that puts
+`--rate` of the val rows in the review queue) — the plan's rule.
 
 Run:
     python -m src.models.anomaly --rate 0.03

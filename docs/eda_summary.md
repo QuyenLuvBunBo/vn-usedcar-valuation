@@ -88,5 +88,9 @@ The table and figure 4 cover **2010–2026**, which is 93,615 listings. 7,175 li
 
 - Price is right-skewed even inside the window, which is why every model fits `log1p(price_vnd)` and why R²(VND) always looks better than R²(log).
 - Platform medians differ by the factor measured above and regional medians by the ratio measured above. Both are real signal, and both are reasons to break error down by segment.
-- Price per 1000 km separates the segments far less than absolute price does: a cheap car is not cheap per kilometre, and mileage alone is a weak pricing signal. The feature ablation in §4 agrees — dropping `mileage_km` and `km_per_year` costs ΔR² = 0.0001.
+- Price per 1000 km separates the segments **more** than absolute price does (×9.4 against ×3.5 across
+  the ten segments with at least 900 listings), and the two rankings happen to share their endpoints
+  (Hatchback cheapest, Coupe dearest). Mileage therefore does not "normalise" a segment away, and
+  mileage on its own is still a weak pricing signal — the feature ablation in §4 agrees: dropping
+  `mileage_km` and `km_per_year` costs ΔR² = 0.0001.
 - Figures: `fig1_price_distribution.png`, `fig2_price_by_source.png`, `fig3_price_by_province.png`, `fig4_price_by_year.png`, `fig5_price_per_km_by_segment.png`.
