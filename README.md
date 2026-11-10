@@ -95,6 +95,10 @@ python -m src.features.build_features --features minimal # raw columns only, for
 python -m src.features.build_features --ablate           # drop one feature group at a time → ΔR² table
 python -m tools.model_gate                               # leakage gate: must print PASS
 python -m tools.baseline_smoke                            # canary: median vs untuned LightGBM on val
+python -m src.models.train --model lgbm --features full --seed 42 --quantiles   # fit + one results row
+python -m src.models.benchmark                            # model_results.json → docs/benchmark.md
+python -m tools.feature_importance                        # lgbm gain importance → feature_importance.csv
+python -m tools.error_analysis                           # worst-N val errors (report §6)
 ```
 
 `model_gate` fails on a forbidden column (price text, dates, URL, review flags), on a numeric feature
@@ -234,6 +238,8 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 | `tools.repair_price_status` | recompute the derived `price_status` column of a contract CSV |
 | `tools.model_gate` | **gate before training**: forbidden columns, target copies, partition drift, group leakage |
 | `tools.baseline_smoke` | canary: does training run here, and what must a model beat (median vs untuned LightGBM) |
+| `tools.feature_importance` | gain importance of the saved lgbm/catboost model → `feature_importance.csv` |
+| `tools.error_analysis` | report §6: worst-N errors and where they live, from `predictions_*.csv` |
 | `tools.smoke_test` | offline regression tests for the parsers |
 | `tools.validate_parser` | parser vs. previously saved raw HTML (offline) |
 | `tools.recon <url>` | robots.txt, page fetch, hidden API/JSON discovery |

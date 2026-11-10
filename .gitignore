@@ -36,7 +36,7 @@ logs/*
 # Mô hình & artifact dẫn xuất của preprocessing (tuần 3):
 # nhị phân, sinh lại được bằng một lệnh, chia sẻ qua Drive — repo đang PUBLIC nên
 # mọi thứ commit vào đây là công khai vĩnh viễn trong lịch sử git.
-models/
+/models/          # anchored: src/models/ (code) is tracked, only the root artifact dir is not
 *.joblib
 *.pkl
 *.cbm
