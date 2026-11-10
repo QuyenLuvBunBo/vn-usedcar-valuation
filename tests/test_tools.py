@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from src.models import benchmark, train as trainer
-from tools import check_intervals, eda_summary, error_report, feature_ablation, report_to_latex
+from tools import check_intervals, eda_summary, error_report, feature_ablation
 
 
 class ProvinceTests(unittest.TestCase):
@@ -92,32 +92,6 @@ class BenchmarkDocTests(unittest.TestCase):
         self.assertIn("MAPE clean", text)
         self.assertIn("Best on val: **lightgbm / full**", text)
         self.assertIn("docs/error_audit_25.md", text)
-
-
-class ReportToLatexTests(unittest.TestCase):
-    """The PDF is generated from the Markdown, so the conversion itself has to be tested."""
-
-    def test_specials_are_escaped(self):
-        self.assertEqual(report_to_latex.escape("a_b 50% & $x$ #1"), r"a\_b 50\% \& \$x\$ \#1")
-
-    def test_bold_can_contain_code(self):
-        out = report_to_latex.inline("**`body_type` is missing on 18.2%**")
-        self.assertEqual(out, r"\textbf{\texttt{body\_type} is missing on 18.2\%}")
-
-    def test_table_alignment_follows_the_data(self):
-        block = ["| Model | R2 | MAPE |", "| --- | ---: | ---: |",
-                 "| lightgbm | 0.9471 | 11.4% |", "| xgboost | 0.9440 | 11.0% |"]
-        tex = report_to_latex.table_latex(block)
-        self.assertIn(r"\begin{tabular}{@{}lrr@{}}", tex)
-        self.assertIn(r"lightgbm & 0.9471 & 11.4\% \\", tex)
-        self.assertEqual(tex.count(r"\toprule"), 1)
-        self.assertEqual(tex.count(r"\bottomrule"), 1)
-
-    def test_headings_lose_their_manual_numbers(self):
-        tex = report_to_latex.convert("## 5. Models\n\n### 5.1 Benchmark on val\n\ntext\n")
-        self.assertIn(r"\section{Models}", tex)
-        self.assertIn(r"\subsection{Benchmark on val}", tex)
-        self.assertNotIn("5.1 Benchmark", tex)
 
 
 if __name__ == "__main__":

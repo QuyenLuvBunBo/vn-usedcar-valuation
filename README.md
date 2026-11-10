@@ -14,7 +14,7 @@ normalized it into one unified schema, and now build regression and anomaly-dete
 | Dataset | `data/master/master_clean_dataset.csv` — **100,887 records**, 8 platforms, 21 contract columns |
 | Split | train 70,707 / val 15,063 / test 15,098, grouped by `duplicate_group_id` |
 | Modelling cohort | 70,244 / 14,964 / 14,980 rows — `data/master/*_cohort_imputed.csv` |
-| Gates | `tools.audit_master` → 0 problems, `tools.validate_source_csv` → PASS, 184 unit tests green |
+| Gates | `tools.audit_master` → 0 problems, `tools.validate_source_csv` → PASS, 180 unit tests green |
 | Data status | [docs/week2_status.md](docs/week2_status.md) |
 | Current work | week 3 (features → models → anomaly, 3–10 Nov): [docs/week3_plan.md](docs/week3_plan.md) |
 | Coverage per source | [docs/crawl_gap.md](docs/crawl_gap.md) |
@@ -234,7 +234,6 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 | `tools.repair_price_status` | recompute the derived `price_status` column of a contract CSV |
 | `tools.model_gate` | **gate before training**: forbidden columns, target copies, partition drift, group leakage |
 | `tools.baseline_smoke` | canary: does training run here, and what must a model beat (median vs untuned LightGBM) |
-| `tools.report_to_latex` | generates `docs/report.tex` from `docs/report.md`, so the Markdown and the PDF cannot drift apart |
 | `tools.smoke_test` | offline regression tests for the parsers |
 | `tools.validate_parser` | parser vs. previously saved raw HTML (offline) |
 | `tools.recon <url>` | robots.txt, page fetch, hidden API/JSON discovery |
