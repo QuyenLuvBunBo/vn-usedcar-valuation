@@ -1,7 +1,15 @@
 # Proposal: `deposit_suspected` — a flag for deposit-style asking prices
 
-Status: **proposal, not implemented**. It touches `tools/audit_master` and the data contract, so it needs
-the team's agreement, and it cannot land inside the frozen milestone (see §5 below).
+> **Update 2026-11-13 — implemented.** The rule now lives in `src/data_prep/quality.py` and writes a
+> **side table** (`data/master/label_flags.csv`) instead of changing the snapshot, so the frozen v1
+> numbers stay reproducible. The simulated counts below (2,739 train / 566 val) are **not**
+> reproducible with the rule as written; the measured counts are 1,552 / 329. See §7 for the
+> correction, the measurement, and why "flag, do not drop" is now the evidence-backed choice.
+
+Status of the original text: **proposal**, written before the milestone closed. It touches
+`tools/audit_master` and the data contract, so it needed the team's agreement, and it could not land
+inside the frozen milestone (see §5 below). That is still true of any change *to the dataset* — which
+is why the implemented version is a side table.
 
 ## 1. The problem it solves
 
@@ -73,9 +81,52 @@ the report would have to be rebuilt, and T2/T3's artefacts would go stale. The r
 - **next milestone**: add `deposit_suspected` to `tools/audit_master` (it already prints
   `PROBLEMS: N` per rule), rebuild the snapshot once, and let everyone re-run from the same new split.
 
-## 6. Where the code would go
+## 6. Where the code went
 
-`tools/audit_master.py` already walks the merged table rule by rule and counts problems; the flag is one
-more rule there (report it as a count, not a failure, since the rows are legitimate listings). The
-feature-table builder would then drop or carry the column by a `--drop-suspicious` flag, and
-`benchmark.py` would read it instead of re-deriving the ratio. Nothing in `src/models/**` has to change.
+`src/data_prep/quality.py` (the production rule) and `tools/model_gate.py` (the flag columns are
+forbidden as features). `tools/audit_master.py` keeps its diagnostic printout; it was not changed,
+because it runs on the master and its counts are a different question (§7.2). The feature-table
+builder was **not** given a `--drop-suspicious` flag: the flag became a *weight* instead, measured in
+`docs/label_cleaning.md`, because dropping the rows turned out to hurt (see §7.3).
+
+## 7. Implemented 2026-11-13 — and what the numbers say
+
+### 7.1 The counts are different from §3
+
+| Rule as written | Train | Val |
+|---|---:|---:|
+| §3 simulation | 2,739 (3.90%) | 566 (3.78%) |
+| **reproducible** (`quality.py`, threshold 0.25, ≥30-row segment, national fallback) | **1,552 (2.21%)** | **329 (2.20%)** |
+
+Re-running the rule on `train.csv` gives 1,783; on `train_cohort.csv` and `train_cohort_imputed.csv`
+it gives 1,552. None of the three gives 2,739, so the §3 figure came from a variant the text does not
+state. The reproducible numbers are in `docs/label_flags.md` and in `label_flags_report.json`; quote
+those.
+
+### 7.2 Why the audit tool prints a third number
+
+`tools/audit_master` reports 2,465 deposit rows **on the master** (100,887 rows) and 24,575 repeated
+rows. The side table reports 2,203 deposits and 30,331 rows in repeat groups over the 100,188 cohort
+rows. The deposit gap is the 469 rows the cohort excludes; the repeat gap is a comparison-type
+difference (the audit compares CSV **strings**, the side table compares parsed **numbers**), which is
+documented in `docs/label_flags.md` §3.
+
+### 7.3 Dropping the flagged rows makes the *deployment* number worse
+
+Measured with a fixed LightGBM, on `val_full` (all 14,964 val rows) and on a fixed `val_clean`
+(9,644 rows with no flag), `docs/label_cleaning.md`:
+
+| Training mode | MAPE val_full | MAPE val_clean |
+|---|---:|---:|
+| none (all rows) | **0.1169** | 0.1038 |
+| drop_deposit | 0.1299 | **0.1017** |
+| drop_all | 0.1357 | 0.1051 |
+| weight_repeats (1/k) | 0.1160 | 0.1030 |
+
+Reading: removing deposit rows improves the **clean** rows by 0.21 points but *worsens* the full val
+set by 1.30 points, because the model stops learning the cheap end of the market that the removed rows
+were the only evidence for. The "MAPE 11.5 % → 9.75 %" in §3 was an **evaluation-set** effect — those
+566 rows were removed from the test set, not from the training set — which is exactly why the new
+protocol reports both columns. The only mode that does not hurt is `weight_repeats`, and its gain is
+within noise.
+

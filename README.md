@@ -221,6 +221,9 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 |---|---|
 | [docs/unified_schema.md](docs/unified_schema.md) | the 21 columns, allowed values, normalization rules |
 | [docs/crawl_gap.md](docs/crawl_gap.md) | per-source catalogue size vs. collected, and how to reach the rest |
+| [docs/label_flags.md](docs/label_flags.md) | the four label-quality flags, counts per split/platform, and how they may be used |
+| [docs/label_cleaning.md](docs/label_cleaning.md) | does cleaning labels help the model or only the validation set (two fixed hold-outs) |
+| [docs/report_style.md](docs/report_style.md) | what may appear in the submitted report, and where traceability lives instead |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | branches, commits, file ownership, PR checklist |
 | [docs/sources/oto.md](docs/sources/oto.md) | oto.com.vn recon, field mapping, coverage audit, verified source size |
 | [src/sources/_template/README.md](src/sources/_template/README.md) | step-by-step guide for a new source |
@@ -266,5 +269,5 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 | 1 | Collect and normalize from the sources | one crawler script + one clean CSV per member | done; coverage per source in [docs/crawl_gap.md](docs/crawl_gap.md) |
 | 2 | Merge, deduplicate, quality audit, EDA | `data/master/master_clean_dataset.csv` (100,887 records, 8 platforms), train/val/test split, EDA notebook | **done** — see [docs/week2_status.md](docs/week2_status.md) |
 | 3 | Feature engineering, regression, anomaly detection | model files, benchmark table, anomaly labelling | **in progress 3–10 Nov** — assignments, hand-offs and the cut list in [docs/week3_plan.md](docs/week3_plan.md) |
-| 4 | Packaging the pipeline, report and slides | `predict()` wrapper, report PDF, slides (the web demo only if time allows) | — |
+| 4 | Packaging the pipeline, report and slides | `predict()` wrapper, report PDF, slides (the web demo only if time allows) | **in progress** — data quality first: label flags (`docs/label_flags.md`), cleaning comparison (`docs/label_cleaning.md`) |
 

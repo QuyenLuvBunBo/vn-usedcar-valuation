@@ -35,7 +35,9 @@ jobs:
       - name: Every CLI still parses
         run: |
           python -m src.models.train --list
+          python -m src.data_prep.quality --help
           python -m tools.feature_ablation --help
+          python -m tools.label_cleaning_eval --help
           python -m tools.clean_check --help
           python -m tools.eda_summary --help
           python -m tools.error_report --help
