@@ -14,7 +14,7 @@ normalized it into one unified schema, and now build regression and anomaly-dete
 | Dataset | `data/master/master_clean_dataset.csv` — **100,887 records**, 8 platforms, 21 contract columns |
 | Split | train 70,707 / val 15,063 / test 15,098, grouped by `duplicate_group_id` |
 | Modelling cohort | 70,244 / 14,964 / 14,980 rows — `data/master/*_cohort_imputed.csv` |
-| Gates | `tools.audit_master` → 0 problems, `tools.validate_source_csv` → PASS, 115 unit tests green |
+| Gates | `tools.audit_master` → 0 problems, `tools.validate_source_csv` → PASS, 180 unit tests green |
 | Data status | [docs/week2_status.md](docs/week2_status.md) |
 | Current work | week 3 (features → models → anomaly, 3–10 Nov): [docs/week3_plan.md](docs/week3_plan.md) |
 | Coverage per source | [docs/crawl_gap.md](docs/crawl_gap.md) |

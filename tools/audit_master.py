@@ -8,6 +8,11 @@ which is what the model and the report actually consume:
   * every categorical value is inside the contract enum;
   * `listing_id` / `source_url` are unique and non-empty.
 
+On top of the failures it prints a **diagnostics** block: rows that are perfectly valid and still poison
+the model — a deposit-style asking price, a placeholder odometer, an impossible model year, the same ad
+twice. Those are reported with counts and never counted as problems, because deleting or flagging them
+changes the split (CONTRIBUTING §3b), so the decision belongs to a milestone, not to a gate.
+
 Exit code 1 when anything fails, so it can be used as a gate before splitting the data.
 
     python -m tools.audit_master
@@ -41,6 +46,52 @@ ENUM_COLUMNS = {
     "price_status": schema.PRICE_STATUS_VALUES,
     "tier": {"listed", "archived"},
 }
+
+
+def diagnostics(frame: pd.DataFrame, deposit_threshold: float = 0.25,
+                segment_min_rows: int = 30) -> list[str]:
+    """Rows that are valid but poison the model. Reported only — never added to `problems`.
+
+    The medians here are computed on the file being audited, which is fine for a *diagnostic*: the
+    production version of the flag (docs/deposit_rule_proposal.md) must learn them on train only.
+    """
+    price = pd.to_numeric(frame["price_vnd"], errors="coerce")
+    mileage = pd.to_numeric(frame["mileage_km"], errors="coerce")
+    year = pd.to_numeric(frame["manufacture_year"], errors="coerce")
+    lines: list[str] = []
+
+    key = frame["brand"].fillna("").astype(str) + "|" + frame["model"].fillna("").astype(str)
+    segment = price.groupby(key).agg(["size", "median"])
+    segment = segment[segment["size"] >= segment_min_rows]["median"]
+    overall = float(price.median()) if price.notna().any() else 0.0
+    baseline = key.map(segment).fillna(overall).replace(0, pd.NA)
+    deposit = price / baseline < deposit_threshold
+    if deposit.any():
+        cheap = price[deposit]
+        lines.append(f"  deposit-style price   {int(deposit.sum()):>7,} rows "
+                     f"(< {deposit_threshold:.0%} of the brand|model median; "
+                     f"median asking {int(cheap.median()):,} VND)")
+
+    placeholder = mileage.notna() & ((mileage <= 100) | (mileage >= 900_000))
+    if placeholder.any():
+        lines.append(f"  placeholder odometer  {int(placeholder.sum()):>7,} rows "
+                     f"(<= 100 km or >= 900,000 km)")
+
+    impossible = year.notna() & ~year.between(1980, 2026)
+    if impossible.any():
+        values = sorted(int(value) for value in year[impossible].unique())
+        lines.append(f"  impossible model year {int(impossible.sum()):>7,} rows {values[:6]}")
+
+    duplicated = frame.assign(_price=price).duplicated(
+        subset=["brand", "model", "manufacture_year", "mileage_km", "price_vnd"], keep=False)
+    duplicated &= price.notna()
+    if duplicated.any():
+        lines.append(f"  repeated advertisement{int(duplicated.sum()):>7,} rows "
+                     f"({int(duplicated.sum()) // 2} pairs with identical car and price)")
+
+    if not lines:
+        lines.append("  none")
+    return lines
 
 
 def audit(path: Path) -> int:
@@ -89,6 +140,10 @@ def audit(path: Path) -> int:
     print(f"  duplicate listing_id {duplicates} | empty listing_id {empty_ids} "
           f"| duplicate source_url {duplicate_urls}")
     problems += duplicates + empty_ids
+
+    print("\n--- diagnostics (reported, never a failure) ---")
+    for line in diagnostics(frame):
+        print(line)
 
     print(f"\nPROBLEMS: {problems}")
     return problems

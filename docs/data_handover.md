@@ -44,6 +44,11 @@ on download) and `SHA256SUMS.txt` (one line per file, `eda/` included) — see �
 | `missing_report.json` | 5 KB | report §2 (missing rates before/after imputation) |
 | `eda/eda_summary.md`, `eda_summary.json`, 6 × `.png` | 215 KB | report §3, figures |
 
+This folder is enough to **train**: `src/features/build_features` reads the three cohort files, and the
+predictions contract gets `location_province` from the cohort as well (`province_path` in
+`src/models/common.py`). `train.csv` / `val.csv` / `test.csv` are **not** needed for that — they sit in
+`02_full_rebuild/` only because they are what you re-split from, and re-splitting is a new snapshot (§4).
+
 ### Folder `02_full_rebuild/` — 113 MB, only for whoever rebuilds
 
 | File | Size | Reason to need it |
@@ -90,7 +95,7 @@ python -c "import pandas as pd; [print(f, len(pd.read_csv('data/master/'+f, low_
 
 # 3. the gates must still pass
 python -m tools.audit_master          # PROBLEMS: 0
-python -m unittest discover -s tests  # 160 tests, OK (measured 2026-11-05)
+python -m unittest discover -s tests  # 180 tests, OK (measured 2026-11-08)
 ```
 
 Expected row counts: **70,244 / 14,964 / 14,980**, 26 columns. If a number differs, the file is stale —

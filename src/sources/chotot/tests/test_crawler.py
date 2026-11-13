@@ -6,9 +6,13 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from test_offline import fixture_html
 from src.sources.chotot.crawl import crawl
 from src.common import config
+
+try:  # discovered as part of the package (`python -m unittest discover`)
+    from .test_offline import fixture_html
+except ImportError:  # run from inside this folder, where there is no parent package
+    from test_offline import fixture_html
 
 
 class CrawlerTests(unittest.TestCase):
