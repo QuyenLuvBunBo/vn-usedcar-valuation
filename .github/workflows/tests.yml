@@ -36,8 +36,12 @@ jobs:
         run: |
           python -m src.models.train --list
           python -m src.data_prep.quality --help
+          python -m src.features.extend --help
           python -m tools.feature_ablation --help
+          python -m tools.feature_steps_eval --help
+          python -m tools.generalisation_check --help
           python -m tools.label_cleaning_eval --help
+          python -m tools.recon_detail_fields --help
           python -m tools.clean_check --help
           python -m tools.eda_summary --help
           python -m tools.error_report --help
