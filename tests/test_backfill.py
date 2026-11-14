@@ -5,6 +5,7 @@ Run: python -m unittest tests.test_backfill -v
 
 from __future__ import annotations
 
+import time
 import unittest
 
 import pandas as pd
@@ -140,5 +141,43 @@ class PatchTests(unittest.TestCase):
         apply_backfill.assert_invariants(before, after, "train")     # must not raise
 
 
+class CooldownGateTests(unittest.TestCase):
+
+    def test_a_clean_probe_after_the_cooldown_resumes_the_run(self):
+        calls = []
+
+        def fetch(url):
+            calls.append(url)
+            return 200, DETAIL_HTML
+
+        gate = backfill_bonbanh.CooldownGate(fetch, "https://www.bonbanh.com/x", sleep=lambda s: None)
+        self.assertTrue(gate.block("BAN_1"))
+        self.assertEqual(calls, ["https://www.bonbanh.com/x"])
+        self.assertEqual(gate.cycles, 0)             # ladder reset
+        self.assertFalse(gate.stopped)
+
+    def test_the_cooldown_escalates_and_gives_up_after_three_cycles(self):
+        slept = []
+
+        def fetch(url):
+            return 200, '<html><script src="/captcha.js"></script></html>'
+
+        gate = backfill_bonbanh.CooldownGate(fetch, "https://www.bonbanh.com/x", sleep=slept.append)
+        self.assertTrue(gate.block())
+        self.assertTrue(gate.block())
+        self.assertFalse(gate.block())               # third blocked cycle -> stop
+        self.assertTrue(gate.stopped)
+        self.assertEqual(slept, [180, 300, 600])
+        self.assertEqual([event["probe_ok"] for event in gate.events], [False, False, False])
+
+    def test_a_worker_parks_while_the_gate_is_closed(self):
+        gate = backfill_bonbanh.CooldownGate(lambda url: (200, DETAIL_HTML), "u", sleep=lambda s: None)
+        gate.paused_until = time.monotonic() + 1
+        started = time.monotonic()
+        self.assertTrue(gate.wait())                 # sleeps in <=5 s slices, then opens
+        self.assertGreaterEqual(time.monotonic() - started, 0.9)
+
+
 if __name__ == "__main__":
     unittest.main()
+

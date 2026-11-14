@@ -95,10 +95,14 @@ def load_done(path: Path) -> set[str]:
 
 
 def worker_fetch(url: str, timeout: int, delay: float, retries: int = 2) -> tuple[int, str | None]:
-    """One page, with jittered delay and a small retry budget. Returns `(status, html|None)`."""
+    """One page, with a **jittered** delay and a small retry budget.
+
+    The sleep is `delay * uniform(0.8, 1.4)`, not `delay + noise`: a fixed cadence is what a WAF keys
+    on, and four hours of it is a pattern. Returns `(status, html|None)`.
+    """
     headers = dict(config.DEFAULT_HEADERS)
     for attempt in range(retries + 1):
-        time.sleep(delay + random.uniform(0, 0.5))
+        time.sleep(delay * random.uniform(0.8, 1.4))
         try:
             resp = requests.get(url, headers=headers, timeout=timeout)
             if resp.status_code == 200:
@@ -144,6 +148,75 @@ def keep_only_blanks(row: pd.Series, parsed: dict) -> dict:
     return kept
 
 
+COOLDOWNS = (180, 300, 600)     # seconds, escalating; a probe decides whether to resume
+MAX_CYCLES = 3                  # three consecutive blocked cycles -> give up for this run
+
+
+class CooldownGate:
+    """Pause every worker on a soft block, probe once, and resume only if the probe is a real page.
+
+    One worker becomes the "cooldown owner": it sleeps the current step (180 -> 300 -> 600 s), fetches
+    one page, and either resets the ladder (probe OK) or escalates. After three consecutive blocked
+    cycles it sets `stopped`, and the run ends with the partial file intact. The other workers park on
+    `wait()` for the same window instead of hammering a site that is already refusing them.
+    """
+
+    def __init__(self, fetch, probe_url: str, sleep=time.sleep):
+        self.fetch = fetch
+        self.probe_url = probe_url
+        self.sleep = sleep
+        self.lock = Lock()
+        self.paused_until = 0.0
+        self.cycles = 0
+        self.stopped = False
+        self.owner = False            # a worker is running the cooldown ladder right now
+        self.events: list[dict] = []
+
+    def wait(self) -> bool:
+        """Block until the gate is open. False means the run is over."""
+        while True:
+            with self.lock:
+                remaining = self.paused_until - time.monotonic()
+                stopped = self.stopped
+            if stopped:
+                return False
+            if remaining <= 0:
+                return True
+            self.sleep(min(remaining, 5))
+
+    def block(self, listing_id: str = "") -> bool:
+        """Called by a worker that received a captcha page. True = keep going, False = stop."""
+        with self.lock:
+            if self.stopped:
+                return False
+            if self.owner:
+                return True                      # another worker is already cycling; it sets the state
+            step = COOLDOWNS[min(self.cycles, len(COOLDOWNS) - 1)]
+            self.cycles += 1
+            cycle = self.cycles
+            self.owner = True
+            self.paused_until = time.monotonic() + step
+        print(f"  SOFT BLOCK at {listing_id}: cooling down {step}s (cycle {cycle}/{MAX_CYCLES})",
+              flush=True)
+        ok = False
+        try:
+            self.sleep(step)
+            status, page = self.fetch(self.probe_url)
+            ok = status == 200 and not is_soft_block(page)
+        finally:
+            with self.lock:
+                self.owner = False
+                self.paused_until = 0.0
+                self.events.append({"at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                                    "cycle": cycle, "cooldown_seconds": step,
+                                    "probe_ok": ok})
+                if ok:
+                    self.cycles = 0
+                elif self.cycles >= MAX_CYCLES:
+                    self.stopped = True
+        return ok or not self.stopped
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Backfill bonbanh detail fields into a patch file")
     parser.add_argument("--out", default="data/processed/bonbanh_backfill.csv",
@@ -186,6 +259,10 @@ def main(argv: list[str] | None = None) -> int:
     results: list[dict] = []
     stats = {"attempts": 0, "ok": 0, "blocked": 0, "errors": 0, "filled": 0}
     stop = False
+    probe_url = (prepare_url(str(pending.iloc[0]["source_url"])) if len(pending)
+                 else "https://www.bonbanh.com/")
+    gate = CooldownGate(fetch=lambda url: worker_fetch(url, args.timeout, args.delay),
+                        probe_url=probe_url)
 
     def flush() -> None:
         nonlocal results
@@ -197,19 +274,18 @@ def main(argv: list[str] | None = None) -> int:
 
     def handle(row: pd.Series) -> dict | None:
         nonlocal stop
-        if stop:
+        if stop or not gate.wait():
             return None
         status, page = worker_fetch(prepare_url(row["source_url"]), args.timeout, args.delay)
         if is_soft_block(page):
+            keep_going = gate.block(str(row["listing_id"]))
             with lock:
                 stats["attempts"] += 1
                 stats["blocked"] += 1
-                attempts = stats["attempts"]
-                if attempts >= 20:
-                    stop = True
-                    print(f"  STOP: soft block (captcha page) on {row['listing_id']} — "
-                          f"{stats['blocked']}/{attempts} blocked; nothing recorded for this row")
-            return None
+            if not keep_going:
+                stop = True
+                print("  STOP: three cooldown cycles without a real page — partial file kept", flush=True)
+            return None                       # never write a row for a blocked request
         try:
             parsed = parse_fields(page) if page else {}
         except Exception as exc:                       # noqa: BLE001 - a bad page must not kill the run
@@ -232,9 +308,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  STOP: block/error rate {bad / attempts:.2%} above {args.block_rate:.0%} "
                       f"after {attempts} requests — partial file kept ({out.name})")
             if attempts % args.flush_every == 0:
-                print(f"  {attempts:>5,} requests · ok {stats['ok']:,} · filled {stats['filled']:,} · "
-                      f"blocked {stats['blocked']:,} · errors {stats['errors']:,} · "
-                      f"{(time.monotonic() - started) / 60:.1f} min", flush=True)
+                elapsed = time.monotonic() - started
+                rate = attempts / elapsed if elapsed else 0.0
+                eta = (len(pending) - attempts) / rate / 60 if rate else 0.0
+                print(f"  {attempts:>5,}/{len(pending):,} ({attempts / max(len(pending), 1):.1%}) · "
+                      f"ok {stats['ok']:,} · filled {stats['filled']:,} · blocked "
+                      f"{stats['blocked']:,} · {rate:.2f} req/s · ETA {eta:.0f} min", flush=True)
         if not kept:
             state = "empty" if not parsed else "no-gain"
             if status == 404:
@@ -273,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
                "attempted_this_run": int(stats["attempts"]), "ok_this_run": int(stats["ok"]),
                "filled_this_run": int(stats["filled"]), "blocked": int(stats["blocked"]),
                "errors": int(stats["errors"]), "stopped_early": bool(stop),
+               "cooldowns": gate.events,
                "out": str(out), "rows_in_file": int(len(load_done(out)))}
     Path(args.progress).parent.mkdir(parents=True, exist_ok=True)
     Path(args.progress).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
