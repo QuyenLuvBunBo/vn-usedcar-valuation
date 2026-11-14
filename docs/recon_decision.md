@@ -26,6 +26,11 @@ the ads the dataset refers to no longer exist. Filling `engine_capacity` / `sub_
 `seller_type` for chotot requires crawling **new** ads, which produces **new rows**, not a backfill —
 that is a different decision (a v2 snapshot) and it does not repair v1.
 
+The site itself is still crawlable — list API 20 ads/request, detail API and detail pages answer 200,
+robots allowed — but the live pages publish `body_type` (75 %) and `seller_type` (67–100 %) and **do
+not publish `engine_capacity` or `trim` at all** (0/20 on both, and no displacement/trim key in the
+`ad_params` union). Measurements and the three options: [`docs/recon_chotot_live.md`](recon_chotot_live.md).
+
 ### Bonbanh — **GO, limited to trim + engine + seller**
 80/80 sampled pages are alive, and the fields are published: trim 100 %, seller 100 %, body 99 %,
 engine 81 %. Expected effect on the frozen train split (21,159 bonbanh rows):

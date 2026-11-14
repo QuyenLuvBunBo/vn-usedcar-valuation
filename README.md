@@ -227,6 +227,7 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 | [docs/features_steps.md](docs/features_steps.md) | what each cumulative feature step buys, on `val_full` and `val_clean` |
 | [docs/generalisation.md](docs/generalisation.md) | leave-`brand\|model`-out stress test (and `generalisation_v2.md` for the v2 table) |
 | [docs/recon_decision.md](docs/recon_decision.md) | link health + field presence on the v1 IDs, and the go/no-go for a backfill crawl |
+| [docs/recon_chotot_live.md](docs/recon_chotot_live.md) | live Chợ Tốt probe: crawlable, but `engine_capacity` and `trim` are not published |
 | [docs/report_style.md](docs/report_style.md) | what may appear in the submitted report, and where traceability lives instead |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | branches, commits, file ownership, PR checklist |
 | [docs/sources/oto.md](docs/sources/oto.md) | oto.com.vn recon, field mapping, coverage audit, verified source size |
