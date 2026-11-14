@@ -142,9 +142,14 @@ def canonical_model(model: str | None) -> str:
 
 
 # ------------------------------------------------------------------ building
-def load_split(split: str, variant: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """The frozen cohort (for `sub_model_trim` + the imputation history) and the v1 feature table."""
-    cohort_path = config.DATA_MASTER / f"{split}_cohort_imputed.csv"
+def load_split(split: str, variant: str, cohort_dir: Path | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """The cohort (for `sub_model_trim` + the imputation history) and the v1 feature table.
+
+    `cohort_dir` lets the v2 build read `data/master/v2/*_cohort_imputed.csv` (backfilled) while still
+    taking its base columns from the frozen v1 feature table.
+    """
+    cohort_root = Path(cohort_dir) if cohort_dir else config.DATA_MASTER
+    cohort_path = cohort_root / f"{split}_cohort_imputed.csv"
     features_path = config.DATA_MASTER / f"{split}_features_{variant}.csv"
     for path in (cohort_path, features_path):
         if not path.exists():
@@ -268,6 +273,9 @@ def write_doc(doc: Path, report: dict, variant: str) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Write the v2 feature tables beside the frozen v1")
     parser.add_argument("--variant", default="full", choices=("minimal", "full"))
+    parser.add_argument("--cohort-dir", default=None,
+                        help="read {split}_cohort_imputed.csv from here (e.g. data/master/v2) while the "
+                             "base features still come from the frozen v1 table")
     parser.add_argument("--out-dir", default=str(config.DATA_MASTER / "v2"))
     parser.add_argument("--report", default=str(config.DATA_MASTER / "v2" / "features_v2_report.json"))
     parser.add_argument("--doc", default="docs/features_v2.md")
@@ -277,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = Path(args.out_dir)
     parts = {}
     for split in SPLITS:
-        cohort, features = load_split(split, args.variant)
+        cohort, features = load_split(split, args.variant, args.cohort_dir)
         parts[split] = extend_split(cohort, features)
         block = parts[split]
         print(f"{split:6s} rows {len(block):>7,}  parsed engine "
