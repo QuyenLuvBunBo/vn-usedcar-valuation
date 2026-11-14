@@ -48,6 +48,7 @@ segment in §6, so any per-platform claim about it is noise.
 
 ## 4. Four defects found while reading the worst predictions
 
+
 These come from `docs/error_audit_25.md`, which reads all 25 worst val rows field by field. They are
 listed here because each one changes how a number in the report should be read.
 
@@ -56,6 +57,35 @@ listed here because each one changes how a number in the report should be read.
    from Chợ Tốt. A 2020 Mitsubishi Triton listed at 42 million is a deposit, not a price. `price_status`
    says `"full"` on **all 25**, so the column that is supposed to flag this cannot: the filter has to be
    added upstream (`deposit_suspected`: asking price below 25 % of the segment median) and applied
+
+## 5. Chợ Tốt: the platform is crawlable, but it does not publish two of the columns
+
+Two measurements, both on the live site (2026-11-14):
+
+- **The old IDs are gone.** Of 80 sampled v1 ads, **0** still exist: 68 answer 200 with
+  "Tin đăng không tồn tại" and 12 answer HTTP 410. A crawler that only checks the status code records
+  those 68 as alive, which is why `docs/recon_detail_fields.md` counts a `dead_removed` state.
+- **The live pages do not carry `engine_capacity` or `sub_model_trim`.** The page declares both labels
+  (`"Dung tích động cơ", "param":"engine_capacity", "from":"product_graph"` and
+  `"Phiên bản xe", "param":"option"`), but no value was rendered on **0/20** sampled live ads, and the
+  union of the 23 `ad_params` keys contains no displacement or trim key at all. What the pages *do*
+  publish: `cartype` (45/60 in the list payload, 13/20 on the detail page) and seller wording (20/20).
+
+Consequence: Chợ Tốt contributes **no** engine or trim information to the model, in v1 or in any future
+snapshot built from it, and its 13,631 v1 rows cannot be repaired because the ads no longer exist. The
+platform's value in this dataset is volume plus `body_type`/`seller_type`, not the two columns that
+carry the price signal (`docs/features_steps.md` step 3). Full probe:
+[`docs/recon_chotot_live.md`](recon_chotot_live.md).
+
+### What the bonbanh backfill did and did not add
+
+`docs/data_quality_v2.md` records the exact fill counts. In short: `sub_model_trim` for 6,123 rows was
+derived **offline** from the model string (the page title is `brand + model + trim`, so the trim was
+already in the row); `engine_capacity`, `seller_type` and `body_type` can only come from the detail
+pages, and the crawler was rate-limited by a 200 captcha page — so those columns are **unchanged** in
+v2 until the crawl is resumed. The difference between `docs/features_steps.md` and
+`docs/features_steps_v2.md` is the trim fill alone: −0.04 pp MAPE on `val_full`.
+
    before the split. Until then, report the error **with and without** this tail —
    `docs/benchmark.md` now carries both columns (`MAPE` and `MAPE clean`).
 2. **Placeholder odometers.** 6 of the 25 carry `mileage_km ≤ 100` or `≥ 900.000`, e.g. `999.998 km` on

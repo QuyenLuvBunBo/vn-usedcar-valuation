@@ -1,6 +1,6 @@
 # Generalisation — what the score looks like on a nameplate the model never saw
 
-Generated 2026-11-14T06:25:45+00:00 by `python -m tools.generalisation_check` (features `v2`, share 20%, seed 42).
+Generated 2026-11-14T07:21:53+00:00 by `python -m tools.generalisation_check` (features `v2`, share 20%, seed 42).
 
 **565 `brand|model` levels (14,084 train rows, 20.1% of train) were removed from training.** The estimator is a fixed LightGBM (300 trees); nothing else changed.
 
@@ -8,11 +8,11 @@ Price-derived features dropped: **True** (`brand_retention_rate`, `province_pric
 
 | Slice of the val split | Rows | R²(log) | MAPE | median APE |
 | --- | ---: | ---: | ---: | ---: |
-| val-seen-combos | 11,691 | 0.9537 | 0.1097 | 0.0600 |
-| val-heldout-combos | 2,937 | 0.8418 | 0.2361 | 0.1751 |
-| val-unseen-combos | 336 | 0.7488 | 0.3146 | 0.2191 |
+| val-seen-combos | 11,691 | 0.9532 | 0.1101 | 0.0604 |
+| val-heldout-combos | 2,937 | 0.8407 | 0.2387 | 0.1790 |
+| val-unseen-combos | 336 | 0.7426 | 0.3215 | 0.2215 |
 
-Reference — the same estimator trained on **all** train rows, scored on all 14,964 val rows: R²(log) 0.9461, MAPE 0.1132.
+Reference — the same estimator trained on **all** train rows, scored on all 14,964 val rows: R²(log) 0.9463, MAPE 0.1133.
 
 ## Reading
 

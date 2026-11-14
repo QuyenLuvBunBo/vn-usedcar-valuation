@@ -1,14 +1,14 @@
 # Feature extension (v2) — engine parsed from text, trim rank, canonical model
 
-Generated 2026-11-14T06:21:54+00:00 by `python -m src.features.extend --write` (variant `full`). v1 tables are **not** modified: the v2 tables live in `data/master/v2/` so every week-3 number stays reproducible.
+Generated 2026-11-14T07:20:37+00:00 by `python -m src.features.extend --write` (variant `full`). v1 tables are **not** modified: the v2 tables live in `data/master/v2/` so every week-3 number stays reproducible.
 
 All four columns are **stateless** — each is a function of its own row — so nothing can leak from validation into training. Group statistics (medians, target encoding) stay in `src/features/pipeline.py`, which fits them inside the training fold.
 
 | Split | Rows | Engine parsed from text | Engine available after | Trim missing | Model levels before → after |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| train | 70,244 | 1,062 | 70,244 | 55.7% | 3,243 → 2,238 |
-| val | 14,964 | 230 | 14,964 | 54.8% | 1,547 → 1,137 |
-| test | 14,980 | 209 | 14,980 | 55.4% | 1,586 → 1,170 |
+| train | 70,244 | 1,062 | 70,244 | 49.5% | 3,243 → 2,238 |
+| val | 14,964 | 230 | 14,964 | 48.9% | 1,547 → 1,137 |
+| test | 14,980 | 209 | 14,980 | 49.5% | 1,586 → 1,170 |
 
 ## trim_rank
 
