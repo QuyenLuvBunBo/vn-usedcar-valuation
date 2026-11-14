@@ -40,6 +40,8 @@ jobs:
           python -m tools.feature_ablation --help
           python -m tools.feature_steps_eval --help
           python -m tools.generalisation_check --help
+          python -m tools.backfill_bonbanh --help
+          python -m tools.apply_backfill --help
           python -m tools.label_cleaning_eval --help
           python -m tools.recon_detail_fields --help
           python -m tools.clean_check --help
