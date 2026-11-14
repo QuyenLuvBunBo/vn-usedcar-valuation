@@ -22,18 +22,19 @@ Log "=== driver start (python=$python) ==="
 $iterations = 0
 while ($iterations -lt 40) {
     $iterations++
-    Log "crawl chunk $iterations — patch rows $(Patch-Rows) / 7704"
-    & $python -m tools.backfill_bonbanh --workers 3 --delay 2.5 --max-minutes 30 --flush-every 150 2>&1 |
+    $before = Patch-Rows
+    Log "crawl chunk $iterations — patch rows $before / 7704"
+    & $python -m tools.backfill_bonbanh --workers 3 --delay 2.5 --max-minutes 90 --flush-every 150 2>&1 |
         Out-File -FilePath $log -Append -Encoding utf8
     $exit = $LASTEXITCODE
     $rows = Patch-Rows
-    Log "  chunk $iterations finished: patch rows $rows exit=$exit"
+    Log "  chunk $iterations finished: patch rows $rows (+$($rows - $before)) exit=$exit"
     if ($rows -ge 7704) { break }
-    if ($exit -ne 0) {
-        Log '  non-zero exit — sleeping 10 min (cooldowns exhausted) before the next chunk'
-        Start-Sleep -Seconds 600
+    if ($rows -gt $before) {
+        Start-Sleep -Seconds 30                 # the chunk made progress: just keep going
     } else {
-        Start-Sleep -Seconds 20
+        Log '  no progress this chunk — sleeping 10 min before retrying'
+        Start-Sleep -Seconds 600
     }
 }
 
