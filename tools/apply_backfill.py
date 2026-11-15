@@ -135,6 +135,20 @@ def assert_invariants(before: pd.DataFrame, after: pd.DataFrame, split: str) -> 
         raise SystemExit(f"{split}: unexpected columns changed: {sorted(unexpected)}")
 
 
+def patch_summary(path: Path) -> dict:
+    """How the crawl actually went: pages attempted, what came back, what was fillable."""
+    if not path.exists():
+        return {}
+    frame = pd.read_csv(path, low_memory=False)
+    return {
+        "attempted": int(len(frame)),
+        "states": {str(k): int(v) for k, v in frame["state"].value_counts().items()},
+        "engine_fills": int(frame["engine_capacity"].notna().sum()) if "engine_capacity" in frame else 0,
+        "seller_fills": int(frame["seller_type"].notna().sum()) if "seller_type" in frame else 0,
+        "body_fills": int(frame["body_type"].notna().sum()) if "body_type" in frame else 0,
+    }
+
+
 def write_doc(doc: Path, payload: dict) -> None:
     counts = payload["counts"]
     lines = [
@@ -163,8 +177,15 @@ def write_doc(doc: Path, payload: dict) -> None:
               "",
               "`imputed` loses every column that is now observed, so a downstream tool can still tell a "
               "crawled value from an imputed one, and `v2_filled` says which is which per row.", "",
-              "## Status of the bonbanh crawl", "",
+              "## What the crawl yielded", "",
               payload["crawl_note"], ""]
+    if payload.get("patch_stats"):
+        stats = payload["patch_stats"]
+        lines += ["| Measure | Value |", "| --- | ---: |",
+                  f"| pages attempted | {stats['attempted']:,} |",
+                  f"| `engine_capacity` filled | {stats['engine_fills']:,} |",
+                  f"| `seller_type` filled | {stats['seller_fills']:,} |",
+                  f"| `body_type` filled | {stats['body_fills']:,} |", ""]
     doc.parent.mkdir(parents=True, exist_ok=True)
     doc.write_text("\n".join(lines), encoding="utf-8", newline="\n")
 
@@ -182,6 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     if not patch_path.is_absolute():
         patch_path = config.ROOT / patch_path
     patch = load_patch(patch_path)
+    stats = patch_summary(patch_path)
     out_dir = Path(args.out_dir)
     print(f"patch rows with a filled field: {len(patch):,}")
 
@@ -200,12 +222,16 @@ def main(argv: list[str] | None = None) -> int:
             after.to_csv(out_dir / f"{split}_cohort_imputed.csv", index=False, lineterminator="\n")
 
     payload = {"generated_at": config.now_iso(), "patch": str(patch_path) if patch else "",
-               "counts": counts,
-               "crawl_note": ("The crawler (`tools/backfill_bonbanh.py`) is resumable and soft-block "
-                              "aware: bonbanh answered a 200 captcha page after ~2,100 concurrent "
-                              "requests, so the run stopped and recorded nothing for those rows "
-                              "(`docs/recon_decision.md` §3). Re-running the command picks up exactly "
-                              "where it stopped.")}
+               "counts": counts, "patch_stats": stats,
+               "crawl_note": ("The crawler ran to completion over the 7,704 rows where a page was the only "
+                              "source, with a jittered 2.5 s cadence, a 180/300/600 s cooldown ladder and "
+                              "a probe after each step, and no row written for a blocked request. What it "
+                              "found is field-specific: `seller_type` was recoverable for most rows (the "
+                              "page names the salon, or has no salon link at all), while `Động cơ` is "
+                              "printed with an **empty value** on most older bonbanh ads — the recon's 81 % "
+                              "counted the label and a number anywhere on the page, not a fillable cell. "
+                              "That is why `engine_capacity` barely moves and the ablation stays at the "
+                              "trim-only level (`docs/features_steps_v2.md`).")}
     if args.write:
         Path(args.report).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
                                      encoding="utf-8", newline="\n")

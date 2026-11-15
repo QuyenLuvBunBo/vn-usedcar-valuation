@@ -1,8 +1,10 @@
 # Recon decision — what is worth crawling, and what is not
 
 Measured 2026-11-14 on the frozen v1 IDs (`docs/recon_detail_fields.md` holds the raw table; this page
-is the decision it supports). **No crawl was started**: the numbers come first, the crawl is a separate
-decision.
+is the decision it supports). The bonbanh crawl was approved and has since **run to completion** —
+what it actually filled is in `docs/data_quality_v2.md` and `docs/data_limitations.md` §5: `seller_type`
+for 2,811 rows, `engine_capacity` for only 48 (the label is printed with an empty value), `trim` from
+the model string offline.
 
 ## 1. What the sample found
 

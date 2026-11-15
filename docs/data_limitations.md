@@ -79,12 +79,27 @@ carry the price signal (`docs/features_steps.md` step 3). Full probe:
 
 ### What the bonbanh backfill did and did not add
 
-`docs/data_quality_v2.md` records the exact fill counts. In short: `sub_model_trim` for 6,123 rows was
-derived **offline** from the model string (the page title is `brand + model + trim`, so the trim was
-already in the row); `engine_capacity`, `seller_type` and `body_type` can only come from the detail
-pages, and the crawler was rate-limited by a 200 captcha page — so those columns are **unchanged** in
-v2 until the crawl is resumed. The difference between `docs/features_steps.md` and
-`docs/features_steps_v2.md` is the trim fill alone: −0.04 pp MAPE on `val_full`.
+The crawl **ran to completion** over the 7,704 rows where a detail page was the only source
+(`docs/data_quality_v2.md` has the counts). What it found is field-specific:
+
+| Field | Rows filled (train / val / test) | Reading |
+|---|---:|---|
+| `seller_type` | **1,981 / 406 / 424** of 4,976 seller-imputed rows | the page names the salon (`a.cname` subdomain), or has no link at all → private |
+| `engine_capacity` | **31 / 9 / 8** of 2,752 engine-imputed rows (1.7 %) | bonbanh prints the label `Động cơ` with an **empty value** on most older ads |
+| `body_type` | 3 / 1 / 0 | already observed on almost every row |
+| `sub_model_trim` | 4,351 / 887 / 885 | derived **offline** from the `model` string, no request |
+
+The recon's "engine 81 %" counted a label plus a number *anywhere* on the page over a random sample;
+it did not mean a fillable cell, and that is the correction this run produced.
+
+Effect on the numbers: none measurable. `docs/features_steps_v2.md` step 3 stays at MAPE 0.1125 on
+`val_full` and 0.0991 on `val_clean` (the trim-only build gave 0.1125 / 0.0989), and the held-out
+nameplate error in `docs/generalisation_v2.md` is 23.9 % versus 24.1 % for the trim-only build —
+inside noise. `seller_type` is one of five columns in the `cat_spec` group (ΔR² 0.0102 for the whole
+group), so replacing 2,811 imputations with observations does not move a tree model that already has
+brand, model and year. The two columns that did move the score — trim rank and a parsed engine — come
+from v2 features, not from this crawl.
+
 
    before the split. Until then, report the error **with and without** this tail —
    `docs/benchmark.md` now carries both columns (`MAPE` and `MAPE clean`).

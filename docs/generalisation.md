@@ -1,6 +1,6 @@
 # Generalisation — what the score looks like on a nameplate the model never saw
 
-Generated 2026-11-14T06:25:23+00:00 by `python -m tools.generalisation_check` (features `v1`, share 20%, seed 42).
+Generated 2026-11-15T00:58:23+00:00 by `python -m tools.generalisation_check` (features `v1`, share 20%, seed 42).
 
 **565 `brand|model` levels (14,084 train rows, 20.1% of train) were removed from training.** The estimator is a fixed LightGBM (300 trees); nothing else changed.
 
