@@ -42,6 +42,9 @@ jobs:
           python -m tools.generalisation_check --help
           python -m tools.backfill_bonbanh --help
           python -m tools.apply_backfill --help
+          python -m tools.export_v2_model --help
+          python -m src.models.predict --help
+          python -m tools.inference_smoke --help
           python -m tools.label_cleaning_eval --help
           python -m tools.recon_detail_fields --help
           python -m tools.clean_check --help

@@ -49,6 +49,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", default="lightgbm")
     parser.add_argument("--keep", action="store_true", help="keep the temporary directory")
     parser.add_argument("--skip-tests", action="store_true")
+    parser.add_argument("--skip-predict", action="store_true",
+                        help="do not build the v2 bundle and run the predict selftest (~60-90 s)")
     args = parser.parse_args(argv)
 
     source = config.DATA_MASTER
@@ -75,6 +77,11 @@ def main(argv: list[str] | None = None) -> int:
         run(f"train {args.model}", [sys.executable, "-m", "src.models.train",
                                     "--model", args.model, "--features", args.features,
                                     "--quantiles"], target)
+        if not args.skip_predict:
+            # the serving path, from the same archive: v2 table -> bundle -> a real prediction
+            run("v2 features", [sys.executable, "-m", "src.features.extend", "--write"], target)
+            run("v2 bundle", [sys.executable, "-m", "tools.export_v2_model", "--fast"], target)
+            run("predict selftest", [sys.executable, "-m", "src.models.predict", "--selftest"], target)
         run("model gate", [sys.executable, "-m", "tools.model_gate"], target)
         if not args.skip_tests:
             run("unit tests", [sys.executable, "-m", "unittest", "discover", "-s", "tests"], target)
