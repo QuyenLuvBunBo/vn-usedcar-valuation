@@ -138,9 +138,11 @@ def load_training() -> dict:
     except SystemExit:
         print("  note: label_flags.csv is absent -> every row weighs 1 (a clean checkout has no flags)")
     if flags is None:
-        flags = pd.DataFrame({"listing_id": train["listing_id"], "deposit_suspected": False,
-                              "placeholder_odometer": False, "implausible_year": False,
-                              "repeat_ad": False, "is_duplicate_copy": False, "flag_count": 0})
+        flags = pd.DataFrame({"listing_id": train["listing_id"],
+                              "canonical_listing_id": train["listing_id"],
+                              "deposit_suspected": False, "placeholder_odometer": False,
+                              "implausible_year": False, "repeat_ad": False,
+                              "is_duplicate_copy": False, "flag_count": 0})
     train_flags = train[["listing_id"]].merge(flags, on="listing_id", how="left").fillna(
         {"deposit_suspected": False, "placeholder_odometer": False, "implausible_year": False,
          "repeat_ad": False, "is_duplicate_copy": False, "flag_count": 0})
