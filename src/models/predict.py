@@ -51,6 +51,11 @@ def _int_keys(table: dict) -> dict:
     return table
 
 
+def _key(value: object) -> str:
+    """Lookup key: whitespace collapsed, case folded ("  GLC 300 4MATIC " -> "glc 300 4matic")."""
+    return " ".join(str(value or "").strip().split()).casefold()
+
+
 class Predictor:
     """Loads a bundle once; every call is pure (no I/O, no shared state)."""
 
@@ -72,43 +77,88 @@ class Predictor:
         self.shift_low = float(calibration.get("shift_low_log") or 0.0)
         self.shift_high = float(calibration.get("shift_high_log") or 0.0)
 
+        # The bundle files carry the training spellings; a caller may type "4MATIC", " camry " or
+        # "AUTOMATIC". These maps are built once so every lookup is case/whitespace-insensitive
+        # without touching the fitted artefacts or doing per-call I/O.
+        self.category_lookup: dict[str, dict[str, str]] = {}
+        for column, values in self.categories["categories"].items():
+            lookup: dict[str, str] = {}
+            for value in values:
+                lookup.setdefault(_key(value), value)      # the first training spelling wins
+            self.category_lookup[column] = lookup
+        self.province_lookup: dict[str, str] = {}
+        for name in self.feature_stats.get("province_price_index", {}):
+            self.province_lookup.setdefault(_key(name), name)
+        for name in self.feature_stats.get("provinces_kept", []):
+            self.province_lookup.setdefault(_key(name), name)
+        self.brand_model_counts = {_key(key): int(value)
+                                   for key, value in self.known["brand_model_counts"].items()}
+        self.segment_median = {_key(key): float(value)
+                               for key, value in self.known["segment_median_vnd"].items()}
+        self.placeholder_low = float(self.known["placeholder_odometer_low"])
+        self.placeholder_high = float(self.known["placeholder_odometer_high"])
+        self.rare_models = {_key(value) for value in (self.impute.get("rare_models") or [])}
+
     @classmethod
     def load(cls, bundle: str | Path = DEFAULT_BUNDLE) -> "Predictor":
         return cls(Path(bundle))
 
     # ------------------------------------------------------------- raw -> row
+    def _canonical(self, column: str, value: str) -> str:
+        """The bundle's spelling for `value`, or the value itself when it is genuinely unseen."""
+        return self.category_lookup.get(column, {}).get(_key(value), value)
+
     def _normalise(self, record: dict) -> dict:
         absent = [field for field in REQUIRED if not str(record.get(field, "")).strip()]
         if absent:
             raise ValueError(f"a prediction needs {absent} — got {sorted(record)}")
+        province = schema.normalize_province(record.get("location_province"))
         row = {
             "listing_id": str(record.get("listing_id") or "PREDICTED"),
-            "source_platform": str(record.get("source_platform") or "Unknown"),
-            "brand": str(record["brand"]).strip(),
-            "model": str(record["model"]).strip(),
+            "source_platform": self._canonical(
+                "source_platform", str(record.get("source_platform") or "Unknown")),
+            "brand": self._canonical("brand", str(record["brand"]).strip()),
+            "model": self._canonical("model", str(record["model"]).strip()),
             "sub_model_trim": record.get("sub_model_trim"),
             "manufacture_year": int(float(record["manufacture_year"])),
             "mileage_km": record.get("mileage_km"),
-            "transmission": schema.normalize_transmission(record.get("transmission")),
-            "fuel_type": schema.normalize_fuel(record.get("fuel_type")),
-            "origin": schema.normalize_origin(record.get("origin")),
-            "body_type": schema.normalize_body(record.get("body_type")),
+            "transmission": self._canonical(
+                "transmission", schema.normalize_transmission(record.get("transmission"))),
+            "fuel_type": self._canonical("fuel_type", schema.normalize_fuel(record.get("fuel_type"))),
+            "origin": self._canonical("origin", schema.normalize_origin(record.get("origin"))),
+            "body_type": self._canonical("body_type", schema.normalize_body(record.get("body_type"))),
             "engine_capacity": record.get("engine_capacity"),
             "seats": record.get("seats"),
-            "location_province": schema.normalize_province(record.get("location_province")),
-            "seller_type": schema.map_value(record.get("seller_type"), {}, "Unknown"),
+            "location_province": self.province_lookup.get(_key(province), province),
+            "seller_type": self._canonical(
+                "seller_type", schema.map_value(record.get("seller_type"), {}, "Unknown")),
             "price_vnd": record.get("price_vnd"),
             "imputed": "",
+            # The sentinel the caller sent (or None); kept for `_warnings` because `_impute` blanks
+            # `mileage_km` so the age median fills it, which is what the warning promises.
+            "odometer_placeholder": None,
         }
         for key in ("mileage_km", "engine_capacity", "seats"):
             value = row[key]
             row[key] = "" if value is None or (isinstance(value, float) and np.isnan(value)) else value
         row["sub_model_trim"] = "" if row["sub_model_trim"] is None else row["sub_model_trim"]
+        if row["mileage_km"] not in ("", None):
+            try:
+                mileage = float(row["mileage_km"])
+            except (TypeError, ValueError):
+                mileage = None
+            if mileage is not None and (mileage <= self.placeholder_low
+                                        or mileage >= self.placeholder_high):
+                row["odometer_placeholder"] = mileage
         return row
 
     def _impute(self, row: dict) -> dict:
         """Same order as `missing.impute_parts`, with the exported statistics."""
         rows = [row]
+        if row.get("odometer_placeholder") is not None:
+            # A sentinel (1 km, 999 998 km) is not a measurement: treat it as missing so the
+            # age-band median fills it, and `fill_median_by_age` marks `mileage_km` as imputed.
+            row["mileage_km"] = ""
         missing.fill_engine_from_trim(rows)
         for column in CATEGORICAL_FILLS:
             missing.fill_categorical(rows, self.impute["categorical"][column])
@@ -118,10 +168,9 @@ class Predictor:
         missing.fill_median_by_group(rows, self.impute["engine_by_model"])
         missing.fill_median_by_age(rows, self.impute["engine_by_age"],
                                    reference_year=self.reference_year)
-        rare = set(self.impute.get("rare_models") or [])
         for target in rows:
             value = str(target.get("model") or "")
-            target["model_group"] = "Other" if (not value or value in rare) else value
+            target["model_group"] = "Other" if (not value or _key(value) in self.rare_models) else value
         return rows[0]
 
     def _features(self, row: dict) -> pd.DataFrame:
@@ -144,7 +193,8 @@ class Predictor:
         matrix = prepared[columns].copy()
         for column, values in self.categories["categories"].items():
             if column in matrix.columns:
-                series = matrix[column].astype(str)
+                lookup = self.category_lookup.get(column, {})
+                series = matrix[column].astype(str).map(lambda value: lookup.get(_key(value), value))
                 series = series.where(series.isin(values))       # an unseen level becomes NaN
                 matrix[column] = pd.Categorical(series, categories=values)
         return matrix
@@ -154,7 +204,7 @@ class Predictor:
         found: list[dict] = []
         known = self.known
         combo = f"{raw['brand']}|{raw['model']}"
-        count = int(known["brand_model_counts"].get(combo, 0))
+        count = int(self.brand_model_counts.get(_key(combo), 0))
         if count == 0:
             found.append({"code": "unseen_brand_model", "severity": "high",
                           "message": f"'{combo}' never appears in the training data; the estimate is a "
@@ -169,13 +219,13 @@ class Predictor:
                           "message": f"model year {year} is outside "
                                      f"{known['year_min']}..{known['capture_year']}."})
 
-        mileage = raw.get("mileage_km")
-        if mileage not in ("", None):
-            value = float(mileage)
-            if value <= known["placeholder_odometer_low"] or value >= known["placeholder_odometer_high"]:
-                found.append({"code": "placeholder_odometer", "severity": "medium",
-                              "message": f"{value:,.0f} km looks like a placeholder, not a distance; "
-                                         f"the odometer was imputed for this prediction."})
+        # `_normalise` detects the sentinel and `_impute` blanks it; the original value is kept here
+        # so the message quotes what the caller sent.
+        placeholder_mileage = raw.get("odometer_placeholder")
+        if placeholder_mileage is not None:
+            found.append({"code": "placeholder_odometer", "severity": "medium",
+                          "message": f"{float(placeholder_mileage):,.0f} km looks like a placeholder, "
+                                     f"not a distance; the odometer was imputed for this prediction."})
 
         if "engine_capacity_parsed" in prepared.columns:
             engine = prepared["engine_capacity_parsed"].iloc[0]
@@ -186,7 +236,7 @@ class Predictor:
                                          f"{low}–{high} L."})
 
         if asking is not None and float(asking) > 0:
-            segment = known["segment_median_vnd"].get(combo)
+            segment = self.segment_median.get(_key(combo))
             baseline = float(segment) if segment else float(known["national_median_vnd"])
             ratio = float(asking) / baseline if baseline > 0 else None
             if ratio is not None and ratio < known["deposit_ratio_threshold"]:

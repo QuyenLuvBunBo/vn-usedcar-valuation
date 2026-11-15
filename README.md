@@ -231,6 +231,8 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 | [docs/recon_decision.md](docs/recon_decision.md) | link health + field presence on the v1 IDs, and the go/no-go for a backfill crawl |
 | [docs/recon_chotot_live.md](docs/recon_chotot_live.md) | live Chợ Tốt probe: crawlable, but `engine_capacity` and `trim` are not published |
 | [docs/inference.md](docs/inference.md) | the v2 serving bundle (`models/v2/`), its recorded metrics and hashes, the warnings, and `predict()` usage |
+| [docs/readiness_v2.md](docs/readiness_v2.md) | the same bundle sliced by price band, group thickness, trim and gearbox — where the error lives |
+| [docs/live_blind_test_v2.md](docs/live_blind_test_v2.md) | eight hand-written, unseen listings through the bundle, with the expected warnings asserted |
 | [docs/report_style.md](docs/report_style.md) | what may appear in the submitted report, and where traceability lives instead |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | branches, commits, file ownership, PR checklist |
 | [docs/sources/oto.md](docs/sources/oto.md) | oto.com.vn recon, field mapping, coverage audit, verified source size |
@@ -245,6 +247,8 @@ source, missing rate per source, duplicate rate, flag counts — and writes
 | `tools.repair_price_status` | recompute the derived `price_status` column of a contract CSV |
 | `tools.model_gate` | **gate before training**: forbidden columns, target copies, partition drift, group leakage |
 | `tools.baseline_smoke` | canary: does training run here, and what must a model beat (median vs untuned LightGBM) |
+| `tools.live_blind_test` | the six requested scenarios (eight records: complete, trim pair, blank fields, luxury, unseen nameplate, deposit ad) through `models/v2`, with expected warnings asserted |
+| `tools.readiness_check` | MAPE / coverage of the v2 bundle by price band, group thickness, trim, gearbox and nameplate; writes `docs/readiness_v2.md` |
 | `tools.smoke_test` | offline regression tests for the parsers |
 | `tools.validate_parser` | parser vs. previously saved raw HTML (offline) |
 | `tools.recon <url>` | robots.txt, page fetch, hidden API/JSON discovery |

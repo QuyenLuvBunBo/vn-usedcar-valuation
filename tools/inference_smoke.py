@@ -38,14 +38,23 @@ RAW_COLUMNS = ("listing_id", "source_platform", "brand", "model", "sub_model_tri
                "engine_capacity", "seats", "location_province", "seller_type")
 
 
-def sample(raw: pd.DataFrame, features: pd.DataFrame, rows: int,
-           seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Half complete rows, half rows that still have blanks — the second half exercises imputation."""
+def sample(raw: pd.DataFrame, features: pd.DataFrame, rows: int, seed: int,
+           known: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Half complete rows, half rows that still have blanks — the second half exercises imputation.
+
+    Placeholder odometers are skipped: serving now treats a sentinel (≤ 100 km or ≥ 900,000 km) as
+    missing and imputes it, while the frozen feature row kept the sentinel. That divergence is
+    deliberate (`src/models/predict.py`), so comparing the two paths on those rows would be wrong.
+    """
     usable = features["v2_filled"].fillna("").astype(str) == ""
     features = features[usable]
     raw = raw.copy()
     raw["listing_id"] = raw["listing_id"].astype(str)
     merged = raw.merge(features[["listing_id"]], on="listing_id")
+    mileage = pd.to_numeric(merged["mileage_km"], errors="coerce")
+    placeholder = ((mileage <= known["placeholder_odometer_low"])
+                   | (mileage >= known["placeholder_odometer_high"])).fillna(False)
+    merged = merged[~placeholder]
 
     blank = (merged["sub_model_trim"].isna() | merged["engine_capacity"].isna()
              | merged["mileage_km"].isna()
@@ -89,8 +98,9 @@ def main(argv: list[str] | None = None) -> int:
     v2_cohort["listing_id"] = v2_cohort["listing_id"].astype(str)
     features = features.merge(v2_cohort, on="listing_id", how="left")
     raw = pd.read_csv(config.DATA_MASTER / "val_cohort.csv", low_memory=False)
+    known = json.loads((bundle / "known.json").read_text(encoding="utf-8"))
 
-    complete, blank = sample(raw, features, args.rows, args.seed)
+    complete, blank = sample(raw, features, args.rows, args.seed, known)
     results = []
     for label, frame in (("complete", complete), ("with-blanks", blank)):
         ids = frame["listing_id"].astype(str).tolist()
@@ -118,7 +128,8 @@ def main(argv: list[str] | None = None) -> int:
     payload = {"checked": int(len(frame)), "max_abs_ratio_error": worst, "tolerance": tolerance,
                "passed": passed,
                "note": "serving = raw row through Predictor; direct = the same row's v2 features "
-                       "through model_point.joblib; backfilled rows are excluded by design",
+                       "through model_point.joblib; backfilled rows and placeholder odometers are "
+                       "excluded by design (serving imputes a placeholder, the frozen table kept it)",
                "rows": results}
     Path(args.out).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
                               encoding="utf-8", newline="\n")

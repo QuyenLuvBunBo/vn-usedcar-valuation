@@ -72,6 +72,16 @@ PASS — max error 0.00e+00 (tolerance 1e-03)
 Rows whose v2 cohort was backfilled (`v2_filled` not empty) are excluded on purpose: their feature row
 holds a value the raw cohort never had, so the two paths *should* differ there.
 
+Rows whose odometer is a **placeholder** (≤ 100 km or ≥ 900,000 km) are excluded for the same reason:
+`Predictor` treats the sentinel as missing and imputes the age-band median, while the frozen feature
+row kept the sentinel it was trained on. `tests/test_predict.py` covers that rule directly.
+
+Rows the v2 cohort **imputed at build time** are not a parity test either: `impute_stats.json` is
+fitted on `train_cohort.csv`, while the v2 cohort's imputation is a different snapshot for a few
+groups (e.g. Honda|CR-V engine 1.75 L in the bundle vs 2.0 L in the cohort). That is a recorded
+artefact mismatch, not a serving-path defect — the exact-parity scope and the exclusions are in
+`docs/readiness_v2.md` §“Serving parity”.
+
 ## 4. Warnings a caller can rely on
 
 | `code` | When | Severity |
@@ -87,6 +97,18 @@ holds a value the raw cohort never had, so the two paths *should* differ there.
 Each warning carries a `code` (stable, for a UI) and a `message` (human text). The `trace` object
 reports which fields were imputed, whether the engine came from a badge parse, the trim rank and the
 canonical model — the same decisions the training table made.
+
+Two serving rules worth knowing:
+
+- **Category matching ignores case and extra whitespace.** `brand`, `model`, the contract categorical
+  columns and `location_province` are mapped to the bundle's own spelling through
+  `categories.json` / `feature_stats.json`, and `known.json` is looked up the same way. `4MATIC`,
+  `4Matic`, `  glc 300 4matic ` all price as the trained `GLC 300 4Matic`, so a spelling variant no
+  longer raises a false `unseen_brand_model` or moves the estimate.
+- **A placeholder odometer is imputed, not used.** A value ≤ 100 km or ≥ 900,000 km is blanked before
+  `fill_median_by_age`, so the age-band median fills it and `trace.imputed` contains `mileage_km`,
+  matching the warning text. The frozen training table kept those sentinels, which is why
+  `tools/inference_smoke` skips such rows (see §3).
 
 ## 5. Usage
 

@@ -140,6 +140,36 @@ class PredictorTests(unittest.TestCase):
         codes = {w["code"] for w in self.predictor.predict_one({**RECORD, "mileage_km": 1})["warnings"]}
         self.assertIn("placeholder_odometer", codes)
 
+    def test_a_placeholder_odometer_is_imputed_like_a_missing_one(self):
+        flagged = self.predictor.predict_one({**RECORD, "mileage_km": 1})
+        missing = self.predictor.predict_one(
+            {key: value for key, value in RECORD.items() if key != "mileage_km"})
+        high = self.predictor.predict_one({**RECORD, "mileage_km": 999_998})
+        self.assertIn("mileage_km", flagged["trace"]["imputed"])
+        self.assertIn("mileage_km", high["trace"]["imputed"])
+        self.assertEqual(flagged["price_vnd"], missing["price_vnd"])
+        self.assertNotIn("mileage_km", self.predictor.predict_one(RECORD)["trace"]["imputed"])
+
+    def test_category_spelling_is_canonicalised(self):
+        canonical = self.predictor.predict_one(RECORD)
+        folded = self.predictor.predict_one({**RECORD, "brand": "toyota", "model": "  CAMRY "})
+        self.assertEqual(folded["price_vnd"], canonical["price_vnd"])
+        self.assertNotIn("unseen_brand_model", {w["code"] for w in folded["warnings"]})
+
+    def test_lowercase_categorical_labels_map_to_the_bundle_spelling(self):
+        row = self.predictor._normalise({**RECORD, "transmission": "automatic",
+                                         "fuel_type": "gasoline", "body_type": "sedan",
+                                         "origin": "cbu", "seller_type": "private individual",
+                                         "source_platform": "unknown"})
+        self.assertEqual(row["transmission"], "Automatic")
+        self.assertEqual(row["fuel_type"], "Gasoline")
+        self.assertEqual(row["body_type"], "Sedan")
+        self.assertEqual(row["origin"], "CBU")
+        self.assertEqual(row["seller_type"], "Private Individual")
+        self.assertEqual(row["source_platform"], "Unknown")
+        self.assertEqual(row["brand"], "Toyota")
+        self.assertEqual(row["model"], "Camry")
+
     def test_an_absurd_year_is_flagged(self):
         codes = {w["code"] for w in self.predictor.predict_one({**RECORD, "manufacture_year": 1025})["warnings"]}
         self.assertIn("implausible_year", codes)
