@@ -77,13 +77,32 @@ def git_commit() -> str:
         return "unknown"
 
 
+def train_rows() -> list[dict]:
+    """The pre-imputation train rows; a clean checkout only ships the imputed cohort.
+
+    When `train_cohort.csv` is absent (the mandatory snapshot folder carries the imputed file), the
+    blanks are reconstructed from the `imputed` column: every cell the pipeline filled is set back to
+    empty, which is exactly the state the statistics were fitted on.
+    """
+    pre = config.DATA_MASTER / "train_cohort.csv"
+    if pre.exists():
+        return missing.load_split(pre)[0]
+    rows, _ = missing.load_split(config.DATA_MASTER / "train_cohort_imputed.csv")
+    for row in rows:
+        for column in str(row.get("imputed") or "").split(";"):
+            if column:
+                row[column] = ""
+    print("  note: train_cohort.csv absent -> blanks restored from the `imputed` column")
+    return rows
+
+
 def fit_impute_stats() -> dict:
     """The statistics `missing.impute_parts` fits on train — serialised instead of thrown away.
 
     Fitted on `train_cohort.csv` (before imputation), exactly as the pipeline does, so a raw record
     goes through the same modes and medians it would have met during training.
     """
-    rows, _ = missing.load_split(config.DATA_MASTER / "train_cohort.csv")
+    rows = train_rows()
     reference = missing.capture_year(rows)
     groups = ("brand", "model")
     return {
@@ -200,8 +219,7 @@ def known_table(data: dict) -> dict:
         "placeholder_odometer_low": quality.PLACEHOLDER_LOW,
         "placeholder_odometer_high": quality.PLACEHOLDER_HIGH,
         "year_min": quality.YEAR_MIN,
-        "capture_year": int(missing.capture_year(
-            missing.load_split(config.DATA_MASTER / "train_cohort.csv")[0])),
+        "capture_year": int(missing.capture_year(train_rows())),
         "engine_range": [0.6, 8.0],
     }
 
