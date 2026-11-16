@@ -47,6 +47,12 @@ FORBIDDEN = (
     "raw_price_text", "price_status", "listing_date", "scraped_at", "source_url",
     "quality_flags", "imputed", "tier",
     "y_pred", "y_pred_log", "y_pred_vnd", "residual", "abs_pct_error", "delta", "label", "reason",
+    # label-quality side table (src/data_prep/quality.py): a flag computed from the price, or a row
+    # whose *weight* the model is supposed to feel, must never travel as a feature.
+    "deposit_suspected", "deposit_ratio", "placeholder_odometer", "implausible_year",
+    "repeat_ad", "is_duplicate_copy", "canonical_listing_id", "flag_count",
+    # the partition label itself: a table that knows which split it is in can memorise the split
+    "split",
 )
 MAX_TARGET_CORRELATION = 0.999
 GROUP_COLUMN = "duplicate_group_id"

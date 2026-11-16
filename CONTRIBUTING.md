@@ -101,3 +101,11 @@ which fields the site **does not** expose, and any source-specific normalization
 
 `data/raw/**` (raw HTML), `data/*.db`, `logs/**`, `.env`, notebooks with outputs.
 Share datasets between members through Google Drive (or Git LFS if the team agrees).
+
+## 7. The submitted report is not a repository dump
+
+The report that goes to the teacher carries **numbers, tables, figures and argument** — not code
+blocks, file paths, commands, README text or Markdown internals. Traceability (which artefact a table
+came from, which command regenerates it) lives in `docs/`; the report only says that every number is
+reproducible from the repository. The full rule and the pre-submission checklist are in
+[`docs/report_style.md`](docs/report_style.md) — check them before exporting the PDF.
