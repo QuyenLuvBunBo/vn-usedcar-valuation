@@ -66,6 +66,31 @@ class ForbiddenColumnTests(unittest.TestCase):
         self.assertTrue(any("quality_flags" in problem for problem in problems))
 
 
+class LabelFlagTests(unittest.TestCase):
+    """The side table's columns decide row weights; if one leaks into X the model learns the label."""
+
+    def test_every_quality_flag_column_is_rejected(self):
+        from src.data_prep import quality
+        for column in quality.FLAG_COLUMNS:
+            if column == "listing_id":
+                continue                      # a trace id, covered by its own note
+            columns = [*BASE_COLUMNS, column]
+            rows = [row + [1] for row in BASE_ROWS]
+            with TemporaryDirectory() as folder:
+                path = write_csv(Path(folder) / "train_features_full.csv", columns, rows)
+                problems = audit(path)["problems"]
+            self.assertTrue(any(column in problem for problem in problems),
+                            f"{column} was not rejected by the gate")
+
+    def test_the_side_table_itself_is_not_a_feature_table(self):
+        """Auditing label_flags.csv directly fails on the missing target, by design."""
+        with TemporaryDirectory() as folder:
+            path = write_csv(Path(folder) / "label_flags.csv",
+                             ["listing_id", "deposit_suspected"], [["A1", 1], ["A2", 0]])
+            report = audit(path)
+        self.assertTrue(any("target column" in problem for problem in report["problems"]))
+
+
 class TargetCopyTests(unittest.TestCase):
 
     def test_a_renamed_copy_of_the_target_is_caught(self):
