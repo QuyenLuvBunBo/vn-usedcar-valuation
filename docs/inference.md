@@ -28,7 +28,7 @@ used by `tools/clean_check.py`).
 | | |
 |---|---|
 | git commit | `988321c` |
-| features | 30 (`docs/features_v2.md`) · rows train 70,244 · val 14,964 |
+| features | 30 (`docs/evaluation.md`) · rows train 70,244 · val 14,964 |
 | weights | `1/k` for repeated ads — 18,655 train rows down-weighted |
 | params | LightGBM 300 trees, lr 0.06, 63 leaves, `min_child_samples` 40, seed 42 |
 | versions | Python 3.14.8 · pandas 3.0.3 · numpy 2.4.6 · lightgbm 4.7.0 |

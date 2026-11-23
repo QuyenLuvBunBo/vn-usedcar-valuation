@@ -30,13 +30,14 @@ which one:
 
 | Report section | Numbers come from |
 |---|---|
-| data quality | `docs/week2_status.md`, `normalize_report.json` |
+| data quality | `docs/data_limitations.md`, `docs/data_handover.md` |
 | descriptive statistics | `docs/eda_summary.md` + `docs/figures/` |
-| features | `docs/features.md`, `docs/features_ablation.md` |
+| features, label cleaning, generalisation, backfill | `docs/evaluation.md` |
 | benchmark | `docs/benchmark.md`, `docs/test_evaluation.md` |
 | error analysis | `docs/error_taxonomy.md`, `docs/error_audit_25.md` |
-| anomalies | `docs/case_studies.md`, `docs/intervals.md` |
-| label cleaning | `docs/label_flags.md`, `docs/label_cleaning.md` |
+| anomalies / intervals | `docs/intervals.md`, `docs/live_blind_test_v2.md` |
+| model and serving | `docs/inference.md`, `docs/readiness_v2.md`, `docs/live_blind_test_v2.md` |
+| sources and coverage | `docs/sources.md` |
 
 ## 4. Checklist before submitting
 

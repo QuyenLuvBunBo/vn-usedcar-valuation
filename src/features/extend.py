@@ -5,7 +5,7 @@ every number in the week-3 report was computed on it. This module writes **new**
 
     data/master/v2/{train,val,test}_features_full.csv
     data/master/v2/features_v2_report.json
-    docs/features_v2.md
+    data/master/v2/features_v2.md
 
 What it adds, and why:
 
@@ -278,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
                              "base features still come from the frozen v1 table")
     parser.add_argument("--out-dir", default=str(config.DATA_MASTER / "v2"))
     parser.add_argument("--report", default=str(config.DATA_MASTER / "v2" / "features_v2_report.json"))
-    parser.add_argument("--doc", default="docs/features_v2.md")
+    parser.add_argument("--doc", default=str(config.DATA_MASTER / "v2" / "features_v2.md"))
     parser.add_argument("--write", action="store_true", help="write the CSVs (default: dry run)")
     args = parser.parse_args(argv)
 
