@@ -28,11 +28,11 @@ git push -u origin feat/source-bonbanh-new
 - Examples: `feat: bonbanh crawler (cars 2019-2026)`, `fix: parse price '1 tỷ 250 tr'`
 - Do not commit large data files or `.env`.
 - **Never commit derived data or fitted artifacts.** `data/master/**`, `encoded/**`, `models/**`,
-  `*.npz`, `*.joblib`, `*_oof_rows.csv` are rebuilt by one command (`docs/data_handover.md` §5) and
+  `*.npz`, `*.joblib`, `*_oof_rows.csv` are rebuilt by the commands in `docs/data_handover.md` and
   `train_*_oof_rows.csv` also carries the target (`price_vnd`, `y_log`). The repository is **public**:
   a committed dataset stays in history forever, even after a later `git rm`. Share artifacts through
-  the Drive folder `04_models/<date>/`, and commit only the text evidence (`features.md`,
-  `artifact_verification.json`, `artifact_reproducibility.json`, test logs).
+  the Drive folder `04_models/<date>/`, and commit only the text evidence (`docs/evaluation.md`,
+  `docs/inference.md`, `artifact_verification.json`, `artifact_reproducibility.json`, test logs).
 - Evidence must name a commit that exists on GitHub. If a tool records `git rev-parse HEAD`, commit
   first and run it on that commit, or the recorded hash is unverifiable for everyone else.
 
@@ -42,13 +42,13 @@ git push -u origin feat/source-bonbanh-new
 | You may edit freely | Needs a separate PR + 2 reviewers |
 |---|---|
 | `src/sources/<your-source>/**` | `src/common/**` (schema, parsing, http_client, storage, config) |
-| `docs/sources/<your-source>.md` | `docs/unified_schema.md`, `README.md`, `CONTRIBUTING.md`, `requirements.txt` |
+| a row in `docs/sources.md` for your source | `docs/unified_schema.md`, `README.md`, `CONTRIBUTING.md`, `requirements.txt` |
 
 **Never edit another source's code.** If you find a bug in `src/common/`, open an issue or a dedicated PR.
 
 Team-wide files that are nobody's package still need a reviewer from another sub-team:
 `src/data_prep/**` (split, normalize, missing, eda, pipeline), `src/merge/**`, `tests/**`,
-`docs/week*.md` and `docs/crawl_gap.md`.
+`docs/evaluation.md` and `docs/sources.md`.
 
 ## 3b. Data is frozen between milestones
 
